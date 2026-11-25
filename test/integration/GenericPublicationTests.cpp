@@ -1,5 +1,4 @@
 #include <filesystem>
-#include <optional>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -10,6 +9,7 @@
 #include "Utility/Driver/MarmotDriver.h"
 #include "support/CompileHelpers.h"
 #include "support/TempProject.h"
+#include "Support/Optional.h"
 
 TEST_CASE("Sibling modules specialize shared generic bodies with nested lambdas", "[compiler][module][generic][publication]")
 {
@@ -39,20 +39,20 @@ foreign "MARMOT_FFI_Print" Print: fn(Text) -> Unit from "marmotstdlib";
 Print((Left::Value() as Text) ++ ":" ++ Right::Value() ++ "\n");
 )")
 	});
-	std::optional<std::string> expected_bytecode;
+	MarmotCompiler::Optional<std::string> expected_bytecode;
 	std::vector<std::string> expected_ir;
 	std::vector<std::string> expected_ast;
 	for (size_t jobs : { 1u, 2u, 4u, 4u })
 	{
 		CAPTURE(jobs);
 		MarmotDriver::CompileFileWithReportResult compiled = MarmotDriver::CompileFileWithReport(project.Path("Main.mmt"), CompilationInputs().WithJobs(jobs).WithEmitMarmotIR(true).WithEmitAst(true));
-		if (!compiled.has_value())
+		if (!compiled.HasValue())
 		{
-			FAIL(compiled.error().Rendered());
+			FAIL(compiled.Error().Rendered());
 		}
 		std::ostringstream artifact;
-		REQUIRE(MarmotBinaryArtifact::WriteExecutable(compiled->m_executable, artifact).has_value());
-		if (!expected_bytecode.has_value())
+		REQUIRE(MarmotBinaryArtifact::WriteExecutable(compiled->m_executable, artifact).HasValue());
+		if (!expected_bytecode.HasValue())
 		{
 			expected_bytecode = artifact.str();
 			expected_ir = compiled->m_marmot_ir;

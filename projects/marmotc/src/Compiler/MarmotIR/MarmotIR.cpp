@@ -1,5 +1,6 @@
 #include "MarmotIR.h"
 #include "Compiler/Lowering/GenericTypes.h"
+#include "Support/Optional.h"
 
 #include <algorithm>
 #include <array>
@@ -20,8 +21,8 @@ namespace
 	{
 #define MARMOT_IR_UNARY(name, operand, result, effect, fault) MarmotIROpInfo{ #name, MarmotIRArity::Unary, MarmotIRScalar::operand, MarmotIRScalar::result, MarmotIREffect(MarmotIREffectKind::effect, MarmotIRFault::fault) },
 #define MARMOT_IR_BINARY(name, operand, result, effect, fault) MarmotIROpInfo{ #name, MarmotIRArity::Binary, MarmotIRScalar::operand, MarmotIRScalar::result, MarmotIREffect(MarmotIREffectKind::effect, MarmotIRFault::fault) },
-#define MARMOT_IR_SPECIAL(name, effect, fault) MarmotIROpInfo{ #name, MarmotIRArity::Special, std::nullopt, std::nullopt, MarmotIREffect(MarmotIREffectKind::effect, MarmotIRFault::fault) },
-#define MARMOT_IR_TERMINATOR(name) MarmotIROpInfo{ #name, MarmotIRArity::Terminator, std::nullopt, std::nullopt, MarmotIREffect(MarmotIREffectKind::Io) },
+#define MARMOT_IR_SPECIAL(name, effect, fault) MarmotIROpInfo{ #name, MarmotIRArity::Special, MarmotCompiler::None, MarmotCompiler::None, MarmotIREffect(MarmotIREffectKind::effect, MarmotIRFault::fault) },
+#define MARMOT_IR_TERMINATOR(name) MarmotIROpInfo{ #name, MarmotIRArity::Terminator, MarmotCompiler::None, MarmotCompiler::None, MarmotIREffect(MarmotIREffectKind::Io) },
 #include "Compiler/MarmotIR/MarmotIROps.def"
 	};
 }
@@ -146,7 +147,7 @@ MarmotIRSuccessor::MarmotIRSuccessor(MarmotIRBlockId block, std::vector<MarmotIR
 {
 }
 
-MarmotIRInstruction::MarmotIRInstruction(MarmotIROp op, std::optional<MarmotIRValueId> result, std::shared_ptr<MarmotType> type, std::vector<MarmotIRValueId> operands, MarmotIRImmediate immediate, std::vector<MarmotIRSuccessor> successors, int line)
+MarmotIRInstruction::MarmotIRInstruction(MarmotIROp op, MarmotCompiler::Optional<MarmotIRValueId> result, std::shared_ptr<MarmotType> type, std::vector<MarmotIRValueId> operands, MarmotIRImmediate immediate, std::vector<MarmotIRSuccessor> successors, int line)
 	: m_op(op),
 	m_result(result),
 	m_type(std::move(type)),

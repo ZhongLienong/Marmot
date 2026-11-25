@@ -1,4 +1,5 @@
 #include "MarmotIRBuilder.h"
+#include "Support/Optional.h"
 
 #include <utility>
 
@@ -52,12 +53,12 @@ MarmotIRValueId MarmotIRBuilder::Emit(MarmotIROp op, std::shared_ptr<MarmotType>
 
 MarmotIRValueId MarmotIRBuilder::Unary(MarmotIROp op, MarmotIRValueId operand, std::string name)
 {
-	return Emit(op, MarmotIRScalarType(GetMarmotIROpInfo(op).m_result.value()), { operand }, {}, std::move(name));
+	return Emit(op, MarmotIRScalarType(GetMarmotIROpInfo(op).m_result.Value()), { operand }, {}, std::move(name));
 }
 
 MarmotIRValueId MarmotIRBuilder::Binary(MarmotIROp op, MarmotIRValueId left, MarmotIRValueId right, std::string name)
 {
-	return Emit(op, MarmotIRScalarType(GetMarmotIROpInfo(op).m_result.value()), { left, right }, {}, std::move(name));
+	return Emit(op, MarmotIRScalarType(GetMarmotIROpInfo(op).m_result.Value()), { left, right }, {}, std::move(name));
 }
 
 MarmotIRValueId MarmotIRBuilder::ConstInt(int64_t value, std::string name)
@@ -118,5 +119,5 @@ MarmotIRValueId MarmotIRBuilder::NewValue(std::shared_ptr<MarmotType> type, std:
 
 void MarmotIRBuilder::Terminate(MarmotIROp op, std::vector<MarmotIRValueId> operands, MarmotIRImmediate immediate, std::vector<MarmotIRSuccessor> successors)
 {
-	m_function.Block(m_block).m_instructions.emplace_back(op, std::nullopt, MarmotType::MakeLiteralType<MarmotType::NeverType>(), std::move(operands), std::move(immediate), std::move(successors), m_line);
+	m_function.Block(m_block).m_instructions.emplace_back(op, MarmotCompiler::None, MarmotType::MakeLiteralType<MarmotType::NeverType>(), std::move(operands), std::move(immediate), std::move(successors), m_line);
 }

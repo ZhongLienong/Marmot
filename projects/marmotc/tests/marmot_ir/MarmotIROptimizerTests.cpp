@@ -6,6 +6,7 @@
 #include "Compiler/MarmotIROptimizer/MarmotIROptimizer.h"
 #include "Compiler/MarmotIROptimizer/MarmotIRPasses.h"
 #include "support/CompileHelpers.h"
+#include "Support/Expected.h"
 
 #include <algorithm>
 #include <bit>
@@ -19,22 +20,22 @@ namespace
 	template<const MarmotIRPass&... Passes>
 	MarmotIRModule Optimize(std::string source)
 	{
-		std::expected<LoweredModule, MarmotResult::CompilerDiagnostics> lowered = MarmotTest::LowerSnippetWithDiagnostics(std::move(source));
-		if (!lowered.has_value())
+		MarmotResult::DiagnosticsResult<LoweredModule> lowered = MarmotTest::LowerSnippetWithDiagnostics(std::move(source));
+		if (!lowered.HasValue())
 		{
-			FAIL(lowered.error().Rendered());
+			FAIL(lowered.Error().Rendered());
 		}
 		MarmotIRModule module = std::move(lowered->m_module);
-		const std::expected<void, MarmotIROptimizationFailure> optimized = sizeof...(Passes) == 0u
+		const MarmotCompiler::Expected<void, MarmotIROptimizationFailure> optimized = sizeof...(Passes) == 0u
 			? MarmotIROptimizer().Optimize(module)
 			: MarmotIROptimizer(std::vector<MarmotIRPass>{ Passes... }).Optimize(module);
-		if (!optimized.has_value())
+		if (!optimized.HasValue())
 		{
-			for (const MarmotIRViolation& violation : optimized.error().m_violations)
+			for (const MarmotIRViolation& violation : optimized.Error().m_violations)
 			{
 				UNSCOPED_INFO(violation.ToString());
 			}
-			FAIL(optimized.error().m_producer + " produced invalid MarmotIR");
+			FAIL(optimized.Error().m_producer + " produced invalid MarmotIR");
 		}
 		return module;
 	}
@@ -792,45 +793,45 @@ MayFail(0, 12, 0, 0);
 
 TEST_CASE("The optimizer rejects invalid MarmotIR even with no passes", "[marmot_ir][optimizer][verification]")
 {
-	std::expected<LoweredModule, MarmotResult::CompilerDiagnostics> lowered = MarmotTest::LowerSnippetWithDiagnostics("module Broken\ndef value = 1;\n");
-	REQUIRE(lowered.has_value());
+	MarmotResult::DiagnosticsResult<LoweredModule> lowered = MarmotTest::LowerSnippetWithDiagnostics("module Broken\ndef value = 1;\n");
+	REQUIRE(lowered.HasValue());
 	Break(lowered->m_module);
-	const std::expected<void, MarmotIROptimizationFailure> optimized = MarmotIROptimizer(std::vector<MarmotIRPass>{}).Optimize(lowered->m_module);
-	REQUIRE_FALSE(optimized.has_value());
-	CHECK_FALSE(optimized.error().m_violations.empty());
+	const MarmotCompiler::Expected<void, MarmotIROptimizationFailure> optimized = MarmotIROptimizer(std::vector<MarmotIRPass>{}).Optimize(lowered->m_module);
+	REQUIRE_FALSE(optimized.HasValue());
+	CHECK_FALSE(optimized.Error().m_violations.empty());
 }
 
 TEST_CASE("The optimizer verifies at the build profile's checkpoint", "[marmot_ir][optimizer][verification]")
 {
-	std::expected<LoweredModule, MarmotResult::CompilerDiagnostics> lowered = MarmotTest::LowerSnippetWithDiagnostics("module Broken\ndef value = 1;\n");
-	REQUIRE(lowered.has_value());
+	MarmotResult::DiagnosticsResult<LoweredModule> lowered = MarmotTest::LowerSnippetWithDiagnostics("module Broken\ndef value = 1;\n");
+	REQUIRE(lowered.HasValue());
 	Break(lowered->m_module);
 	const MarmotIRPass mark{ "Mark", [](MarmotIRModule& module)
 	{
 		module.m_name = "PassRan";
 		return false;
 	} };
-	const std::expected<void, MarmotIROptimizationFailure> optimized = MarmotIROptimizer(std::vector<MarmotIRPass>{ mark }).Optimize(lowered->m_module);
-	REQUIRE_FALSE(optimized.has_value());
+	const MarmotCompiler::Expected<void, MarmotIROptimizationFailure> optimized = MarmotIROptimizer(std::vector<MarmotIRPass>{ mark }).Optimize(lowered->m_module);
+	REQUIRE_FALSE(optimized.HasValue());
 #if MARMOT_DEBUG_INFO
 	CHECK(lowered->m_module.m_name == "Broken");
-	CHECK(optimized.error().m_producer == "Lowering");
+	CHECK(optimized.Error().m_producer == "Lowering");
 #else
 	CHECK(lowered->m_module.m_name == "PassRan");
-	CHECK(optimized.error().m_producer == "The MarmotIR optimizer");
+	CHECK(optimized.Error().m_producer == "The MarmotIR optimizer");
 #endif
 }
 
 TEST_CASE("The optimizer rejects IR broken by a pass", "[marmot_ir][optimizer][verification]")
 {
-	std::expected<LoweredModule, MarmotResult::CompilerDiagnostics> lowered = MarmotTest::LowerSnippetWithDiagnostics("module Broken\ndef value = 1;\n");
-	REQUIRE(lowered.has_value());
-	const std::expected<void, MarmotIROptimizationFailure> optimized = MarmotIROptimizer(std::vector<MarmotIRPass>{ DeadCodeEliminationPass, MarmotIRPass{ "Breaking", &Break } }).Optimize(lowered->m_module);
-	REQUIRE_FALSE(optimized.has_value());
+	MarmotResult::DiagnosticsResult<LoweredModule> lowered = MarmotTest::LowerSnippetWithDiagnostics("module Broken\ndef value = 1;\n");
+	REQUIRE(lowered.HasValue());
+	const MarmotCompiler::Expected<void, MarmotIROptimizationFailure> optimized = MarmotIROptimizer(std::vector<MarmotIRPass>{ DeadCodeEliminationPass, MarmotIRPass{ "Breaking", &Break } }).Optimize(lowered->m_module);
+	REQUIRE_FALSE(optimized.HasValue());
 #if MARMOT_DEBUG_INFO
-	CHECK(optimized.error().m_producer == "The MarmotIR pass Breaking");
+	CHECK(optimized.Error().m_producer == "The MarmotIR pass Breaking");
 #else
-	CHECK(optimized.error().m_producer == "The MarmotIR optimizer");
+	CHECK(optimized.Error().m_producer == "The MarmotIR optimizer");
 #endif
-	CHECK_FALSE(optimized.error().m_violations.empty());
+	CHECK_FALSE(optimized.Error().m_violations.empty());
 }

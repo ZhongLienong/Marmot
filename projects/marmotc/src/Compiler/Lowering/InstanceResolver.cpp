@@ -3,6 +3,8 @@
 #include "Compiler/TypeTransform/TypeTransform.h"
 #include "Compiler/Names/SpecialNames.h"
 #include "Compiler/TypeMatching/InstanceTypeMatcher.h"
+#include "Support/Expected.h"
+#include "Support/Optional.h"
 
 #include <algorithm>
 #include <format>
@@ -37,7 +39,7 @@ ResolvedInstanceName::ResolvedInstanceName(std::string symbol, std::string decla
 {
 }
 
-ResolvedMethodCandidate::ResolvedMethodCandidate(std::string first_type_name, std::string second_type_name, std::optional<ResolvedInstanceName> resolved_name)
+ResolvedMethodCandidate::ResolvedMethodCandidate(std::string first_type_name, std::string second_type_name, MarmotCompiler::Optional<ResolvedInstanceName> resolved_name)
 	: m_first_type_name(std::move(first_type_name)),
 	m_second_type_name(std::move(second_type_name)),
 	m_resolved_name(std::move(resolved_name))
@@ -49,12 +51,12 @@ InstanceResolver::InstanceResolver(TypeclassMetadataMap classes)
 {
 }
 
-std::optional<std::shared_ptr<MarmotType>> InstanceResolver::ResolveAssociatedType(const MarmotType::AssociatedType& projection) const
+MarmotCompiler::Optional<std::shared_ptr<MarmotType>> InstanceResolver::ResolveAssociatedType(const MarmotType::AssociatedType& projection) const
 {
 	const TypeclassMetadataMap::const_iterator metadata = m_classes.find(projection.m_class_name);
 	if (metadata == m_classes.cend())
 	{
-		return std::nullopt;
+		return MarmotCompiler::None;
 	}
 	for (const TypeclassInstance& instance : metadata->second.m_instances)
 	{
@@ -65,7 +67,7 @@ std::optional<std::shared_ptr<MarmotType>> InstanceResolver::ResolveAssociatedTy
 			return TypeTransform::Specialize(binding->second, matcher.Bindings(), [this](const MarmotType::AssociatedType& nested) { return ResolveAssociatedType(nested); });
 		}
 	}
-	return std::nullopt;
+	return MarmotCompiler::None;
 }
 
 void InstanceResolver::AddClass(const std::string& class_name, std::unordered_set<std::string> method_names)
@@ -89,7 +91,7 @@ bool InstanceResolver::IsClassMethod(const std::string& qualified_name) const
 	return methods != m_classes.cend() && methods->second.m_method_names.contains(qualified_name.substr(separator + NameSeparator.length()));
 }
 
-std::optional<ResolvedInstanceName> InstanceResolver::ResolveInstanceName(const std::string& class_name, const std::string& base_name) const
+MarmotCompiler::Optional<ResolvedInstanceName> InstanceResolver::ResolveInstanceName(const std::string& class_name, const std::string& base_name) const
 {
 	const TypeclassMetadataMap::const_iterator metadata = m_classes.find(class_name);
 	if (metadata != m_classes.cend())
@@ -102,13 +104,13 @@ std::optional<ResolvedInstanceName> InstanceResolver::ResolveInstanceName(const 
 			}
 		}
 	}
-	return std::nullopt;
+	return MarmotCompiler::None;
 }
 
-std::optional<ResolvedInstanceName> InstanceResolver::ResolveInstanceNameForTypeArgs(const std::string& class_name, const std::string& method_name, const std::vector<std::shared_ptr<MarmotType>>& concrete_type_args) const
+MarmotCompiler::Optional<ResolvedInstanceName> InstanceResolver::ResolveInstanceNameForTypeArgs(const std::string& class_name, const std::string& method_name, const std::vector<std::shared_ptr<MarmotType>>& concrete_type_args) const
 {
-	const std::optional<ResolvedInstanceName> exact = ResolveInstanceName(class_name, MarmotType::MangleInstanceMethodName(method_name, class_name, concrete_type_args));
-	if (exact.has_value())
+	const MarmotCompiler::Optional<ResolvedInstanceName> exact = ResolveInstanceName(class_name, MarmotType::MangleInstanceMethodName(method_name, class_name, concrete_type_args));
+	if (exact.HasValue())
 	{
 		return exact;
 	}
@@ -116,7 +118,7 @@ std::optional<ResolvedInstanceName> InstanceResolver::ResolveInstanceNameForType
 	const TypeclassMetadataMap::const_iterator instance_args = m_classes.find(class_name);
 	if (instance_args == m_classes.cend())
 	{
-		return std::nullopt;
+		return MarmotCompiler::None;
 	}
 
 	for (const TypeclassInstance& instance : instance_args->second.m_instances)
@@ -128,13 +130,13 @@ std::optional<ResolvedInstanceName> InstanceResolver::ResolveInstanceNameForType
 			continue;
 		}
 
-		const std::optional<ResolvedInstanceName> candidate = ResolveInstanceName(class_name, MarmotType::MangleInstanceMethodName(method_name, class_name, candidate_args));
-		if (candidate.has_value())
+		const MarmotCompiler::Optional<ResolvedInstanceName> candidate = ResolveInstanceName(class_name, MarmotType::MangleInstanceMethodName(method_name, class_name, candidate_args));
+		if (candidate.HasValue())
 		{
 			return candidate;
 		}
 	}
-	return std::nullopt;
+	return MarmotCompiler::None;
 }
 
 MethodResolutionMap InstanceResolver::ResolveConstraints(const std::vector<MarmotType::ClassConstraint>& constraints, const GenericTypes::TypeEnvironment& substitutions) const
@@ -156,23 +158,23 @@ MethodResolutionMap InstanceResolver::ResolveConstraints(const std::vector<Marmo
 
 		for (const std::string& method_name : methods->second.m_method_names)
 		{
-			const std::optional<ResolvedInstanceName> instance = ResolveInstanceNameForTypeArgs(constraint.m_class_name, method_name, concrete_type_args);
+			const MarmotCompiler::Optional<ResolvedInstanceName> instance = ResolveInstanceNameForTypeArgs(constraint.m_class_name, method_name, concrete_type_args);
 			resolutions[QualifiedMethod(constraint.m_class_name, method_name)].emplace_back(first_type_name, second_type_name, instance);
 		}
 	}
 	return resolutions;
 }
 
-MethodResolution<std::optional<ResolvedInstanceName>> InstanceResolver::ResolveConstrainedCall(const MethodResolutionMap& resolutions, const std::string& callee_name, const std::vector<std::shared_ptr<MarmotType>>& argument_types, const std::shared_ptr<MarmotType>& return_type) const
+MethodResolution<MarmotCompiler::Optional<ResolvedInstanceName>> InstanceResolver::ResolveConstrainedCall(const MethodResolutionMap& resolutions, const std::string& callee_name, const std::vector<std::shared_ptr<MarmotType>>& argument_types, const std::shared_ptr<MarmotType>& return_type) const
 {
 	const std::vector<ResolvedMethodCandidate>& candidates = resolutions.at(callee_name);
 	if (argument_types.empty())
 	{
-		if (candidates.size() == 1u && candidates[0u].m_resolved_name.has_value())
+		if (candidates.size() == 1u && candidates[0u].m_resolved_name.HasValue())
 		{
 			return candidates[0u].m_resolved_name;
 		}
-		return std::unexpected(MethodResolutionError(CompilerErrorCode::LoweringAmbiguousMethodResolution, std::format("Ambiguous method '{}': cannot resolve a method call with no arguments.", callee_name)));
+		return MarmotCompiler::Failure(MethodResolutionError(CompilerErrorCode::LoweringAmbiguousMethodResolution, std::format("Ambiguous method '{}': cannot resolve a method call with no arguments.", callee_name)));
 	}
 
 	const std::string first_arg_type_name = argument_types.front()->ToString();
@@ -185,7 +187,7 @@ MethodResolution<std::optional<ResolvedInstanceName>> InstanceResolver::ResolveC
 
 	if (matching.empty())
 	{
-		return std::nullopt;
+		return MarmotCompiler::None;
 	}
 
 	// Arithmetic classes identify both operands; conversion classes can instead
@@ -218,11 +220,11 @@ MethodResolution<std::optional<ResolvedInstanceName>> InstanceResolver::ResolveC
 	matching = std::move(unique);
 	if (matching.size() != 1u)
 	{
-		return std::unexpected(MethodResolutionError(CompilerErrorCode::LoweringAmbiguousMethodResolution, std::format("Ambiguous method '{}': multiple constraints match argument type '{}'. Make constraints more specific.", callee_name, first_arg_type_name)));
+		return MarmotCompiler::Failure(MethodResolutionError(CompilerErrorCode::LoweringAmbiguousMethodResolution, std::format("Ambiguous method '{}': multiple constraints match argument type '{}'. Make constraints more specific.", callee_name, first_arg_type_name)));
 	}
 
 	const ResolvedMethodCandidate& selected = *matching[0u];
-	if (!selected.m_resolved_name.has_value())
+	if (!selected.m_resolved_name.HasValue())
 	{
 		std::string suffix;
 		if (!selected.m_first_type_name.empty())
@@ -234,16 +236,16 @@ MethodResolution<std::optional<ResolvedInstanceName>> InstanceResolver::ResolveC
 			}
 			suffix.append(")");
 		}
-		return std::unexpected(MethodResolutionError(CompilerErrorCode::LoweringUnresolvedMethodResolution, std::format("Unresolved method '{}': no matching instance found{}.", callee_name, suffix)));
+		return MarmotCompiler::Failure(MethodResolutionError(CompilerErrorCode::LoweringUnresolvedMethodResolution, std::format("Unresolved method '{}': no matching instance found{}.", callee_name, suffix)));
 	}
 	return selected.m_resolved_name;
 }
 
-MethodResolution<std::optional<ResolvedInstanceName>> InstanceResolver::ResolveConcreteCall(const std::string& callee_name, const std::vector<std::shared_ptr<MarmotType>>& argument_types, const std::shared_ptr<MarmotType>& return_type) const
+MethodResolution<MarmotCompiler::Optional<ResolvedInstanceName>> InstanceResolver::ResolveConcreteCall(const std::string& callee_name, const std::vector<std::shared_ptr<MarmotType>>& argument_types, const std::shared_ptr<MarmotType>& return_type) const
 {
 	if (!IsClassMethod(callee_name))
 	{
-		return std::nullopt;
+		return MarmotCompiler::None;
 	}
 
 	const size_t separator = callee_name.rfind(NameSeparator);
@@ -253,7 +255,7 @@ MethodResolution<std::optional<ResolvedInstanceName>> InstanceResolver::ResolveC
 	const TypeclassMetadataMap::const_iterator instance_args = m_classes.find(qualifier);
 	if (instance_args == m_classes.cend())
 	{
-		return std::unexpected(MethodResolutionError(CompilerErrorCode::LoweringUnresolvedMethodResolution, std::format("Unresolved method '{}': no instance metadata found.", callee_name)));
+		return MarmotCompiler::Failure(MethodResolutionError(CompilerErrorCode::LoweringUnresolvedMethodResolution, std::format("Unresolved method '{}': no instance metadata found.", callee_name)));
 	}
 
 	std::vector<ResolvedMethodCandidate> candidates;
@@ -295,34 +297,34 @@ MethodResolution<std::optional<ResolvedInstanceName>> InstanceResolver::ResolveC
 		}
 
 		const std::string mangled_name = MarmotType::MangleInstanceMethodName(method_name, qualifier, candidate_args);
-		const std::optional<ResolvedInstanceName> resolved_name = ResolveInstanceName(qualifier, mangled_name);
+		const MarmotCompiler::Optional<ResolvedInstanceName> resolved_name = ResolveInstanceName(qualifier, mangled_name);
 		candidates.emplace_back(candidate_args[0u]->ToString(), candidate_args.size() > 1u ? candidate_args[1u]->ToString() : std::string(), resolved_name);
 	}
 
 	if (candidates.empty())
 	{
-		return std::unexpected(MethodResolutionError(CompilerErrorCode::LoweringUnresolvedMethodResolution, std::format("Unresolved method '{}': no matching concrete instance found.", callee_name)));
+		return MarmotCompiler::Failure(MethodResolutionError(CompilerErrorCode::LoweringUnresolvedMethodResolution, std::format("Unresolved method '{}': no matching concrete instance found.", callee_name)));
 	}
 	if (candidates.size() != 1u)
 	{
-		return std::unexpected(MethodResolutionError(CompilerErrorCode::LoweringAmbiguousMethodResolution, std::format("Ambiguous method '{}': multiple concrete instances match this call.", callee_name)));
+		return MarmotCompiler::Failure(MethodResolutionError(CompilerErrorCode::LoweringAmbiguousMethodResolution, std::format("Ambiguous method '{}': multiple concrete instances match this call.", callee_name)));
 	}
-	if (!candidates[0u].m_resolved_name.has_value())
+	if (!candidates[0u].m_resolved_name.HasValue())
 	{
-		return std::unexpected(MethodResolutionError(CompilerErrorCode::LoweringUnresolvedMethodResolution, std::format("Unresolved method '{}': no emitted instance method was found.", callee_name)));
+		return MarmotCompiler::Failure(MethodResolutionError(CompilerErrorCode::LoweringUnresolvedMethodResolution, std::format("Unresolved method '{}': no emitted instance method was found.", callee_name)));
 	}
 	return candidates[0u].m_resolved_name;
 }
 
-MethodResolution<std::optional<ResolvedInstanceName>> InstanceResolver::MatchSingleInstance(const std::string& class_name, const std::string& method_name, const std::function<bool(const std::vector<std::shared_ptr<MarmotType>>&)>& matches, const std::string& ambiguity_message) const
+MethodResolution<MarmotCompiler::Optional<ResolvedInstanceName>> InstanceResolver::MatchSingleInstance(const std::string& class_name, const std::string& method_name, const std::function<bool(const std::vector<std::shared_ptr<MarmotType>>&)>& matches, const std::string& ambiguity_message) const
 {
 	const TypeclassMetadataMap::const_iterator instance_args = m_classes.find(class_name);
 	if (instance_args == m_classes.cend())
 	{
-		return std::nullopt;
+		return MarmotCompiler::None;
 	}
 
-	std::optional<ResolvedInstanceName> resolved;
+	MarmotCompiler::Optional<ResolvedInstanceName> resolved;
 	for (const TypeclassInstance& instance : instance_args->second.m_instances)
 	{
 		const std::vector<TypeRef>& candidate_args = instance.m_type_args;
@@ -331,14 +333,14 @@ MethodResolution<std::optional<ResolvedInstanceName>> InstanceResolver::MatchSin
 			continue;
 		}
 
-		std::optional<ResolvedInstanceName> candidate = ResolveInstanceName(class_name, MarmotType::MangleInstanceMethodName(method_name, class_name, candidate_args));
-		if (!candidate.has_value())
+		MarmotCompiler::Optional<ResolvedInstanceName> candidate = ResolveInstanceName(class_name, MarmotType::MangleInstanceMethodName(method_name, class_name, candidate_args));
+		if (!candidate.HasValue())
 		{
 			continue;
 		}
-		if (resolved.has_value() && resolved.value() != candidate.value())
+		if (resolved.HasValue() && resolved.Value() != candidate.Value())
 		{
-			return std::unexpected(MethodResolutionError(CompilerErrorCode::None, ambiguity_message));
+			return MarmotCompiler::Failure(MethodResolutionError(CompilerErrorCode::None, ambiguity_message));
 		}
 		resolved = std::move(candidate);
 	}
@@ -347,44 +349,44 @@ MethodResolution<std::optional<ResolvedInstanceName>> InstanceResolver::MatchSin
 
 MethodResolution<ResolvedInstanceName> InstanceResolver::ResolveConcat(const MethodResolutionMap& resolutions, const std::shared_ptr<MarmotType>& operand_type) const
 {
-	std::optional<ResolvedInstanceName> resolved;
+	MarmotCompiler::Optional<ResolvedInstanceName> resolved;
 	const std::vector<ResolvedMethodCandidate>* candidates = FindCandidates(resolutions, CONCATENABLE_CLASS_NAME, CONCAT_METHOD_NAME);
 	if (candidates != nullptr)
 	{
 		const std::string operand_type_name = operand_type->ToString();
 		for (const ResolvedMethodCandidate& candidate : *candidates)
 		{
-			if (candidate.m_first_type_name != operand_type_name || !candidate.m_resolved_name.has_value())
+			if (candidate.m_first_type_name != operand_type_name || !candidate.m_resolved_name.HasValue())
 			{
 				continue;
 			}
-			if (resolved.has_value() && resolved.value() != candidate.m_resolved_name.value())
+			if (resolved.HasValue() && resolved.Value() != candidate.m_resolved_name.Value())
 			{
-				return std::unexpected(MethodResolutionError(CompilerErrorCode::None, std::format("Concatenable instance method resolution is ambiguous for type '{}'", operand_type_name)));
+				return MarmotCompiler::Failure(MethodResolutionError(CompilerErrorCode::None, std::format("Concatenable instance method resolution is ambiguous for type '{}'", operand_type_name)));
 			}
 			resolved = candidate.m_resolved_name;
 		}
 	}
 
-	if (!resolved.has_value())
+	if (!resolved.HasValue())
 	{
-		const MethodResolution<std::optional<ResolvedInstanceName>> matched = MatchSingleInstance(std::string(CONCATENABLE_CLASS_NAME), std::string(CONCAT_METHOD_NAME), [&operand_type](const std::vector<TypeRef>& candidate_args)
+		const MethodResolution<MarmotCompiler::Optional<ResolvedInstanceName>> matched = MatchSingleInstance(std::string(CONCATENABLE_CLASS_NAME), std::string(CONCAT_METHOD_NAME), [&operand_type](const std::vector<TypeRef>& candidate_args)
 		{
 			InstanceTypeMatcher matcher;
 			return candidate_args.size() == 1u && matcher.Match(candidate_args[0u], operand_type);
 		}, std::format("Concatenable instance method resolution is ambiguous for type '{}'", operand_type->DisplayString()));
-		if (!matched.has_value())
+		if (!matched.HasValue())
 		{
-			return std::unexpected(matched.error());
+			return MarmotCompiler::Failure(matched.Error());
 		}
-		resolved = matched.value();
+		resolved = matched.Value();
 	}
 
-	if (!resolved.has_value())
+	if (!resolved.HasValue())
 	{
-		return std::unexpected(MethodResolutionError(CompilerErrorCode::None, std::format("Concatenable instance method '{}' not found", MarmotType::MangleInstanceMethodName(std::string(CONCAT_METHOD_NAME), std::string(CONCATENABLE_CLASS_NAME), { operand_type }))));
+		return MarmotCompiler::Failure(MethodResolutionError(CompilerErrorCode::None, std::format("Concatenable instance method '{}' not found", MarmotType::MangleInstanceMethodName(std::string(CONCAT_METHOD_NAME), std::string(CONCATENABLE_CLASS_NAME), { operand_type }))));
 	}
-	return resolved.value();
+	return resolved.Value();
 }
 
 MethodResolution<ResolvedInstanceName> InstanceResolver::ResolveEquals(const std::shared_ptr<MarmotType>& operand_type) const
@@ -402,35 +404,35 @@ MethodResolution<ResolvedInstanceName> InstanceResolver::ResolveCompare(const st
 MethodResolution<ResolvedInstanceName> InstanceResolver::ResolveOperandInstance(const std::string& class_name, const std::string& method_name, const std::shared_ptr<MarmotType>& operand_type) const
 {
 	const std::string mangled_name = MarmotType::MangleInstanceMethodName(method_name, class_name, { operand_type });
-	const std::optional<ResolvedInstanceName> exact = ResolveInstanceName(class_name, mangled_name);
-	if (exact.has_value())
+	const MarmotCompiler::Optional<ResolvedInstanceName> exact = ResolveInstanceName(class_name, mangled_name);
+	if (exact.HasValue())
 	{
-		return exact.value();
+		return exact.Value();
 	}
 
-	const MethodResolution<std::optional<ResolvedInstanceName>> matched = MatchSingleInstance(class_name, method_name, [&operand_type](const std::vector<TypeRef>& candidate_args)
+	const MethodResolution<MarmotCompiler::Optional<ResolvedInstanceName>> matched = MatchSingleInstance(class_name, method_name, [&operand_type](const std::vector<TypeRef>& candidate_args)
 	{
 		InstanceTypeMatcher matcher;
 		return candidate_args.size() == 1u && matcher.Match(candidate_args[0u], operand_type);
 	}, std::format("{} instance method resolution is ambiguous for type '{}'", class_name, operand_type->DisplayString()));
-	if (!matched.has_value())
+	if (!matched.HasValue())
 	{
-		return std::unexpected(matched.error());
+		return MarmotCompiler::Failure(matched.Error());
 	}
-	if (!matched.value().has_value())
+	if (!matched.Value().HasValue())
 	{
-		return std::unexpected(MethodResolutionError(CompilerErrorCode::None, std::format("{} instance method '{}' not found", class_name, mangled_name)));
+		return MarmotCompiler::Failure(MethodResolutionError(CompilerErrorCode::None, std::format("{} instance method '{}' not found", class_name, mangled_name)));
 	}
-	return matched.value().value();
+	return matched.Value().Value();
 }
 
-MethodResolution<std::optional<ResolvedInstanceName>> InstanceResolver::ResolveCount(const MethodResolutionMap& resolutions, const std::shared_ptr<MarmotType>& operand_type, bool uses_countable) const
+MethodResolution<MarmotCompiler::Optional<ResolvedInstanceName>> InstanceResolver::ResolveCount(const MethodResolutionMap& resolutions, const std::shared_ptr<MarmotType>& operand_type, bool uses_countable) const
 {
 	const std::vector<ResolvedMethodCandidate>* candidates = FindCandidates(resolutions, COUNTABLE_CLASS_NAME, COUNT_METHOD_NAME);
 	if (candidates != nullptr)
 	{
 		const std::string type_name = operand_type->ToString();
-		const std::vector<ResolvedMethodCandidate>::const_iterator found = std::ranges::find_if(*candidates, [&](const ResolvedMethodCandidate& candidate) { return candidate.m_first_type_name == type_name && candidate.m_resolved_name.has_value(); });
+		const std::vector<ResolvedMethodCandidate>::const_iterator found = std::ranges::find_if(*candidates, [&](const ResolvedMethodCandidate& candidate) { return candidate.m_first_type_name == type_name && candidate.m_resolved_name.HasValue(); });
 		if (found != candidates->cend())
 		{
 			return found->m_resolved_name;
@@ -441,21 +443,21 @@ MethodResolution<std::optional<ResolvedInstanceName>> InstanceResolver::ResolveC
 	{
 		if (uses_countable)
 		{
-			return std::unexpected(MethodResolutionError(CompilerErrorCode::None, "Cannot resolve Countable instance for type variables outside of specialization context"));
+			return MarmotCompiler::Failure(MethodResolutionError(CompilerErrorCode::None, "Cannot resolve Countable instance for type variables outside of specialization context"));
 		}
-		return std::nullopt;
+		return MarmotCompiler::None;
 	}
 
-	const std::optional<ResolvedInstanceName> resolved = ResolveInstanceNameForTypeArgs(std::string(COUNTABLE_CLASS_NAME), std::string(COUNT_METHOD_NAME), { operand_type });
-	if (resolved.has_value())
+	const MarmotCompiler::Optional<ResolvedInstanceName> resolved = ResolveInstanceNameForTypeArgs(std::string(COUNTABLE_CLASS_NAME), std::string(COUNT_METHOD_NAME), { operand_type });
+	if (resolved.HasValue())
 	{
 		return resolved;
 	}
 	if (uses_countable)
 	{
-		return std::unexpected(MethodResolutionError(CompilerErrorCode::None, std::format("Countable instance method '{}' not found", MarmotType::MangleInstanceMethodName(std::string(COUNT_METHOD_NAME), std::string(COUNTABLE_CLASS_NAME), { operand_type }))));
+		return MarmotCompiler::Failure(MethodResolutionError(CompilerErrorCode::None, std::format("Countable instance method '{}' not found", MarmotType::MangleInstanceMethodName(std::string(COUNT_METHOD_NAME), std::string(COUNTABLE_CLASS_NAME), { operand_type }))));
 	}
-	return std::nullopt;
+	return MarmotCompiler::None;
 }
 
 MethodResolution<ResolvedInstanceName> InstanceResolver::ResolveIndex(const MethodResolutionMap& resolutions, const std::shared_ptr<MarmotType>& container_type, const std::shared_ptr<MarmotType>& index_type) const
@@ -467,33 +469,33 @@ MethodResolution<ResolvedInstanceName> InstanceResolver::ResolveIndex(const Meth
 		const std::string index_type_name = index_type->ToString();
 		const std::vector<ResolvedMethodCandidate>::const_iterator found = std::ranges::find_if(*candidates, [&](const ResolvedMethodCandidate& candidate)
 		{
-			return candidate.m_first_type_name == container_type_name && candidate.m_second_type_name == index_type_name && candidate.m_resolved_name.has_value();
+			return candidate.m_first_type_name == container_type_name && candidate.m_second_type_name == index_type_name && candidate.m_resolved_name.HasValue();
 		});
 		if (found != candidates->cend())
 		{
-			return found->m_resolved_name.value();
+			return found->m_resolved_name.Value();
 		}
 	}
 
 	if (container_type->IsType<MarmotType::TypeVariable>())
 	{
-		return std::unexpected(MethodResolutionError(CompilerErrorCode::None, "Cannot resolve Indexable instance for type variables outside of specialization context"));
+		return MarmotCompiler::Failure(MethodResolutionError(CompilerErrorCode::None, "Cannot resolve Indexable instance for type variables outside of specialization context"));
 	}
 
-	const std::optional<ResolvedInstanceName> resolved = ResolveInstanceNameForTypeArgs(std::string(INDEXABLE_CLASS_NAME), std::string(GET_METHOD_NAME), { container_type, index_type });
-	if (resolved.has_value())
+	const MarmotCompiler::Optional<ResolvedInstanceName> resolved = ResolveInstanceNameForTypeArgs(std::string(INDEXABLE_CLASS_NAME), std::string(GET_METHOD_NAME), { container_type, index_type });
+	if (resolved.HasValue())
 	{
-		return resolved.value();
+		return resolved.Value();
 	}
-	return std::unexpected(MethodResolutionError(CompilerErrorCode::None, std::format("Indexable instance method '{}' not found", MarmotType::MangleInstanceMethodName(std::string(GET_METHOD_NAME), std::string(INDEXABLE_CLASS_NAME), { container_type }))));
+	return MarmotCompiler::Failure(MethodResolutionError(CompilerErrorCode::None, std::format("Indexable instance method '{}' not found", MarmotType::MangleInstanceMethodName(std::string(GET_METHOD_NAME), std::string(INDEXABLE_CLASS_NAME), { container_type }))));
 }
 
-MethodResolution<std::optional<ResolvedInstanceName>> InstanceResolver::ResolveConvert(const MethodResolutionMap& resolutions, const std::shared_ptr<MarmotType>& concrete_from_type, const std::shared_ptr<MarmotType>& from_type, const std::shared_ptr<MarmotType>& to_type, bool uses_convertible) const
+MethodResolution<MarmotCompiler::Optional<ResolvedInstanceName>> InstanceResolver::ResolveConvert(const MethodResolutionMap& resolutions, const std::shared_ptr<MarmotType>& concrete_from_type, const std::shared_ptr<MarmotType>& from_type, const std::shared_ptr<MarmotType>& to_type, bool uses_convertible) const
 {
 	const bool has_type_variable = from_type->IsType<MarmotType::TypeVariable>() || to_type->IsType<MarmotType::TypeVariable>();
 	if (!uses_convertible && !has_type_variable)
 	{
-		return std::nullopt;
+		return MarmotCompiler::None;
 	}
 
 	const std::vector<ResolvedMethodCandidate>* candidates = FindCandidates(resolutions, CONVERTIBLE_CLASS_NAME, CONVERT_METHOD_NAME);
@@ -503,7 +505,7 @@ MethodResolution<std::optional<ResolvedInstanceName>> InstanceResolver::ResolveC
 		const std::string to_type_name = to_type->ToString();
 		const std::vector<ResolvedMethodCandidate>::const_iterator found = std::ranges::find_if(*candidates, [&](const ResolvedMethodCandidate& candidate)
 		{
-			return candidate.m_first_type_name == from_type_name && candidate.m_second_type_name == to_type_name && candidate.m_resolved_name.has_value();
+			return candidate.m_first_type_name == from_type_name && candidate.m_second_type_name == to_type_name && candidate.m_resolved_name.HasValue();
 		});
 		if (found != candidates->cend())
 		{
@@ -519,32 +521,32 @@ MethodResolution<std::optional<ResolvedInstanceName>> InstanceResolver::ResolveC
 	{
 		if (uses_convertible && !is_newtype_erased)
 		{
-			return std::unexpected(MethodResolutionError(CompilerErrorCode::None, "Cannot resolve Convertible instance for type variables outside of specialization context"));
+			return MarmotCompiler::Failure(MethodResolutionError(CompilerErrorCode::None, "Cannot resolve Convertible instance for type variables outside of specialization context"));
 		}
-		return std::nullopt;
+		return MarmotCompiler::None;
 	}
 
 	const std::string mangled_name = MarmotType::MangleInstanceMethodName(std::string(CONVERT_METHOD_NAME), std::string(CONVERTIBLE_CLASS_NAME), { from_type, to_type });
-	const std::optional<ResolvedInstanceName> exact = ResolveInstanceName(std::string(CONVERTIBLE_CLASS_NAME), mangled_name);
-	if (exact.has_value())
+	const MarmotCompiler::Optional<ResolvedInstanceName> exact = ResolveInstanceName(std::string(CONVERTIBLE_CLASS_NAME), mangled_name);
+	if (exact.HasValue())
 	{
 		return exact;
 	}
 
-	const MethodResolution<std::optional<ResolvedInstanceName>> matched = MatchSingleInstance(std::string(CONVERTIBLE_CLASS_NAME), std::string(CONVERT_METHOD_NAME), [&](const std::vector<TypeRef>& candidate_args)
+	const MethodResolution<MarmotCompiler::Optional<ResolvedInstanceName>> matched = MatchSingleInstance(std::string(CONVERTIBLE_CLASS_NAME), std::string(CONVERT_METHOD_NAME), [&](const std::vector<TypeRef>& candidate_args)
 	{
 		InstanceTypeMatcher matcher;
 		return candidate_args.size() == 2u && matcher.Match(candidate_args[0u], from_type) && matcher.Match(candidate_args[1u], to_type);
 	}, std::format("Convertible instance method resolution is ambiguous for types '{}' -> '{}'", from_type->DisplayString(), to_type->DisplayString()));
-	if (!matched.has_value() || matched.value().has_value())
+	if (!matched.HasValue() || matched.Value().HasValue())
 	{
 		return matched;
 	}
 	if (uses_convertible && !is_newtype_erased)
 	{
-		return std::unexpected(MethodResolutionError(CompilerErrorCode::None, std::format("Convertible instance method '{}' not found", mangled_name)));
+		return MarmotCompiler::Failure(MethodResolutionError(CompilerErrorCode::None, std::format("Convertible instance method '{}' not found", mangled_name)));
 	}
-	return std::nullopt;
+	return MarmotCompiler::None;
 }
 
 MethodResolution<ResolvedInstanceName> InstanceResolver::ResolveIterableNext(const MethodResolutionMap& resolutions, const std::shared_ptr<MarmotType>& iterator_type, const std::shared_ptr<MarmotType>& item_type) const
@@ -560,31 +562,31 @@ MethodResolution<ResolvedInstanceName> InstanceResolver::ResolveIterableNext(con
 		});
 		if (found != candidates->cend())
 		{
-			if (!found->m_resolved_name.has_value())
+			if (!found->m_resolved_name.HasValue())
 			{
-				return std::unexpected(MethodResolutionError(CompilerErrorCode::None, std::format("Unresolved Iterable::Next instance for iterator type '{}'", iterator_name)));
+				return MarmotCompiler::Failure(MethodResolutionError(CompilerErrorCode::None, std::format("Unresolved Iterable::Next instance for iterator type '{}'", iterator_name)));
 			}
-			return found->m_resolved_name.value();
+			return found->m_resolved_name.Value();
 		}
 	}
 
 	if (iterator_type->IsType<MarmotType::TypeVariable>() || item_type->IsType<MarmotType::TypeVariable>())
 	{
-		return std::unexpected(MethodResolutionError(CompilerErrorCode::None, "Cannot resolve Iterable instance for type variables outside of specialization context"));
+		return MarmotCompiler::Failure(MethodResolutionError(CompilerErrorCode::None, "Cannot resolve Iterable instance for type variables outside of specialization context"));
 	}
 
-	const MethodResolution<std::optional<ResolvedInstanceName>> matched = MatchSingleInstance(std::string(ITERABLE_CLASS_NAME), std::string(NEXT_METHOD_NAME), [&](const std::vector<TypeRef>& candidate_args)
+	const MethodResolution<MarmotCompiler::Optional<ResolvedInstanceName>> matched = MatchSingleInstance(std::string(ITERABLE_CLASS_NAME), std::string(NEXT_METHOD_NAME), [&](const std::vector<TypeRef>& candidate_args)
 	{
 		InstanceTypeMatcher matcher;
 		return !candidate_args.empty() && matcher.Match(candidate_args[0u], iterator_type) && (candidate_args.size() == 1u || matcher.Match(candidate_args[1u], item_type));
 	}, std::format("Iterable instance method resolution is ambiguous for iterator type '{}'", iterator_type->DisplayString()));
-	if (!matched.has_value())
+	if (!matched.HasValue())
 	{
-		return std::unexpected(matched.error());
+		return MarmotCompiler::Failure(matched.Error());
 	}
-	if (!matched.value().has_value())
+	if (!matched.Value().HasValue())
 	{
-		return std::unexpected(MethodResolutionError(CompilerErrorCode::None, std::format("Iterable::Next instance for iterator type '{}' not found", iterator_type->DisplayString())));
+		return MarmotCompiler::Failure(MethodResolutionError(CompilerErrorCode::None, std::format("Iterable::Next instance for iterator type '{}' not found", iterator_type->DisplayString())));
 	}
-	return matched.value().value();
+	return matched.Value().Value();
 }

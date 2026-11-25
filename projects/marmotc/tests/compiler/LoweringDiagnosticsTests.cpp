@@ -47,10 +47,10 @@ foreign "MARMOT_FFI_ReportPanic" Report : fn(Text) -> Unit;
 foreign "MARMOT_FFI_PrintLin" PrintTypo : fn(Text) -> Unit;
 )";
 
-	std::expected<BytecodeModule, MarmotResult::CompilerDiagnostics> bytecode_result =
+	MarmotResult::DiagnosticsResult<BytecodeModule> bytecode_result =
 		MarmotTest::GenerateBytecodeSnippetWithDiagnostics(source, "ForeignTypo.mmt");
-	REQUIRE_FALSE(bytecode_result.has_value());
-	REQUIRE(bytecode_result.error().Size() == 1u);
+	REQUIRE_FALSE(bytecode_result.HasValue());
+	REQUIRE(bytecode_result.Error().Size() == 1u);
 
 	MarmotTest::ErrorExpectation expectation;
 	expectation.m_stage = CompilerStage::Lowering;
@@ -58,7 +58,7 @@ foreign "MARMOT_FFI_PrintLin" PrintTypo : fn(Text) -> Unit;
 	expectation.m_line = 3;
 	expectation.m_message_substrings = { "Unknown foreign function 'MARMOT_FFI_PrintLin'" };
 	expectation.m_rendered_substrings = { "Lowering Error", "ForeignTypo.mmt:3" };
-	RequireErrorMatches(bytecode_result.error().m_items[0u], expectation);
+	RequireErrorMatches(bytecode_result.Error().m_items[0u], expectation);
 }
 
 TEST_CASE("Intrinsic declarations must match their VM signatures", "[compiler][lowering][diagnostics][ffi]")
@@ -70,10 +70,10 @@ foreign "MARMOT_FFI_ArraySlice" Slice : fn(Array<Int>, Int, Int) -> Array<Text>;
 )";
 
 	const auto result = MarmotTest::GenerateBytecodeSnippetWithDiagnostics(source, "BadIntrinsics.mmt");
-	REQUIRE_FALSE(result.has_value());
-	REQUIRE(result.error().Size() == 2u);
-	CHECK(result.error().m_items[0u].m_message == "Intrinsic 'MARMOT_FFI_HashFloat' requires fn(Float) -> Int");
-	CHECK(result.error().m_items[1u].m_message == "Intrinsic 'MARMOT_FFI_ArraySlice' requires fn(Array<T>, Int, Int) -> Array<T>");
+	REQUIRE_FALSE(result.HasValue());
+	REQUIRE(result.Error().Size() == 2u);
+	CHECK(result.Error().m_items[0u].m_message == "Intrinsic 'MARMOT_FFI_HashFloat' requires fn(Float) -> Int");
+	CHECK(result.Error().m_items[1u].m_message == "Intrinsic 'MARMOT_FFI_ArraySlice' requires fn(Array<T>, Int, Int) -> Array<T>");
 }
 
 TEST_CASE("The backend records the native libraries that foreign declarations name", "[compiler][backend][ffi]")
@@ -90,9 +90,9 @@ foreign "MARMOT_FFI_ReportPanic" Report : fn(Text) -> Unit;
 foreign "helper" Helper : fn() -> Int from "other";
 )";
 
-	std::expected<BytecodeModule, MarmotResult::CompilerDiagnostics> bytecode_result =
+	MarmotResult::DiagnosticsResult<BytecodeModule> bytecode_result =
 		MarmotTest::GenerateBytecodeSnippetWithDiagnostics(source, "pkg/Image.mmt");
-	REQUIRE(bytecode_result.has_value());
+	REQUIRE(bytecode_result.HasValue());
 
 	const std::vector<NativeLibraryImport>& libraries = bytecode_result->m_native_libraries;
 	REQUIRE(libraries.size() == 2u);
@@ -111,17 +111,17 @@ TEST_CASE("Lowering asks for the library of a foreign function that is not a bui
 foreign "image_read_info" ReadInfo : fn(Text) -> Array<Int>;
 )";
 
-	std::expected<BytecodeModule, MarmotResult::CompilerDiagnostics> bytecode_result =
+	MarmotResult::DiagnosticsResult<BytecodeModule> bytecode_result =
 		MarmotTest::GenerateBytecodeSnippetWithDiagnostics(source, "Image.mmt");
-	REQUIRE_FALSE(bytecode_result.has_value());
-	REQUIRE(bytecode_result.error().Size() == 1u);
+	REQUIRE_FALSE(bytecode_result.HasValue());
+	REQUIRE(bytecode_result.Error().Size() == 1u);
 
 	MarmotTest::ErrorExpectation expectation;
 	expectation.m_stage = CompilerStage::Lowering;
 	expectation.m_code = CompilerErrorCode::LoweringUnknownForeignFunction;
 	expectation.m_line = 2;
 	expectation.m_message_substrings = { "Unknown foreign function 'image_read_info'", "from \"library\"" };
-	RequireErrorMatches(bytecode_result.error().m_items[0u], expectation);
+	RequireErrorMatches(bytecode_result.Error().m_items[0u], expectation);
 }
 
 TEST_CASE("A foreign block is only for the top level and must declare something", "[compiler][parser][ffi]")
@@ -133,25 +133,25 @@ def main = fn() -> Int => {
 	0
 };
 )";
-	std::expected<BytecodeModule, MarmotResult::CompilerDiagnostics> local_result =
+	MarmotResult::DiagnosticsResult<BytecodeModule> local_result =
 		MarmotTest::GenerateBytecodeSnippetWithDiagnostics(local_block, "Local.mmt");
-	REQUIRE_FALSE(local_result.has_value());
-	CHECK(local_result.error().m_items[0u].m_message.find("top level") != std::string::npos);
+	REQUIRE_FALSE(local_result.HasValue());
+	CHECK(local_result.Error().m_items[0u].m_message.find("top level") != std::string::npos);
 
 	const std::string empty_block = "module Empty\nforeign \"lib\" { }\n";
-	std::expected<BytecodeModule, MarmotResult::CompilerDiagnostics> empty_result =
+	MarmotResult::DiagnosticsResult<BytecodeModule> empty_result =
 		MarmotTest::GenerateBytecodeSnippetWithDiagnostics(empty_block, "Empty.mmt");
-	REQUIRE_FALSE(empty_result.has_value());
-	CHECK(empty_result.error().m_items[0u].m_message.find("declares no functions") != std::string::npos);
+	REQUIRE_FALSE(empty_result.HasValue());
+	CHECK(empty_result.Error().m_items[0u].m_message.find("declares no functions") != std::string::npos);
 }
 
 TEST_CASE("Lowering reports every unsupported foreign return type, not only the first", "[compiler][lowering][diagnostics]")
 {
-	std::expected<BytecodeModule, MarmotResult::CompilerDiagnostics> bytecode_result =
+	MarmotResult::DiagnosticsResult<BytecodeModule> bytecode_result =
 		MarmotTest::GenerateBytecodeSnippetWithDiagnostics(UnsupportedForeignReturnSource(), "ForeignDiagnostics.mmt");
-	REQUIRE_FALSE(bytecode_result.has_value());
-	REQUIRE(bytecode_result.error().Size() == 2u);
-	REQUIRE(MarmotTest::FindError(bytecode_result.error(), CompilerStage::Lowering, CompilerErrorCode::LoweringUnsupportedConstruct) != nullptr);
+	REQUIRE_FALSE(bytecode_result.HasValue());
+	REQUIRE(bytecode_result.Error().Size() == 2u);
+	REQUIRE(MarmotTest::FindError(bytecode_result.Error(), CompilerStage::Lowering, CompilerErrorCode::LoweringUnsupportedConstruct) != nullptr);
 
 	MarmotTest::ErrorExpectation first_expectation;
 	first_expectation.m_stage = CompilerStage::Lowering;
@@ -159,7 +159,7 @@ TEST_CASE("Lowering reports every unsupported foreign return type, not only the 
 	first_expectation.m_line = 6;
 	first_expectation.m_message_substrings = { "Unsupported return type for foreign function" };
 	first_expectation.m_rendered_substrings = { "Lowering Error", "ForeignDiagnostics.mmt:6" };
-	RequireErrorMatches(bytecode_result.error().m_items[0u], first_expectation);
+	RequireErrorMatches(bytecode_result.Error().m_items[0u], first_expectation);
 
 	MarmotTest::ErrorExpectation second_expectation;
 	second_expectation.m_stage = CompilerStage::Lowering;
@@ -167,15 +167,15 @@ TEST_CASE("Lowering reports every unsupported foreign return type, not only the 
 	second_expectation.m_line = 7;
 	second_expectation.m_message_substrings = { "Unsupported return type for foreign function" };
 	second_expectation.m_rendered_substrings = { "Lowering Error", "ForeignDiagnostics.mmt:7" };
-	RequireErrorMatches(bytecode_result.error().m_items[1u], second_expectation);
+	RequireErrorMatches(bytecode_result.Error().m_items[1u], second_expectation);
 }
 
 TEST_CASE("Compiler preserves all lowering diagnostics through the compile boundary", "[compiler][lowering][diagnostics]")
 {
-	MarmotResult::CompilerResult compile_result = MarmotTest::CompileSnippet(UnsupportedForeignReturnSource(), "ForeignDiagnostics.mmt");
-	REQUIRE_FALSE(compile_result.has_value());
-	REQUIRE(compile_result.error().Size() == 2u);
-	REQUIRE(MarmotTest::FindError(compile_result.error(), CompilerStage::Lowering, CompilerErrorCode::LoweringUnsupportedConstruct) != nullptr);
+	MarmotResult::ExecutableDiagnosticsResult compile_result = MarmotTest::CompileSnippet(UnsupportedForeignReturnSource(), "ForeignDiagnostics.mmt");
+	REQUIRE_FALSE(compile_result.HasValue());
+	REQUIRE(compile_result.Error().Size() == 2u);
+	REQUIRE(MarmotTest::FindError(compile_result.Error(), CompilerStage::Lowering, CompilerErrorCode::LoweringUnsupportedConstruct) != nullptr);
 
 	MarmotTest::ErrorExpectation expectation;
 	expectation.m_stage = CompilerStage::Lowering;
@@ -183,7 +183,7 @@ TEST_CASE("Compiler preserves all lowering diagnostics through the compile bound
 	expectation.m_line = 6;
 	expectation.m_message_substrings = { "Unsupported return type for foreign function" };
 	expectation.m_rendered_substrings = { "Lowering Error", "ForeignDiagnostics.mmt:6" };
-	RequireErrorMatches(compile_result.error().m_items[0u], expectation);
+	RequireErrorMatches(compile_result.Error().m_items[0u], expectation);
 
 	MarmotTest::ErrorExpectation second_expectation;
 	second_expectation.m_stage = CompilerStage::Lowering;
@@ -191,5 +191,5 @@ TEST_CASE("Compiler preserves all lowering diagnostics through the compile bound
 	second_expectation.m_line = 7;
 	second_expectation.m_message_substrings = { "Unsupported return type for foreign function" };
 	second_expectation.m_rendered_substrings = { "Lowering Error", "ForeignDiagnostics.mmt:7" };
-	RequireErrorMatches(compile_result.error().m_items[1u], second_expectation);
+	RequireErrorMatches(compile_result.Error().m_items[1u], second_expectation);
 }

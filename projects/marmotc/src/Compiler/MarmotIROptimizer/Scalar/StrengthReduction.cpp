@@ -1,5 +1,6 @@
 #include "Compiler/MarmotIROptimizer/Analysis/MarmotIRAnalysis.h"
 #include "Compiler/MarmotIROptimizer/MarmotIRPasses.h"
+#include "Support/Optional.h"
 
 #include <bit>
 #include <utility>
@@ -48,7 +49,7 @@ namespace
 	{
 	private:
 		const MarmotIRFunction& m_function;
-		std::vector<std::optional<MarmotIRSite>> m_sites;
+		std::vector<MarmotCompiler::Optional<MarmotIRSite>> m_sites;
 
 	public:
 		explicit Reducer(const MarmotIRFunction& function)
@@ -57,7 +58,7 @@ namespace
 		{
 		}
 
-		std::optional<Reduction> Reduce(const MarmotIRInstruction& instruction) const
+		MarmotCompiler::Optional<Reduction> Reduce(const MarmotIRInstruction& instruction) const
 		{
 			using enum MarmotIROp;
 			const std::vector<MarmotIRValueId>& operands = instruction.m_operands;
@@ -73,8 +74,8 @@ namespace
 			case BitXorByte:
 			case BitXorWord:
 				return IsInteger(operands[1u], 0) ? Reduction::ToOperand(operands[0u])
-					: IsInteger(operands[0u], 0) ? std::optional(Reduction::ToOperand(operands[1u]))
-					: std::nullopt;
+					: IsInteger(operands[0u], 0) ? MarmotCompiler::Optional(Reduction::ToOperand(operands[1u]))
+					: MarmotCompiler::None;
 			case SubInt:
 			case SubByte:
 			case SubWord:
@@ -86,41 +87,41 @@ namespace
 				{
 					return Reduction::ToUnary(NegInt, operands[1u]);
 				}
-				return operands[0u] == operands[1u] ? std::optional(Reduction::ToConstant(Zero(operands[0u]))) : std::nullopt;
+				return operands[0u] == operands[1u] ? MarmotCompiler::Optional(Reduction::ToConstant(Zero(operands[0u]))) : MarmotCompiler::None;
 			case MulInt:
-				return ReduceMultiply(operands[0u], operands[1u]).or_else([&]() { return ReduceMultiply(operands[1u], operands[0u]); });
+				return ReduceMultiply(operands[0u], operands[1u]).OrElse([&]() { return ReduceMultiply(operands[1u], operands[0u]); });
 			case MulByte:
 			case MulWord:
 				return IsInteger(operands[0u], 0) || IsInteger(operands[1u], 0) ? Reduction::ToConstant(Zero(operands[0u]))
-					: IsInteger(operands[0u], 1) ? std::optional(Reduction::ToOperand(operands[1u]))
-					: IsInteger(operands[1u], 1) ? std::optional(Reduction::ToOperand(operands[0u]))
-					: std::nullopt;
+					: IsInteger(operands[0u], 1) ? MarmotCompiler::Optional(Reduction::ToOperand(operands[1u]))
+					: IsInteger(operands[1u], 1) ? MarmotCompiler::Optional(Reduction::ToOperand(operands[0u]))
+					: MarmotCompiler::None;
 			case DivInt:
-				return IsInteger(operands[1u], 1) ? std::optional(Reduction::ToOperand(operands[0u]))
-					: IsInteger(operands[1u], -1) ? std::optional(Reduction::ToUnary(NegInt, operands[0u]))
-					: std::nullopt;
+				return IsInteger(operands[1u], 1) ? MarmotCompiler::Optional(Reduction::ToOperand(operands[0u]))
+					: IsInteger(operands[1u], -1) ? MarmotCompiler::Optional(Reduction::ToUnary(NegInt, operands[0u]))
+					: MarmotCompiler::None;
 			case DivByte:
 			case DivWord:
-				return IsInteger(operands[1u], 1) ? std::optional(Reduction::ToOperand(operands[0u])) : std::nullopt;
+				return IsInteger(operands[1u], 1) ? MarmotCompiler::Optional(Reduction::ToOperand(operands[0u])) : MarmotCompiler::None;
 			case ModInt:
-				return IsInteger(operands[1u], 1) || IsInteger(operands[1u], -1) ? std::optional(Reduction::ToConstant(int64_t{ 0 })) : std::nullopt;
+				return IsInteger(operands[1u], 1) || IsInteger(operands[1u], -1) ? MarmotCompiler::Optional(Reduction::ToConstant(int64_t{ 0 })) : MarmotCompiler::None;
 			case ModByte:
 			case ModWord:
-				return IsInteger(operands[1u], 1) ? std::optional(Reduction::ToConstant(Zero(operands[0u]))) : std::nullopt;
+				return IsInteger(operands[1u], 1) ? MarmotCompiler::Optional(Reduction::ToConstant(Zero(operands[0u]))) : MarmotCompiler::None;
 			case BitAndInt:
 			case BitAndByte:
 			case BitAndWord:
 				return IsInteger(operands[1u], 0) || IsInteger(operands[0u], 0) ? Reduction::ToConstant(Zero(operands[0u]))
-					: IsInteger(operands[1u], -1) ? std::optional(Reduction::ToOperand(operands[0u]))
-					: IsInteger(operands[0u], -1) ? std::optional(Reduction::ToOperand(operands[1u]))
-					: std::nullopt;
+					: IsInteger(operands[1u], -1) ? MarmotCompiler::Optional(Reduction::ToOperand(operands[0u]))
+					: IsInteger(operands[0u], -1) ? MarmotCompiler::Optional(Reduction::ToOperand(operands[1u]))
+					: MarmotCompiler::None;
 			case ShlInt:
 			case ShlByte:
 			case ShlWord:
 			case ShrInt:
 			case ShrByte:
 			case ShrWord:
-				return IsInteger(operands[1u], 0) ? std::optional(Reduction::ToOperand(operands[0u])) : std::nullopt;
+				return IsInteger(operands[1u], 0) ? MarmotCompiler::Optional(Reduction::ToOperand(operands[0u])) : MarmotCompiler::None;
 			case EqInt:
 			case EqByte:
 			case EqWord:
@@ -130,7 +131,7 @@ namespace
 			case GeInt:
 			case GeByte:
 			case GeWord:
-				return operands[0u] == operands[1u] ? std::optional(Reduction::ToConstant(true)) : std::nullopt;
+				return operands[0u] == operands[1u] ? MarmotCompiler::Optional(Reduction::ToConstant(true)) : MarmotCompiler::None;
 			case NeInt:
 			case NeByte:
 			case NeWord:
@@ -140,40 +141,40 @@ namespace
 			case GtInt:
 			case GtByte:
 			case GtWord:
-				return operands[0u] == operands[1u] ? std::optional(Reduction::ToConstant(false)) : std::nullopt;
+				return operands[0u] == operands[1u] ? MarmotCompiler::Optional(Reduction::ToConstant(false)) : MarmotCompiler::None;
 			// Only what holds for NaN and -0.0 too: x * 1.0, x / 1.0, x - 0.0
 			// and x + -0.0 are x, but x + 0.0 is 0.0 for x = -0.0.
 			case MulFloat:
-				return IsFloat(operands[1u], 1.0) ? std::optional(Reduction::ToOperand(operands[0u]))
-					: IsFloat(operands[0u], 1.0) ? std::optional(Reduction::ToOperand(operands[1u]))
-					: std::nullopt;
+				return IsFloat(operands[1u], 1.0) ? MarmotCompiler::Optional(Reduction::ToOperand(operands[0u]))
+					: IsFloat(operands[0u], 1.0) ? MarmotCompiler::Optional(Reduction::ToOperand(operands[1u]))
+					: MarmotCompiler::None;
 			case DivFloat:
-				return IsFloat(operands[1u], 1.0) ? std::optional(Reduction::ToOperand(operands[0u])) : std::nullopt;
+				return IsFloat(operands[1u], 1.0) ? MarmotCompiler::Optional(Reduction::ToOperand(operands[0u])) : MarmotCompiler::None;
 			case SubFloat:
-				return IsFloat(operands[1u], 0.0) ? std::optional(Reduction::ToOperand(operands[0u])) : std::nullopt;
+				return IsFloat(operands[1u], 0.0) ? MarmotCompiler::Optional(Reduction::ToOperand(operands[0u])) : MarmotCompiler::None;
 			case AddFloat:
-				return IsFloat(operands[1u], -0.0) ? std::optional(Reduction::ToOperand(operands[0u]))
-					: IsFloat(operands[0u], -0.0) ? std::optional(Reduction::ToOperand(operands[1u]))
-					: std::nullopt;
+				return IsFloat(operands[1u], -0.0) ? MarmotCompiler::Optional(Reduction::ToOperand(operands[0u]))
+					: IsFloat(operands[0u], -0.0) ? MarmotCompiler::Optional(Reduction::ToOperand(operands[1u]))
+					: MarmotCompiler::None;
 			case EqBool:
-				return IsBool(operands[1u], true) ? std::optional(Reduction::ToOperand(operands[0u]))
-					: IsBool(operands[0u], true) ? std::optional(Reduction::ToOperand(operands[1u]))
-					: IsBool(operands[1u], false) ? std::optional(Reduction::ToUnary(NotBool, operands[0u]))
-					: IsBool(operands[0u], false) ? std::optional(Reduction::ToUnary(NotBool, operands[1u]))
-					: std::nullopt;
+				return IsBool(operands[1u], true) ? MarmotCompiler::Optional(Reduction::ToOperand(operands[0u]))
+					: IsBool(operands[0u], true) ? MarmotCompiler::Optional(Reduction::ToOperand(operands[1u]))
+					: IsBool(operands[1u], false) ? MarmotCompiler::Optional(Reduction::ToUnary(NotBool, operands[0u]))
+					: IsBool(operands[0u], false) ? MarmotCompiler::Optional(Reduction::ToUnary(NotBool, operands[1u]))
+					: MarmotCompiler::None;
 			case NeBool:
-				return IsBool(operands[1u], false) ? std::optional(Reduction::ToOperand(operands[0u]))
-					: IsBool(operands[0u], false) ? std::optional(Reduction::ToOperand(operands[1u]))
-					: IsBool(operands[1u], true) ? std::optional(Reduction::ToUnary(NotBool, operands[0u]))
-					: IsBool(operands[0u], true) ? std::optional(Reduction::ToUnary(NotBool, operands[1u]))
-					: std::nullopt;
+				return IsBool(operands[1u], false) ? MarmotCompiler::Optional(Reduction::ToOperand(operands[0u]))
+					: IsBool(operands[0u], false) ? MarmotCompiler::Optional(Reduction::ToOperand(operands[1u]))
+					: IsBool(operands[1u], true) ? MarmotCompiler::Optional(Reduction::ToUnary(NotBool, operands[0u]))
+					: IsBool(operands[0u], true) ? MarmotCompiler::Optional(Reduction::ToUnary(NotBool, operands[1u]))
+					: MarmotCompiler::None;
 			case NotBool:
 			{
 				const MarmotIRInstruction* inner = Definition(operands[0u]);
-				return inner != nullptr && inner->m_op == NotBool ? std::optional(Reduction::ToOperand(inner->m_operands[0u])) : std::nullopt;
+				return inner != nullptr && inner->m_op == NotBool ? MarmotCompiler::Optional(Reduction::ToOperand(inner->m_operands[0u])) : MarmotCompiler::None;
 			}
 			default:
-				return std::nullopt;
+				return MarmotCompiler::None;
 			}
 		}
 
@@ -250,12 +251,12 @@ namespace
 		}
 
 		// x * 0, x * 1, x * -1 and x * 2^n, with the constant second.
-		std::optional<Reduction> ReduceMultiply(MarmotIRValueId value, MarmotIRValueId factor) const
+		MarmotCompiler::Optional<Reduction> ReduceMultiply(MarmotIRValueId value, MarmotIRValueId factor) const
 		{
 			const MarmotIRImmediate* constant = Constant(factor);
 			if (constant == nullptr || !std::holds_alternative<int64_t>(*constant))
 			{
-				return std::nullopt;
+				return MarmotCompiler::None;
 			}
 			const int64_t multiplier = std::get<int64_t>(*constant);
 			if (multiplier == 0)
@@ -274,27 +275,27 @@ namespace
 			{
 				return Reduction::ToBinary(MarmotIROp::ShlInt, value, static_cast<int64_t>(std::countr_zero(static_cast<uint64_t>(multiplier))));
 			}
-			return std::nullopt;
+			return MarmotCompiler::None;
 		}
 	};
 
 	bool ReduceFunction(MarmotIRFunction& function)
 	{
 		bool changed = false;
-		std::vector<std::optional<MarmotIRValueId>> replacements(function.m_values.size());
+		std::vector<MarmotCompiler::Optional<MarmotIRValueId>> replacements(function.m_values.size());
 		for (uint32_t block = 0u; block < function.m_blocks.size(); block += 1u)
 		{
 			const Reducer reducer(function);
 			std::vector<MarmotIRInstruction> reduced;
 			for (const MarmotIRInstruction& instruction : function.m_blocks[block].m_instructions)
 			{
-				const std::optional<Reduction> reduction = instruction.m_result.has_value() ? reducer.Reduce(instruction) : std::nullopt;
-				if (!reduction.has_value())
+				const MarmotCompiler::Optional<Reduction> reduction = instruction.m_result.HasValue() ? reducer.Reduce(instruction) : MarmotCompiler::None;
+				if (!reduction.HasValue())
 				{
 					reduced.push_back(instruction);
 					continue;
 				}
-				const MarmotIRValueId result = instruction.m_result.value();
+				const MarmotIRValueId result = instruction.m_result.Value();
 				changed = true;
 				switch (reduction->m_kind)
 				{

@@ -1,7 +1,8 @@
 #pragma once
 
-#include <optional>
 #include <string_view>
+
+#include "Support/Optional.h"
 
 // An operation the VM performs as an instruction, which Marmot declares as a
 // `foreign` with no library: `foreign "MARMOT_PRIMITIVE_Spawn" Spawn: ...;`. The
@@ -23,4 +24,4 @@ enum class MarmotPrimitive
 #undef MARMOT_UNARY_OPERATOR
 };
 
-std::optional<MarmotPrimitive> FindPrimitive(std::string_view symbol);
+MarmotCompiler::Optional<MarmotPrimitive> FindPrimitive(std::string_view symbol);

@@ -1,5 +1,6 @@
 #include "Compiler/MarmotIROptimizer/Analysis/MarmotIRAnalysis.h"
 #include "Compiler/MarmotIROptimizer/MarmotIRPasses.h"
+#include "Support/Optional.h"
 
 #include <bit>
 #include <functional>
@@ -47,7 +48,7 @@ namespace
 	// each use. Text constants allocate, so each keeps its own identity.
 	bool IsNumbered(const MarmotIRInstruction& instruction)
 	{
-		if (!instruction.m_result.has_value())
+		if (!instruction.m_result.HasValue())
 		{
 			return false;
 		}
@@ -170,8 +171,8 @@ namespace
 	{
 		uint32_t m_block;
 		std::vector<ValueKey> m_added;
-		std::optional<MarmotIRValueId> m_condition;
-		std::optional<bool> m_previous_condition;
+		MarmotCompiler::Optional<MarmotIRValueId> m_condition;
+		MarmotCompiler::Optional<bool> m_previous_condition;
 
 		explicit NumberingScope(uint32_t block)
 			: m_block(block)
@@ -185,16 +186,16 @@ namespace
 	{
 		const MarmotIRControlFlow control_flow(function);
 		const std::vector<std::vector<uint32_t>> children = control_flow.DominatorTree();
-		std::vector<std::optional<MarmotIRValueId>> replacements(function.m_values.size());
+		std::vector<MarmotCompiler::Optional<MarmotIRValueId>> replacements(function.m_values.size());
 		std::unordered_map<ValueKey, MarmotIRValueId, ValueKeyHash> available;
 		available.reserve(function.m_values.size());
-		std::vector<std::optional<bool>> conditions(function.m_values.size());
+		std::vector<MarmotCompiler::Optional<bool>> conditions(function.m_values.size());
 		bool changed = false;
 		const auto resolve = [&replacements](MarmotIRValueId value)
 		{
-			while (replacements[value.m_index].has_value())
+			while (replacements[value.m_index].HasValue())
 			{
-				value = replacements[value.m_index].value();
+				value = replacements[value.m_index].Value();
 			}
 			return value;
 		};
@@ -231,9 +232,9 @@ namespace
 				for (MarmotIRInstruction& instruction : function.m_blocks[block].m_instructions)
 				{
 					ForEachMarmotIRUse(instruction, [&resolve](MarmotIRValueId& value) { value = resolve(value); });
-					if (instruction.m_op == MarmotIROp::Branch && conditions[instruction.m_operands.front().m_index].has_value())
+					if (instruction.m_op == MarmotIROp::Branch && conditions[instruction.m_operands.front().m_index].HasValue())
 					{
-						const bool condition = conditions[instruction.m_operands.front().m_index].value();
+						const bool condition = conditions[instruction.m_operands.front().m_index].Value();
 						instruction = MarmotIRAnalysis::Jump(std::move(instruction.m_successors[condition ? 0u : 1u]), instruction.m_line);
 						changed = true;
 					}
@@ -257,7 +258,7 @@ namespace
 						replacements[instruction.m_result->m_index] = existing->second;
 						continue;
 					}
-					available.emplace(key, instruction.m_result.value());
+					available.emplace(key, instruction.m_result.Value());
 					scope.m_added.push_back(std::move(key));
 				}
 			}
@@ -272,7 +273,7 @@ namespace
 			{
 				available.erase(key);
 			}
-			if (scope.m_condition.has_value())
+			if (scope.m_condition.HasValue())
 			{
 				conditions[scope.m_condition->m_index] = scope.m_previous_condition;
 			}
@@ -286,7 +287,7 @@ namespace
 			// so a duplicate fault need not run again either.
 			std::erase_if(block.m_instructions, [&replacements](const MarmotIRInstruction& instruction)
 			{
-				return instruction.m_result.has_value() && replacements[instruction.m_result->m_index].has_value();
+				return instruction.m_result.HasValue() && replacements[instruction.m_result->m_index].HasValue();
 			});
 			changed = changed || block.m_instructions.size() != before;
 		}

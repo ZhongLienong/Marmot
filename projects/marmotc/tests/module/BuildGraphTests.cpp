@@ -10,13 +10,13 @@
 #include "support/DiagnosticMatchers.h"
 #include "support/SourceFixture.h"
 #include "support/TempProject.h"
+#include "Support/Expected.h"
+#include "Support/Optional.h"
 
 #include <algorithm>
-#include <expected>
 #include <filesystem>
 #include <format>
 #include <fstream>
-#include <optional>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -24,12 +24,12 @@
 
 namespace
 {
-	std::expected<BuildGraph, CompilerError> GenerateBuildGraphFromFile(const std::filesystem::path& file_path, std::optional<size_t> jobs = std::nullopt)
+	MarmotResult::Result<BuildGraph> GenerateBuildGraphFromFile(const std::filesystem::path& file_path, MarmotCompiler::Optional<size_t> jobs = MarmotCompiler::None)
 	{
 		std::ifstream input_file(file_path);
 		if (!input_file.is_open())
 		{
-			return std::unexpected(CompilerError::Simple(CompilerStage::Module, "Could not open a test module."));
+			return MarmotCompiler::Failure(CompilerError::Simple(CompilerStage::Module, "Could not open a test module."));
 		}
 
 		std::ostringstream buffer;
@@ -37,17 +37,17 @@ namespace
 
 		MarmotTest::SourceFixture source_fixture(buffer.str(), file_path.string());
 		MarmotResult::LexerResult lex_result = Lexer(std::string(source_fixture.SourceCode()), source_fixture.FileName()).Lex();
-		if (!lex_result.has_value())
+		if (!lex_result.HasValue())
 		{
-			return std::unexpected(std::move(lex_result.error()));
+			return MarmotCompiler::Failure(std::move(lex_result.Error()));
 		}
 
-		return ModuleManager(std::move(lex_result.value()), source_fixture.FileName(), source_fixture.SourceLines(), MarmotDriver::EnvironmentCompilationInputs().WithJobs(jobs)).GenerateBuildGraph();
+		return ModuleManager(std::move(lex_result.Value()), source_fixture.FileName(), source_fixture.SourceLines(), MarmotDriver::EnvironmentCompilationInputs().WithJobs(jobs)).GenerateBuildGraph();
 	}
 
 	void CheckDiagnosticLocation(const CompilerError& error, const std::filesystem::path& expected_file_path, int expected_line)
 	{
-		REQUIRE(error.m_location.has_value());
+		REQUIRE(error.m_location.HasValue());
 		CHECK(error.m_location->m_file_name == expected_file_path.string());
 		CHECK(error.m_location->m_line == expected_line);
 	}
@@ -74,10 +74,10 @@ TEST_CASE("Discovery reports errors in import traversal order across job counts"
 	for (size_t jobs : { 1u, 2u, 4u })
 	{
 		MarmotResult::ModuleManagerResult graph = GenerateBuildGraphFromFile(main, jobs);
-		REQUIRE(!graph.has_value());
-		REQUIRE(graph.error().m_code == CompilerErrorCode::ModuleDeclarationMissing);
-		CheckDiagnosticLocation(graph.error(), std::filesystem::weakly_canonical(project.Path("First.mmt")), 1);
-		const std::string rendered(graph.error().Rendered());
+		REQUIRE(!graph.HasValue());
+		REQUIRE(graph.Error().m_code == CompilerErrorCode::ModuleDeclarationMissing);
+		CheckDiagnosticLocation(graph.Error(), std::filesystem::weakly_canonical(project.Path("First.mmt")), 1);
+		const std::string rendered(graph.Error().Rendered());
 		if (expected.empty())
 		{
 			expected = rendered;
@@ -99,10 +99,10 @@ TEST_CASE("Discovery attributes a shared prefetched open failure to the first im
 	for (size_t jobs : { 1u, 2u, 4u })
 	{
 		MarmotResult::ModuleManagerResult graph = GenerateBuildGraphFromFile(main, jobs);
-		REQUIRE(!graph.has_value());
-		REQUIRE(graph.error().m_code == CompilerErrorCode::ModuleImportFileOpenFailed);
-		CheckDiagnosticLocation(graph.error(), std::filesystem::weakly_canonical(project.Path("Nested.mmt")), 2);
-		const std::string rendered(graph.error().Rendered());
+		REQUIRE(!graph.HasValue());
+		REQUIRE(graph.Error().m_code == CompilerErrorCode::ModuleImportFileOpenFailed);
+		CheckDiagnosticLocation(graph.Error(), std::filesystem::weakly_canonical(project.Path("Nested.mmt")), 2);
+		const std::string rendered(graph.Error().Rendered());
 		if (expected.empty())
 		{
 			expected = rendered;
@@ -176,13 +176,13 @@ TEST_CASE("ModuleManager preserves dependency metadata and strips module stateme
 	const std::filesystem::path lib_file_path = std::filesystem::weakly_canonical(project.Path("Lib.mmt"));
 	const std::filesystem::path util_file_path = std::filesystem::weakly_canonical(project.Path("Util.mmt"));
 
-	std::expected<BuildGraph, CompilerError> graph_result = GenerateBuildGraphFromFile(main_file_path);
-	if (!graph_result.has_value())
+	MarmotResult::Result<BuildGraph> graph_result = GenerateBuildGraphFromFile(main_file_path);
+	if (!graph_result.HasValue())
 	{
-		FAIL(std::string(graph_result.error().Rendered()));
+		FAIL(std::string(graph_result.Error().Rendered()));
 	}
 
-	const BuildGraph& graph = graph_result.value();
+	const BuildGraph& graph = graph_result.Value();
 	REQUIRE(graph.m_nodes.size() == 3);
 	REQUIRE(graph.m_nodes.contains(main_file_path.string()));
 	REQUIRE(graph.m_nodes.contains(lib_file_path.string()));
@@ -240,13 +240,13 @@ TEST_CASE("ModuleManager preserves dotted module names in use imports", "[module
 
 	const std::filesystem::path main_file_path = std::filesystem::weakly_canonical(project.Path("Main.mmt"));
 
-	std::expected<BuildGraph, CompilerError> graph_result = GenerateBuildGraphFromFile(main_file_path);
-	if (!graph_result.has_value())
+	MarmotResult::Result<BuildGraph> graph_result = GenerateBuildGraphFromFile(main_file_path);
+	if (!graph_result.HasValue())
 	{
-		FAIL(std::string(graph_result.error().Rendered()));
+		FAIL(std::string(graph_result.Error().Rendered()));
 	}
 
-	const BuildGraph& graph = graph_result.value();
+	const BuildGraph& graph = graph_result.Value();
 	REQUIRE(graph.m_nodes.at(main_file_path.string()).m_use_imports.size() == 2u);
 	CHECK(graph.m_nodes.at(main_file_path.string()).m_use_imports[0].m_module_name == "Math.Vector");
 	CHECK(graph.m_nodes.at(main_file_path.string()).m_use_imports[0].m_symbol_name == "add");
@@ -265,10 +265,10 @@ TEST_CASE("ModuleManager requires an explicit module declaration in every file",
 		)
 	});
 
-	std::expected<BuildGraph, CompilerError> graph_result = GenerateBuildGraphFromFile(project.Path("MissingModule.mmt"));
-	REQUIRE_FALSE(graph_result.has_value());
+	MarmotResult::Result<BuildGraph> graph_result = GenerateBuildGraphFromFile(project.Path("MissingModule.mmt"));
+	REQUIRE_FALSE(graph_result.HasValue());
 
-	const CompilerError& error = graph_result.error();
+	const CompilerError& error = graph_result.Error();
 	MarmotTest::ErrorExpectation expectation;
 	expectation.m_stage = CompilerStage::Module;
 	expectation.m_code = CompilerErrorCode::ModuleDeclarationMissing;
@@ -289,10 +289,10 @@ TEST_CASE("ModuleManager rejects multiple module declarations in one file", "[mo
 		)
 	});
 
-	std::expected<BuildGraph, CompilerError> graph_result = GenerateBuildGraphFromFile(project.Path("MultipleModules.mmt"));
-	REQUIRE_FALSE(graph_result.has_value());
+	MarmotResult::Result<BuildGraph> graph_result = GenerateBuildGraphFromFile(project.Path("MultipleModules.mmt"));
+	REQUIRE_FALSE(graph_result.HasValue());
 
-	const CompilerError& error = graph_result.error();
+	const CompilerError& error = graph_result.Error();
 	MarmotTest::ErrorExpectation expectation;
 	expectation.m_stage = CompilerStage::Module;
 	expectation.m_code = CompilerErrorCode::ModuleDeclarationDuplicate;
@@ -312,10 +312,10 @@ TEST_CASE("ModuleManager requires the module declaration to be the first top-lev
 		)
 	});
 
-	std::expected<BuildGraph, CompilerError> graph_result = GenerateBuildGraphFromFile(project.Path("LateModule.mmt"));
-	REQUIRE_FALSE(graph_result.has_value());
+	MarmotResult::Result<BuildGraph> graph_result = GenerateBuildGraphFromFile(project.Path("LateModule.mmt"));
+	REQUIRE_FALSE(graph_result.HasValue());
 
-	const CompilerError& error = graph_result.error();
+	const CompilerError& error = graph_result.Error();
 	MarmotTest::ErrorExpectation expectation;
 	expectation.m_stage = CompilerStage::Module;
 	expectation.m_message_substrings = { "first top-level statement" };
@@ -334,10 +334,10 @@ TEST_CASE("ModuleManager returns a diagnostic for reserved-keyword module names"
 		({
 			MarmotTest::TempProjectFile("Invalid.mmt", std::format("module {}\ndef value = 1;\n", keyword))
 		});
-		const std::expected<BuildGraph, CompilerError> graph_result = GenerateBuildGraphFromFile(project.Path("Invalid.mmt"));
-		REQUIRE_FALSE(graph_result.has_value());
+		const MarmotResult::Result<BuildGraph> graph_result = GenerateBuildGraphFromFile(project.Path("Invalid.mmt"));
+		REQUIRE_FALSE(graph_result.HasValue());
 
-		const CompilerError& error = graph_result.error();
+		const CompilerError& error = graph_result.Error();
 		MarmotTest::ErrorExpectation expectation;
 		expectation.m_stage = CompilerStage::Module;
 		expectation.m_message_substrings = { "reserved keyword", "cannot be used as a module name" };
@@ -354,8 +354,8 @@ TEST_CASE("ModuleManager accepts contextual and keyword-prefixed module names", 
 		({
 			MarmotTest::TempProjectFile("Valid.mmt", std::format("module {}\ndef value = 1;\n", name))
 		});
-		const std::expected<BuildGraph, CompilerError> graph_result = GenerateBuildGraphFromFile(project.Path("Valid.mmt"));
-		REQUIRE(graph_result.has_value());
+		const MarmotResult::Result<BuildGraph> graph_result = GenerateBuildGraphFromFile(project.Path("Valid.mmt"));
+		REQUIRE(graph_result.HasValue());
 		CHECK(graph_result->m_module_declarations.at(project.Path("Valid.mmt").string()).ModuleName() == name);
 	}
 }
@@ -373,10 +373,10 @@ TEST_CASE("ModuleManager returns a diagnostic for malformed dotted use syntax", 
 		)
 	});
 
-	std::expected<BuildGraph, CompilerError> graph_result = GenerateBuildGraphFromFile(project.Path("InvalidUse.mmt"));
-	REQUIRE_FALSE(graph_result.has_value());
+	MarmotResult::Result<BuildGraph> graph_result = GenerateBuildGraphFromFile(project.Path("InvalidUse.mmt"));
+	REQUIRE_FALSE(graph_result.HasValue());
 
-	const CompilerError& error = graph_result.error();
+	const CompilerError& error = graph_result.Error();
 	MarmotTest::ErrorExpectation expectation;
 	expectation.m_stage = CompilerStage::Module;
 	expectation.m_rendered_substrings = { "use statement" };
@@ -396,10 +396,10 @@ TEST_CASE("ModuleManager returns a diagnostic for import statements without brac
 		)
 	});
 
-	std::expected<BuildGraph, CompilerError> graph_result = GenerateBuildGraphFromFile(project.Path("InvalidImport.mmt"));
-	REQUIRE_FALSE(graph_result.has_value());
+	MarmotResult::Result<BuildGraph> graph_result = GenerateBuildGraphFromFile(project.Path("InvalidImport.mmt"));
+	REQUIRE_FALSE(graph_result.HasValue());
 
-	const CompilerError& error = graph_result.error();
+	const CompilerError& error = graph_result.Error();
 	CheckDiagnosticLocation(error, std::filesystem::weakly_canonical(project.Path("InvalidImport.mmt")), 2);
 
 	MarmotTest::ErrorExpectation expectation;
@@ -440,10 +440,10 @@ TEST_CASE("ModuleManager preserves imported child lexer diagnostics across recur
 	const std::filesystem::path parent_file_path = std::filesystem::weakly_canonical(project.Path("Parent.mmt"));
 	const std::filesystem::path broken_file_path = std::filesystem::weakly_canonical(project.Path("Broken.mmt"));
 
-	std::expected<BuildGraph, CompilerError> graph_result = GenerateBuildGraphFromFile(main_file_path);
-	REQUIRE_FALSE(graph_result.has_value());
+	MarmotResult::Result<BuildGraph> graph_result = GenerateBuildGraphFromFile(main_file_path);
+	REQUIRE_FALSE(graph_result.HasValue());
 
-	const CompilerError& error = graph_result.error();
+	const CompilerError& error = graph_result.Error();
 	CHECK(error.m_stage == CompilerStage::Lexer);
 	CheckDiagnosticLocation(error, broken_file_path, 2);
 	CHECK(error.m_message.find("Invalid character: @") != std::string::npos);
@@ -480,10 +480,10 @@ TEST_CASE("ModuleManager preserves imported child module diagnostics across recu
 	const std::filesystem::path parent_file_path = std::filesystem::weakly_canonical(project.Path("Parent.mmt"));
 	const std::filesystem::path broken_file_path = std::filesystem::weakly_canonical(project.Path("Broken.mmt"));
 
-	std::expected<BuildGraph, CompilerError> graph_result = GenerateBuildGraphFromFile(main_file_path);
-	REQUIRE_FALSE(graph_result.has_value());
+	MarmotResult::Result<BuildGraph> graph_result = GenerateBuildGraphFromFile(main_file_path);
+	REQUIRE_FALSE(graph_result.HasValue());
 
-	const CompilerError& error = graph_result.error();
+	const CompilerError& error = graph_result.Error();
 	CHECK(error.m_stage == CompilerStage::Module);
 	CheckDiagnosticLocation(error, broken_file_path, 1);
 	MarmotTest::ErrorExpectation expectation;
@@ -508,15 +508,15 @@ TEST_CASE("ModuleManager tags unresolved imports with a stable diagnostic code",
 		)
 	});
 
-	std::expected<BuildGraph, CompilerError> graph_result = GenerateBuildGraphFromFile(project.Path("Main.mmt"));
-	REQUIRE_FALSE(graph_result.has_value());
+	MarmotResult::Result<BuildGraph> graph_result = GenerateBuildGraphFromFile(project.Path("Main.mmt"));
+	REQUIRE_FALSE(graph_result.HasValue());
 
 	MarmotTest::ErrorExpectation expectation;
 	expectation.m_stage = CompilerStage::Module;
 	expectation.m_code = CompilerErrorCode::ModuleImportResolutionFailed;
 	expectation.m_line = 2;
 	expectation.m_message_substrings = { "Could not resolve import" };
-	RequireErrorMatches(graph_result.error(), expectation);
+	RequireErrorMatches(graph_result.Error(), expectation);
 }
 
 TEST_CASE("ModuleManager tags import file open failures with a stable diagnostic code", "[module][graph]")
@@ -534,15 +534,15 @@ TEST_CASE("ModuleManager tags import file open failures with a stable diagnostic
 
 	std::filesystem::create_directories(project.Path("Library"));
 
-	std::expected<BuildGraph, CompilerError> graph_result = GenerateBuildGraphFromFile(project.Path("Main.mmt"));
-	REQUIRE_FALSE(graph_result.has_value());
+	MarmotResult::Result<BuildGraph> graph_result = GenerateBuildGraphFromFile(project.Path("Main.mmt"));
+	REQUIRE_FALSE(graph_result.HasValue());
 
 	MarmotTest::ErrorExpectation expectation;
 	expectation.m_stage = CompilerStage::Module;
 	expectation.m_code = CompilerErrorCode::ModuleImportFileOpenFailed;
 	expectation.m_line = 2;
 	expectation.m_message_substrings = { "Could not open import file" };
-	RequireErrorMatches(graph_result.error(), expectation);
+	RequireErrorMatches(graph_result.Error(), expectation);
 }
 
 TEST_CASE("ModuleManager tags circular dependencies with a stable diagnostic code", "[module][graph]")
@@ -572,14 +572,14 @@ TEST_CASE("ModuleManager tags circular dependencies with a stable diagnostic cod
 		)
 	});
 
-	std::expected<BuildGraph, CompilerError> graph_result = GenerateBuildGraphFromFile(project.Path("Main.mmt"));
-	REQUIRE_FALSE(graph_result.has_value());
+	MarmotResult::Result<BuildGraph> graph_result = GenerateBuildGraphFromFile(project.Path("Main.mmt"));
+	REQUIRE_FALSE(graph_result.HasValue());
 
 	MarmotTest::ErrorExpectation expectation;
 	expectation.m_stage = CompilerStage::Module;
 	expectation.m_code = CompilerErrorCode::ModuleCircularDependency;
 	expectation.m_message_substrings = { "Import cycle: A -> B -> A." };
-	RequireErrorMatches(graph_result.error(), expectation);
+	RequireErrorMatches(graph_result.Error(), expectation);
 }
 
 TEST_CASE("Discovery names each cycle at the import that closes it across job counts", "[module][discovery]")
@@ -611,11 +611,11 @@ TEST_CASE("Discovery names each cycle at the import that closes it across job co
 	for (size_t jobs : { 1u, 2u, 4u })
 	{
 		MarmotResult::ModuleManagerResult graph = GenerateBuildGraphFromFile(project.Path("Main.mmt"), jobs);
-		REQUIRE(!graph.has_value());
-		REQUIRE(graph.error().m_code == CompilerErrorCode::ModuleCircularDependency);
-		CHECK(graph.error().m_message == std::format("Import cycle: {}.", chain));
-		CheckDiagnosticLocation(graph.error(), std::filesystem::weakly_canonical(project.Path("C.mmt")), 2);
-		const std::string rendered(graph.error().Rendered());
+		REQUIRE(!graph.HasValue());
+		REQUIRE(graph.Error().m_code == CompilerErrorCode::ModuleCircularDependency);
+		CHECK(graph.Error().m_message == std::format("Import cycle: {}.", chain));
+		CheckDiagnosticLocation(graph.Error(), std::filesystem::weakly_canonical(project.Path("C.mmt")), 2);
+		const std::string rendered(graph.Error().Rendered());
 		if (expected.empty())
 		{
 			expected = rendered;
@@ -648,9 +648,9 @@ TEST_CASE("Discovery preserves cycle error precedence within and after its ownin
 	for (size_t jobs : { 1u, 2u, 4u })
 	{
 		MarmotResult::ModuleManagerResult graph = GenerateBuildGraphFromFile(project.Path("Main.mmt"), jobs);
-		REQUIRE(!graph.has_value());
-		REQUIRE(graph.error().m_code == code);
-		CheckDiagnosticLocation(graph.error(), std::filesystem::weakly_canonical(file), 2);
+		REQUIRE(!graph.HasValue());
+		REQUIRE(graph.Error().m_code == code);
+		CheckDiagnosticLocation(graph.Error(), std::filesystem::weakly_canonical(file), 2);
 	}
 }
 
@@ -670,7 +670,7 @@ TEST_CASE("Discovery retains shared and duplicate import edges once", "[module][
 	for (size_t jobs : { 1u, 2u, 4u })
 	{
 		MarmotResult::ModuleManagerResult graph = GenerateBuildGraphFromFile(main, jobs);
-		REQUIRE(graph.has_value());
+		REQUIRE(graph.HasValue());
 		REQUIRE(graph->m_nodes.size() == 4u);
 		REQUIRE(graph->m_module_declarations.size() == 4u);
 		REQUIRE(graph->m_nodes.at(main).m_dependencies == std::vector<std::string>{ left, right });
@@ -688,12 +688,12 @@ public export { missing }
 def main = fn() -> Int => 0;
 )";
 
-	MarmotResult::CompilerResult compile_result = MarmotTest::CompileSnippet(source_code, "MissingExport.mmt");
-	REQUIRE_FALSE(compile_result.has_value());
+	MarmotResult::ExecutableDiagnosticsResult compile_result = MarmotTest::CompileSnippet(source_code, "MissingExport.mmt");
+	REQUIRE_FALSE(compile_result.HasValue());
 
 	MarmotTest::ErrorExpectation expectation;
 	expectation.m_stage = CompilerStage::Module;
 	expectation.m_code = CompilerErrorCode::ModuleMissingExportedSymbol;
 	expectation.m_message_substrings = { "exported but not defined", "missing" };
-	RequireErrorMatches(compile_result.error().First(), expectation);
+	RequireErrorMatches(compile_result.Error().First(), expectation);
 }

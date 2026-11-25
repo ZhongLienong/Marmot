@@ -3,6 +3,7 @@
 #include "Bytecode/Scalar/Scalar.h"
 #include "Compiler/MarmotIROptimizer/Analysis/MarmotIRAnalysis.h"
 #include "Compiler/MarmotIROptimizer/MarmotIRPasses.h"
+#include "Support/Optional.h"
 
 #include <cmath>
 #include <limits>
@@ -74,7 +75,7 @@ namespace
 	// every machine. A division by zero, an invalid Float conversion and
 	// the shifts and bit operations of Byte and Word, whose VM forms read
 	// their operands as another type, are left to run.
-	std::optional<MarmotIRImmediate> Fold(MarmotIROp op, const Immediates& operands)
+	MarmotCompiler::Optional<MarmotIRImmediate> Fold(MarmotIROp op, const Immediates& operands)
 	{
 		using namespace MarmotIntegerArithmetic;
 		using enum MarmotIROp;
@@ -87,8 +88,8 @@ namespace
 		case AddInt: return Add(int_at(0u), int_at(1u));
 		case SubInt: return Subtract(int_at(0u), int_at(1u));
 		case MulInt: return Multiply(int_at(0u), int_at(1u));
-		case DivInt: return int_at(1u) == 0 ? std::nullopt : std::optional<MarmotIRImmediate>(Divide(int_at(0u), int_at(1u)));
-		case ModInt: return int_at(1u) == 0 ? std::nullopt : std::optional<MarmotIRImmediate>(Remainder(int_at(0u), int_at(1u)));
+		case DivInt: return int_at(1u) == 0 ? MarmotCompiler::None : MarmotCompiler::Optional<MarmotIRImmediate>(Divide(int_at(0u), int_at(1u)));
+		case ModInt: return int_at(1u) == 0 ? MarmotCompiler::None : MarmotCompiler::Optional<MarmotIRImmediate>(Remainder(int_at(0u), int_at(1u)));
 		case NegInt: return Negate(int_at(0u));
 		case BitAndInt: return int_at(0u) & int_at(1u);
 		case BitOrInt: return int_at(0u) | int_at(1u);
@@ -105,13 +106,13 @@ namespace
 		case AddByte: return Byte(byte_at(0u) + byte_at(1u));
 		case SubByte: return Byte(static_cast<unsigned>(byte_at(0u) - byte_at(1u)));
 		case MulByte: return Byte(static_cast<unsigned>(byte_at(0u) * byte_at(1u)));
-		case DivByte: return byte_at(1u) == 0u ? std::nullopt : std::optional<MarmotIRImmediate>(Byte(byte_at(0u) / byte_at(1u)));
-		case ModByte: return byte_at(1u) == 0u ? std::nullopt : std::optional<MarmotIRImmediate>(Byte(byte_at(0u) % byte_at(1u)));
+		case DivByte: return byte_at(1u) == 0u ? MarmotCompiler::None : MarmotCompiler::Optional<MarmotIRImmediate>(Byte(byte_at(0u) / byte_at(1u)));
+		case ModByte: return byte_at(1u) == 0u ? MarmotCompiler::None : MarmotCompiler::Optional<MarmotIRImmediate>(Byte(byte_at(0u) % byte_at(1u)));
 		case AddWord: return MarmotIRWord{ word_at(0u) + word_at(1u) };
 		case SubWord: return MarmotIRWord{ word_at(0u) - word_at(1u) };
 		case MulWord: return MarmotIRWord{ word_at(0u) * word_at(1u) };
-		case DivWord: return word_at(1u) == 0u ? std::nullopt : std::optional<MarmotIRImmediate>(MarmotIRWord{ word_at(0u) / word_at(1u) });
-		case ModWord: return word_at(1u) == 0u ? std::nullopt : std::optional<MarmotIRImmediate>(MarmotIRWord{ word_at(0u) % word_at(1u) });
+		case DivWord: return word_at(1u) == 0u ? MarmotCompiler::None : MarmotCompiler::Optional<MarmotIRImmediate>(MarmotIRWord{ word_at(0u) / word_at(1u) });
+		case ModWord: return word_at(1u) == 0u ? MarmotCompiler::None : MarmotCompiler::Optional<MarmotIRImmediate>(MarmotIRWord{ word_at(0u) % word_at(1u) });
 		case EqInt: return int_at(0u) == int_at(1u);
 		case NeInt: return int_at(0u) != int_at(1u);
 		case LtInt: return int_at(0u) < int_at(1u);
@@ -142,7 +143,7 @@ namespace
 		case EqText: return At<std::string>(operands, 0u) == At<std::string>(operands, 1u);
 		case NeText: return At<std::string>(operands, 0u) != At<std::string>(operands, 1u);
 		case IntToFloat: return static_cast<double>(int_at(0u));
-		case FloatToInt: return MarmotFloatConversion::ToInteger<MarmotInteger>(float_at(0u));
+		case FloatToInt: return MarmotFloatConversion::ToInteger<MarmotInteger>(float_at(0u)).Transform([](MarmotInteger value) -> MarmotIRImmediate { return value; });
 		case ByteToInt: return static_cast<int64_t>(byte_at(0u));
 		case IntToByte: return Byte(static_cast<unsigned>(int_at(0u) & 0xFF));
 		case ByteToWord: return MarmotIRWord{ byte_at(0u) };
@@ -150,20 +151,20 @@ namespace
 		case WordToInt: return static_cast<int64_t>(word_at(0u));
 		case IntToWord: return MarmotIRWord{ static_cast<uint64_t>(int_at(0u)) };
 		case ByteToFloat: return static_cast<double>(byte_at(0u));
-		case FloatToByte: return MarmotFloatConversion::ToInteger<MarmotByte>(float_at(0u)).transform([](MarmotByte value) { return MarmotIRByte{ value }; });
+		case FloatToByte: return MarmotFloatConversion::ToInteger<MarmotByte>(float_at(0u)).Transform([](MarmotByte value) -> MarmotIRImmediate { return MarmotIRByte{ value }; });
 		case WordToFloat: return static_cast<double>(word_at(0u));
-		case FloatToWord: return MarmotFloatConversion::ToInteger<MarmotWord>(float_at(0u)).transform([](MarmotWord value) { return MarmotIRWord{ value }; });
+		case FloatToWord: return MarmotFloatConversion::ToInteger<MarmotWord>(float_at(0u)).Transform([](MarmotWord value) -> MarmotIRImmediate { return MarmotIRWord{ value }; });
 		// A folded Extend gives a text constant, which every load shares, so
 		// Rewrite turns an Extend of it into a Concat.
 		case Concat:
 		case Extend:
 			if (!std::holds_alternative<std::string>(*operands[0u]))
 			{
-				return std::nullopt;
+				return MarmotCompiler::None;
 			}
 			return At<std::string>(operands, 0u) + At<std::string>(operands, 1u);
 		default:
-			return std::nullopt;
+			return MarmotCompiler::None;
 		}
 	}
 
@@ -248,7 +249,7 @@ namespace
 		bool Rewrite()
 		{
 			bool changed = false;
-			std::vector<std::optional<MarmotIRValueId>> replacements(m_function.m_values.size());
+			std::vector<MarmotCompiler::Optional<MarmotIRValueId>> replacements(m_function.m_values.size());
 			for (uint32_t block = 0u; block < m_function.m_blocks.size(); block += 1u)
 			{
 				if (!m_executable[block])
@@ -273,10 +274,10 @@ namespace
 				std::vector<MarmotIRInstruction>& instructions = m_function.m_blocks[block].m_instructions;
 				for (MarmotIRInstruction& instruction : instructions)
 				{
-					if (instruction.m_result.has_value() && instruction.m_op != MarmotIROp::Const && m_cells[instruction.m_result->m_index].m_level == Level::Constant)
+					if (instruction.m_result.HasValue() && instruction.m_op != MarmotIROp::Const && m_cells[instruction.m_result->m_index].m_level == Level::Constant)
 					{
 						const MarmotIRImmediate& value = m_cells[instruction.m_result->m_index].m_value;
-						instruction = MarmotIRAnalysis::Const(instruction.m_result.value(), MarmotIRAnalysis::ConstantType(value, instruction.m_type), value, instruction.m_line);
+						instruction = MarmotIRAnalysis::Const(instruction.m_result.Value(), MarmotIRAnalysis::ConstantType(value, instruction.m_type), value, instruction.m_line);
 						changed = true;
 					}
 					else if (instruction.m_op == MarmotIROp::Extend && m_cells[instruction.m_operands.front().m_index].m_level == Level::Constant)
@@ -313,7 +314,7 @@ namespace
 				{
 					changed = VisitTerminator(instruction) || changed;
 				}
-				else if (instruction.m_result.has_value())
+				else if (instruction.m_result.HasValue())
 				{
 					changed = Meet(m_cells[instruction.m_result->m_index], Evaluate(instruction)) || changed;
 				}
@@ -362,8 +363,8 @@ namespace
 			{
 				return Cell();
 			}
-			std::optional<MarmotIRImmediate> folded = Fold(instruction.m_op, operands);
-			return folded.has_value() ? Cell::Constant(std::move(folded).value()) : Cell::Varying();
+			MarmotCompiler::Optional<MarmotIRImmediate> folded = Fold(instruction.m_op, operands);
+			return folded.HasValue() ? Cell::Constant(std::move(folded).Value()) : Cell::Varying();
 		}
 
 		bool VisitTerminator(const MarmotIRInstruction& terminator)
@@ -413,9 +414,9 @@ bool RunSccp(MarmotIRModule& module)
 	// Every read of a global comes after its definition, which only the
 	// top-level function makes, so what it stores is what every read gives.
 	GlobalConstants globals;
-	if (module.m_top_level.has_value())
+	if (module.m_top_level.HasValue())
 	{
-		Propagation(module.Function(module.m_top_level.value()), globals).CollectGlobals(globals);
+		Propagation(module.Function(module.m_top_level.Value()), globals).CollectGlobals(globals);
 	}
 	return MarmotIRAnalysis::TransformFunctions(module, [&globals](MarmotIRFunction& function) { return Propagation(function, globals).Rewrite(); });
 }

@@ -4,10 +4,10 @@
 #include "Compiler/Error/CompilerError.h"
 #include "Compiler/BytecodeModule/BytecodeModule.h"
 #include "Compiler/Module/ModuleInterface.h"
+#include "Support/Optional.h"
 #include <string>
 #include <filesystem>
 #include <vector>
-#include <optional>
 #include <memory>
 
 struct CompiledModule
@@ -29,7 +29,7 @@ struct CompiledModule
 
 	[[nodiscard]] const std::vector<CompilerWarning>& Warnings() const;
 
-	[[nodiscard]] const std::optional<BytecodeModule>& Bytecode() const &;
+	[[nodiscard]] const MarmotCompiler::Optional<BytecodeModule>& Bytecode() const &;
 
 	[[nodiscard]] BytecodeModule TakeBytecode() &&;
 
@@ -54,8 +54,8 @@ struct CompiledModule
 private:
 	std::shared_ptr<const ModuleInterface> m_interface;
 	std::vector<CompilerWarning> m_warnings;
-	std::optional<BytecodeModule> m_bytecode;        // Per-module bytecode for incremental compilation
+	MarmotCompiler::Optional<BytecodeModule> m_bytecode;        // Per-module bytecode for incremental compilation
 	std::string m_marmot_ir;
 	std::string m_ast;
-	std::optional<ModuleDefinitions> m_definitions;
+	MarmotCompiler::Optional<ModuleDefinitions> m_definitions;
 };

@@ -35,13 +35,13 @@ def Display = fn<T>(value: T) -> Text where Show<T> => Show::show(value);
 		INFO(body);
 		const std::string source = declarations + body + R"(def after = fn(value: Int) -> Text => Display(value);
 )";
-		const std::expected<MarmotTest::TypedSnippet, MarmotResult::CompilerDiagnostics> checked = MarmotTest::TypeCheckSnippetWithDiagnostics(source, "FunctionBodyFailure.mmt");
-		REQUIRE_FALSE(checked.has_value());
-		INFO(checked.error().Rendered());
-		REQUIRE(checked.error().Size() == 2u);
-		CHECK(checked.error().m_items[0u].m_code == CompilerErrorCode::TypeMismatch);
-		CHECK(checked.error().m_items[1u].m_code == CompilerErrorCode::TypeUnsatisfiedConstraint);
-		CHECK(checked.error().m_items[1u].m_message.find("Show<Int>") != std::string::npos);
+		const MarmotResult::DiagnosticsResult<MarmotTest::TypedSnippet> checked = MarmotTest::TypeCheckSnippetWithDiagnostics(source, "FunctionBodyFailure.mmt");
+		REQUIRE_FALSE(checked.HasValue());
+		INFO(checked.Error().Rendered());
+		REQUIRE(checked.Error().Size() == 2u);
+		CHECK(checked.Error().m_items[0u].m_code == CompilerErrorCode::TypeMismatch);
+		CHECK(checked.Error().m_items[1u].m_code == CompilerErrorCode::TypeUnsatisfiedConstraint);
+		CHECK(checked.Error().m_items[1u].m_message.find("Show<Int>") != std::string::npos);
 	}
 }
 
@@ -53,11 +53,11 @@ def Display = fn<T>(value: T) -> Text where Show<T> => Show::show(value);
 def First = fn<T>(value: T) -> Int where Show<Int> => 1;
 def after = fn(value: Int) -> Text => Display(value);
 )";
-	const std::expected<MarmotTest::TypedSnippet, MarmotResult::CompilerDiagnostics> checked = MarmotTest::TypeCheckSnippetWithDiagnostics(source);
-	REQUIRE_FALSE(checked.has_value());
-	INFO(checked.error().Rendered());
-	REQUIRE(checked.error().Size() == 1u);
-	CHECK(checked.error().First().m_code == CompilerErrorCode::TypeUnsatisfiedConstraint);
+	const MarmotResult::DiagnosticsResult<MarmotTest::TypedSnippet> checked = MarmotTest::TypeCheckSnippetWithDiagnostics(source);
+	REQUIRE_FALSE(checked.HasValue());
+	INFO(checked.Error().Rendered());
+	REQUIRE(checked.Error().Size() == 1u);
+	CHECK(checked.Error().First().m_code == CompilerErrorCode::TypeUnsatisfiedConstraint);
 }
 
 TEST_CASE("Nested generic lambdas keep their own and enclosing constraints separate", "[typechecker][function-body]")
@@ -70,10 +70,10 @@ def Outer = fn<T>(value: T) -> T where Echo<T> => {
     inner(value)
 };
 )";
-	const std::expected<MarmotTest::TypedSnippet, CompilerError> checked = MarmotTest::TypeCheckSnippet(source);
-	if (!checked.has_value())
+	const MarmotResult::Result<MarmotTest::TypedSnippet> checked = MarmotTest::TypeCheckSnippet(source);
+	if (!checked.HasValue())
 	{
-		FAIL(checked.error().Rendered());
+		FAIL(checked.Error().Rendered());
 	}
 }
 
@@ -86,12 +86,12 @@ def Broken = fn<T>(value: T) -> T => {
 };
 def later = fn(value: Int) -> Bool => value;
 )";
-	const std::expected<MarmotTest::TypedSnippet, MarmotResult::CompilerDiagnostics> checked = MarmotTest::TypeCheckSnippetWithDiagnostics(source);
-	REQUIRE_FALSE(checked.has_value());
-	INFO(checked.error().Rendered());
-	REQUIRE(checked.error().Size() == 2u);
-	CHECK(checked.error().m_items[0u].m_message.find("Expected type 'Text' but got 'Int'") != std::string::npos);
-	CHECK(checked.error().m_items[1u].m_message.find("Expected type 'Bool' but got 'Int'") != std::string::npos);
+	const MarmotResult::DiagnosticsResult<MarmotTest::TypedSnippet> checked = MarmotTest::TypeCheckSnippetWithDiagnostics(source);
+	REQUIRE_FALSE(checked.HasValue());
+	INFO(checked.Error().Rendered());
+	REQUIRE(checked.Error().Size() == 2u);
+	CHECK(checked.Error().m_items[0u].m_message.find("Expected type 'Text' but got 'Int'") != std::string::npos);
+	CHECK(checked.Error().m_items[1u].m_message.find("Expected type 'Bool' but got 'Int'") != std::string::npos);
 }
 
 TEST_CASE("Generic and inferred lambdas keep their separate signature finalization", "[typechecker][function-body]")
@@ -103,10 +103,10 @@ def text = Identity("text");
 def inferred: fn(Int) -> Text = fn(value) => "text";
 def result = inferred(number);
 )";
-	const std::expected<MarmotTest::TypedSnippet, CompilerError> checked = MarmotTest::TypeCheckSnippet(source);
-	if (!checked.has_value())
+	const MarmotResult::Result<MarmotTest::TypedSnippet> checked = MarmotTest::TypeCheckSnippet(source);
+	if (!checked.HasValue())
 	{
-		FAIL(checked.error().Rendered());
+		FAIL(checked.Error().Rendered());
 	}
 	const MarmotStatement::VariableDefinition& definition = checked->m_program.back()->GetStatement<MarmotStatement::VariableDefinition>();
 	CHECK(definition.m_value->GetType()->IsType<MarmotType::TextType>());

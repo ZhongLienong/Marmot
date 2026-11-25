@@ -6,6 +6,7 @@
 #include "support/CompileHelpers.h"
 #include "support/DiagnosticMatchers.h"
 #include "Utility/Driver/MarmotDriver.h"
+#include "Support/Optional.h"
 
 #include <string>
 #include <string_view>
@@ -153,7 +154,7 @@ TEST_CASE("Compiler report renders grouped warnings and structured machine-reada
 		"C:/repo/Alpha.mmt",
 		1,
 		6u,
-		std::nullopt,
+		MarmotCompiler::None,
 		"next",
 		CompilerWarningCode::IntegerOverflow
 	);
@@ -166,7 +167,7 @@ TEST_CASE("Compiler report renders grouped warnings and structured machine-reada
 		"C:/repo/Beta.mmt",
 		2,
 		4u,
-		std::nullopt,
+		MarmotCompiler::None,
 		"def value = value;",
 		CompilerWarningCode::NameShadowing
 	);
@@ -207,7 +208,7 @@ TEST_CASE("Driver renders compilation warnings and errors behind one banner", "[
 		"Warn.mmt",
 		4,
 		6u,
-		std::nullopt,
+		MarmotCompiler::None,
 		"def unused = 1;",
 		CompilerWarningCode::UnusedLocal
 	);
@@ -221,7 +222,7 @@ TEST_CASE("Driver renders compilation warnings and errors behind one banner", "[
 		"First.mmt",
 		5,
 		3u,
-		std::nullopt,
+		MarmotCompiler::None,
 		"def x = y;",
 		CompilerErrorCode::LoweringUnsupportedConstruct
 	));
@@ -233,7 +234,7 @@ TEST_CASE("Driver renders compilation warnings and errors behind one banner", "[
 		"Second.mmt",
 		1,
 		4u,
-		std::nullopt,
+		MarmotCompiler::None,
 		"use Missing.{run};",
 		CompilerErrorCode::BytecodeLinkerUnresolvedImport
 	));
@@ -292,10 +293,10 @@ def Compute = fn() -> Int => {
 };
 )";
 
-	MarmotResult::CompilationResult compile_result = MarmotTest::CompileSnippetWithReport(source_code, "CompileWarning.mmt");
-	if (!compile_result.has_value())
+	MarmotResult::CompiledProgramReportResult compile_result = MarmotTest::CompileSnippetWithReport(source_code, "CompileWarning.mmt");
+	if (!compile_result.HasValue())
 	{
-		FAIL(MarmotTest::StripAnsiCodes(compile_result.error().Rendered()));
+		FAIL(MarmotTest::StripAnsiCodes(compile_result.Error().Rendered()));
 	}
 
 	const MarmotResult::CompilerReport& report = MarmotTest::CompilationReport(compile_result);
@@ -306,7 +307,7 @@ def Compute = fn() -> Int => {
 	REQUIRE(warning != nullptr);
 	CHECK(warning->m_stage == CompilerStage::StaticAnalyzer);
 	CHECK(warning->m_code == CompilerWarningCode::UnusedLocal);
-	REQUIRE(warning->m_location.has_value());
+	REQUIRE(warning->m_location.HasValue());
 	CHECK(std::filesystem::path(warning->m_location->m_file_name).filename().string() == "CompileWarning.mmt");
 	CHECK(warning->m_location->m_line == 4);
 }

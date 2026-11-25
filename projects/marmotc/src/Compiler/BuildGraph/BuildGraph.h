@@ -4,7 +4,6 @@
 #include "Compiler/Token/Token.h"
 #include "Compiler/Module/Module.h"
 
-#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>

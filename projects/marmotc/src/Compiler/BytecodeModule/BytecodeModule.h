@@ -2,12 +2,12 @@
 
 #include <cstdint>
 #include <filesystem>
-#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
 #include "Bytecode/Executable/Executable.h"
+#include "Support/Optional.h"
 
 struct BytecodeModule
 {
@@ -23,12 +23,12 @@ struct BytecodeModule
 	struct SourceProvenance
 	{
 		int m_line = 0;
-		std::optional<int> m_column = std::nullopt;
-		std::optional<size_t> m_caret_length = std::nullopt;
-		std::optional<std::string> m_source_line = std::nullopt;
+		MarmotCompiler::Optional<int> m_column = MarmotCompiler::None;
+		MarmotCompiler::Optional<size_t> m_caret_length = MarmotCompiler::None;
+		MarmotCompiler::Optional<std::string> m_source_line = MarmotCompiler::None;
 
 		SourceProvenance() = default;
-		SourceProvenance(int line, std::optional<int> column, std::optional<size_t> caret_length, std::optional<std::string> source_line);
+		SourceProvenance(int line, MarmotCompiler::Optional<int> column, MarmotCompiler::Optional<size_t> caret_length, MarmotCompiler::Optional<std::string> source_line);
 	};
 
 	struct ExportedSymbol
@@ -37,19 +37,19 @@ struct BytecodeModule
 		size_t m_global_index;     // Index into m_global_variables where the symbol is stored
 		SymbolType m_type;
 		std::string m_name;
-		std::optional<SourceProvenance> m_source_provenance;
+		MarmotCompiler::Optional<SourceProvenance> m_source_provenance;
 
-		ExportedSymbol(std::string name, size_t proc_index, size_t global_index, SymbolType type, std::optional<SourceProvenance> source_provenance = std::nullopt);
+		ExportedSymbol(std::string name, size_t proc_index, size_t global_index, SymbolType type, MarmotCompiler::Optional<SourceProvenance> source_provenance = MarmotCompiler::None);
 
-		ExportedSymbol(std::string name, size_t index, SymbolType type, std::optional<SourceProvenance> source_provenance = std::nullopt);
+		ExportedSymbol(std::string name, size_t index, SymbolType type, MarmotCompiler::Optional<SourceProvenance> source_provenance = MarmotCompiler::None);
 	};
 	struct ImportedSymbol
 	{
 		std::string m_name;
 		std::string m_from_module;
-		std::optional<SourceProvenance> m_source_provenance;
+		MarmotCompiler::Optional<SourceProvenance> m_source_provenance;
 
-		ImportedSymbol(std::string name, std::string from_module, std::optional<SourceProvenance> source_provenance = std::nullopt);
+		ImportedSymbol(std::string name, std::string from_module, MarmotCompiler::Optional<SourceProvenance> source_provenance = MarmotCompiler::None);
 	};
 
 	using ProcedureList = std::vector<BytecodeStream>;

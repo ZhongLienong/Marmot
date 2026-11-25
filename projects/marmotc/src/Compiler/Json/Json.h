@@ -4,12 +4,13 @@
 #include <cstdlib>
 #include <memory>
 #include <new>
-#include <optional>
 #include <string>
 #include <string_view>
 #include <type_traits>
 
 #include <yyjson.h>
+
+#include "Support/Optional.h"
 
 namespace MarmotJson
 {
@@ -36,7 +37,7 @@ namespace MarmotJson
 			return Document(true);
 		}
 
-		void AddStringField(std::string_view name, std::optional<std::string_view> value)
+		void AddStringField(std::string_view name, MarmotCompiler::Optional<std::string_view> value)
 		{
 			AddField(name, value ? String(*value) : yyjson_mut_null(m_document.get()));
 		}
@@ -47,7 +48,7 @@ namespace MarmotJson
 		}
 
 		template<std::integral Number>
-		void AddNumberField(std::string_view name, std::optional<Number> value)
+		void AddNumberField(std::string_view name, MarmotCompiler::Optional<Number> value)
 		{
 			if (value)
 			{

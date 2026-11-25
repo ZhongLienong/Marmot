@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cstdint>
-#include <optional>
 #include <functional>
 #include <memory>
 #include <ranges>
@@ -17,6 +16,7 @@
 #include "Compiler/AbstractSyntaxTree/GeneratedBinding.h"
 #include "Compiler/Operator/Ordering.h"
 #include "Type.h"
+#include "Support/Optional.h"
 
 class MarmotExpression;
 
@@ -33,24 +33,24 @@ enum class MarmotLiteralKind
 
 // Value of an Integer, Byte or Word literal lexeme: decimal, `0x` hexadecimal or `0b`
 // binary. Nothing when the lexeme is malformed or does not fit in 64 unsigned bits.
-std::optional<uint64_t> ParseUnsignedLiteral(std::string_view lexeme);
+MarmotCompiler::Optional<uint64_t> ParseUnsignedLiteral(std::string_view lexeme);
 bool IsPrefixedIntegerLiteral(std::string_view lexeme);
 
 // Value of an Integer literal lexeme. Also accepts a leading '-', which the parser
 // writes for a negative literal pattern. Nothing when the value does not fit in a
 // signed 64-bit integer.
-std::optional<int64_t> ParseIntegerLiteral(std::string_view lexeme);
+MarmotCompiler::Optional<int64_t> ParseIntegerLiteral(std::string_view lexeme);
 
 // Value of a Float literal lexeme. Nothing when the lexeme is malformed or its
 // value is out of range.
-std::optional<double> ParseFloatLiteral(std::string_view lexeme);
+MarmotCompiler::Optional<double> ParseFloatLiteral(std::string_view lexeme);
 
 struct MarmotLiteral
 {
 	Token m_token;
 	MarmotLiteralKind m_kind;
 	// Coverage and lowering use the value validated during type checking.
-	std::optional<double> m_float_value;
+	MarmotCompiler::Optional<double> m_float_value;
 
 	MarmotLiteral(const Token& token, MarmotLiteralKind kind);
 };
@@ -71,20 +71,20 @@ public:
 	{
 		Token m_name;
 		std::unique_ptr<MarmotExpression> m_value;
-		std::optional<std::shared_ptr<MarmotType>> m_annotated_type;
-		std::optional<BindingId> m_binding;
+		MarmotCompiler::Optional<std::shared_ptr<MarmotType>> m_annotated_type;
+		MarmotCompiler::Optional<BindingId> m_binding;
 		bool m_is_elided = false;
 
-		VariableDefinition(const Token& name, std::unique_ptr<MarmotExpression>&& value, std::optional<std::shared_ptr<MarmotType>>&& annotated_type, std::optional<BindingId>&& binding);
+		VariableDefinition(const Token& name, std::unique_ptr<MarmotExpression>&& value, MarmotCompiler::Optional<std::shared_ptr<MarmotType>>&& annotated_type, MarmotCompiler::Optional<BindingId>&& binding);
 	};
 
 	struct TupleDefinition
 	{
 		std::vector<Token> m_names;
 		std::unique_ptr<MarmotExpression> m_value;
-		std::vector<std::optional<BindingId>> m_bindings;
+		std::vector<MarmotCompiler::Optional<BindingId>> m_bindings;
 
-		TupleDefinition(std::vector<Token>&& names, std::unique_ptr<MarmotExpression>&& value, std::vector<std::optional<BindingId>>&& bindings);
+		TupleDefinition(std::vector<Token>&& names, std::unique_ptr<MarmotExpression>&& value, std::vector<MarmotCompiler::Optional<BindingId>>&& bindings);
 	};
 
 	struct FunctionDefinition
@@ -96,9 +96,9 @@ public:
 		std::vector<MarmotType::ClassConstraint> m_constraints;
 		std::shared_ptr<MarmotType> m_return_type;
 		std::unique_ptr<MarmotExpression> m_body;
-		std::optional<BindingId> m_binding;
+		MarmotCompiler::Optional<BindingId> m_binding;
 
-		FunctionDefinition(const Token& name, std::vector<Token>&& generic_params, FunctionParameters&& params, std::vector<std::shared_ptr<MarmotType>>&& param_types, std::shared_ptr<MarmotType>&& return_type, std::unique_ptr<MarmotExpression>&& body, std::optional<BindingId>&& binding, std::vector<MarmotType::ClassConstraint>&& constraints = {});
+		FunctionDefinition(const Token& name, std::vector<Token>&& generic_params, FunctionParameters&& params, std::vector<std::shared_ptr<MarmotType>>&& param_types, std::shared_ptr<MarmotType>&& return_type, std::unique_ptr<MarmotExpression>&& body, MarmotCompiler::Optional<BindingId>&& binding, std::vector<MarmotType::ClassConstraint>&& constraints = {});
 	};
 
 	struct ForeignDefinition
@@ -107,14 +107,14 @@ public:
 		// The symbol the library exports, or a builtin's name.
 		std::string m_foreign_name;
 		std::shared_ptr<MarmotType> m_type;
-		std::optional<BindingId> m_binding;
+		MarmotCompiler::Optional<BindingId> m_binding;
 		// The native library that exports m_foreign_name; none for a builtin.
-		std::optional<std::string> m_library;
+		MarmotCompiler::Optional<std::string> m_library;
 
-		ForeignDefinition(const Token& function_name, const std::string& foreign_name, std::shared_ptr<MarmotType>&& type, std::optional<BindingId>&& binding, std::optional<std::string> library = std::nullopt);
+		ForeignDefinition(const Token& function_name, const std::string& foreign_name, std::shared_ptr<MarmotType>&& type, MarmotCompiler::Optional<BindingId>&& binding, MarmotCompiler::Optional<std::string> library = MarmotCompiler::None);
 
 		// The instruction it declares, when it declares one instead of a function.
-		std::optional<MarmotPrimitive> DeclaredPrimitive() const;
+		MarmotCompiler::Optional<MarmotPrimitive> DeclaredPrimitive() const;
 	};
 
 	struct Struct
@@ -237,11 +237,11 @@ public:
 	struct Binding : BasePattern
 	{
 		Token m_name;
-		std::optional<BindingId> m_binding;
+		MarmotCompiler::Optional<BindingId> m_binding;
 
 		bool m_is_generated = false;
 
-		Binding(const Token& name, std::optional<BindingId> binding);
+		Binding(const Token& name, MarmotCompiler::Optional<BindingId> binding);
 		explicit Binding(const GeneratedBinding& binding);
 	};
 
@@ -281,9 +281,9 @@ public:
 
 		Token m_left_bracket;
 		std::vector<std::unique_ptr<MarmotPattern>> m_elements;
-		std::optional<Rest> m_rest;
+		MarmotCompiler::Optional<Rest> m_rest;
 
-		Array(const Token& left_bracket, std::vector<std::unique_ptr<MarmotPattern>>&& elements, std::optional<Rest>&& rest);
+		Array(const Token& left_bracket, std::vector<std::unique_ptr<MarmotPattern>>&& elements, MarmotCompiler::Optional<Rest>&& rest);
 	};
 
 	struct Constructor : BasePattern
@@ -342,9 +342,9 @@ public:
 		Token m_name_token;
 		std::string m_name;
 		std::vector<Field> m_fields;
-		std::optional<Token> m_rest;
+		MarmotCompiler::Optional<Token> m_rest;
 
-		Record(const Token& name_token, std::string&& name, std::vector<Field>&& fields, std::optional<Token>&& rest);
+		Record(const Token& name_token, std::string&& name, std::vector<Field>&& fields, MarmotCompiler::Optional<Token>&& rest);
 	};
 
 private:
@@ -428,7 +428,7 @@ public:
 		std::unique_ptr<MarmotExpression> m_right;
 		bool m_uses_concatenable = false; // True if using Concatenable typeclass for ++
 		bool m_uses_equatable = false;   // True if using Equatable typeclass for == or !=
-		std::optional<OrderingType> m_ordering;
+		MarmotCompiler::Optional<OrderingType> m_ordering;
 
 		Binary(const Token& op, std::unique_ptr<MarmotExpression>&& left, std::unique_ptr<MarmotExpression>&& right);
 	};
@@ -468,8 +468,8 @@ public:
 	{
 		Token m_name;
 		NameContext::Tag m_name_ctx;
-		std::optional<size_t> m_intrinsic;
-		std::optional<MarmotSource::Position> m_value_reference_end;
+		MarmotCompiler::Optional<size_t> m_intrinsic;
+		MarmotCompiler::Optional<MarmotSource::Position> m_value_reference_end;
 
 		NameAccess(const Token& name, NameContext::Tag&& name_ctx, const Token* value_reference_end = nullptr);
 		explicit NameAccess(const GeneratedBinding& binding);
@@ -483,7 +483,7 @@ public:
 		bool m_is_foreign;
 		// Set by the type checker when the callee names a primitive's declaration,
 		// which lowering then emits as its instruction.
-		std::optional<MarmotPrimitive> m_primitive;
+		MarmotCompiler::Optional<MarmotPrimitive> m_primitive;
 
 		Call(const Token& paren, std::unique_ptr<MarmotExpression>&& callee, std::vector<std::unique_ptr<MarmotExpression>>&& arguments, bool is_foreign = false);
 	};
@@ -634,7 +634,7 @@ public:
 	{
 		Token m_right_brace;
 		std::vector<std::unique_ptr<MarmotStatement>> m_stmts;
-		std::optional<std::unique_ptr<MarmotExpression>> m_final_expr = std::nullopt;
+		MarmotCompiler::Optional<std::unique_ptr<MarmotExpression>> m_final_expr = MarmotCompiler::None;
 
 		Block(const Token& right_brace, std::vector<std::unique_ptr<MarmotStatement>>&& stmts, std::unique_ptr<MarmotExpression>&& final_expr = nullptr);
 
@@ -654,7 +654,7 @@ public:
 		Token m_keyword;
 		std::unique_ptr<MarmotPattern> m_pattern;
 		std::unique_ptr<MarmotExpression> m_expr;
-		std::optional<std::unique_ptr<MarmotExpression>> m_guard = std::nullopt;
+		MarmotCompiler::Optional<std::unique_ptr<MarmotExpression>> m_guard = MarmotCompiler::None;
 
 		Case(const Token& keyword, std::unique_ptr<MarmotPattern>&& pattern, std::unique_ptr<MarmotExpression>&& expr, std::unique_ptr<MarmotExpression>&& guard = nullptr);
 
@@ -762,8 +762,8 @@ public:
 					}
 				);
 
-				const bool has_final_expr = node.m_final_expr.has_value()
-					&& node.m_final_expr.value()->template Contains<Kind>();
+				const bool has_final_expr = node.m_final_expr.HasValue()
+					&& node.m_final_expr.Value()->template Contains<Kind>();
 
 				return has_statement || has_final_expr;
 			}

@@ -1,17 +1,17 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "Compiler/Json/JsonReader.h"
+#include "Support/Expected.h"
 
-#include <expected>
 #include <string>
 
 TEST_CASE("JSON reader parses every kind of value", "[json]")
 {
-	const std::expected<CompilerJson::JsonValue, std::string> document = CompilerJson::Parse(
+	const MarmotCompiler::Expected<CompilerJson::JsonValue, std::string> document = CompilerJson::Parse(
 		R"({ "text": "a\"b\\c\/\n\u00e9\ud83d\ude00", "number": -12.5e1, "zero": 0, "yes": true, "no": false, "nothing": null, "list": [1, [], {}] })");
-	REQUIRE(document.has_value());
+	REQUIRE(document.HasValue());
 
-	const CompilerJson::JsonValue& root = document.value();
+	const CompilerJson::JsonValue& root = document.Value();
 	REQUIRE(root.IsObject());
 	CHECK(root.AsObject().size() == 7u);
 	CHECK(root.Find("text")->AsString() == "a\"b\\c/\n\xC3\xA9\xF0\x9F\x98\x80");
@@ -29,8 +29,8 @@ TEST_CASE("JSON reader parses every kind of value", "[json]")
 
 TEST_CASE("JSON reader keeps object members in source order", "[json]")
 {
-	const std::expected<CompilerJson::JsonValue, std::string> document = CompilerJson::Parse(R"({"b": 1, "a": 2, "c": 3})");
-	REQUIRE(document.has_value());
+	const MarmotCompiler::Expected<CompilerJson::JsonValue, std::string> document = CompilerJson::Parse(R"({"b": 1, "a": 2, "c": 3})");
+	REQUIRE(document.HasValue());
 	const CompilerJson::JsonValue::Object& members = document->AsObject();
 	REQUIRE(members.size() == 3u);
 	CHECK(members[0].first == "b");
@@ -68,32 +68,32 @@ TEST_CASE("JSON reader rejects what RFC 8259 does not allow", "[json]")
 	for (const char* text : invalid)
 	{
 		INFO(text);
-		CHECK_FALSE(CompilerJson::Parse(text).has_value());
+		CHECK_FALSE(CompilerJson::Parse(text).HasValue());
 	}
 }
 
 TEST_CASE("JSON reader errors name the line and column", "[json]")
 {
-	const std::expected<CompilerJson::JsonValue, std::string> document = CompilerJson::Parse("{\n  \"a\": 1,\n  \"a\": 2\n}");
-	REQUIRE_FALSE(document.has_value());
-	CHECK(document.error() == "line 3, column 3: duplicate member \"a\"");
+	const MarmotCompiler::Expected<CompilerJson::JsonValue, std::string> document = CompilerJson::Parse("{\n  \"a\": 1,\n  \"a\": 2\n}");
+	REQUIRE_FALSE(document.HasValue());
+	CHECK(document.Error() == "line 3, column 3: duplicate member \"a\"");
 }
 
 TEST_CASE("JSON reader locates a repeated escaped key inside an object", "[json]")
 {
-	const std::expected<CompilerJson::JsonValue, std::string> document = CompilerJson::Parse(
+	const MarmotCompiler::Expected<CompilerJson::JsonValue, std::string> document = CompilerJson::Parse(
 		R"({"a": 1, "outer": {
   "a": "text with an escaped \" and a colon:",
   "\u0061": 2
 }})");
-	REQUIRE_FALSE(document.has_value());
-	CHECK(document.error() == "line 3, column 3: duplicate member \"a\"");
+	REQUIRE_FALSE(document.HasValue());
+	CHECK(document.Error() == "line 3, column 3: duplicate member \"a\"");
 }
 
 TEST_CASE("JSON reader bounds nesting depth", "[json]")
 {
 	const std::string deep = std::string(1000u, '[') + std::string(1000u, ']');
-	const std::expected<CompilerJson::JsonValue, std::string> document = CompilerJson::Parse(deep);
-	REQUIRE_FALSE(document.has_value());
-	CHECK(document.error().find("nested too deeply") != std::string::npos);
+	const MarmotCompiler::Expected<CompilerJson::JsonValue, std::string> document = CompilerJson::Parse(deep);
+	REQUIRE_FALSE(document.HasValue());
+	CHECK(document.Error().find("nested too deeply") != std::string::npos);
 }

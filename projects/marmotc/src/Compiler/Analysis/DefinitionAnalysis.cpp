@@ -2,6 +2,7 @@
 
 #include "Compiler/Analysis/AbstractSyntaxTreeWalker.h"
 #include "Compiler/Names/SpecialNames.h"
+#include "Support/Optional.h"
 
 #include <algorithm>
 
@@ -9,7 +10,7 @@ namespace
 {
 	SourceSpan Span(const Token& first, MarmotSource::Position end)
 	{
-		return { first.m_file_name, { first.m_line, static_cast<size_t>(first.m_column.value()) }, end };
+		return { first.m_file_name, { first.m_line, static_cast<size_t>(first.m_column.Value()) }, end };
 	}
 
 	class DefinitionCollector : public MarmotAbstractSyntaxTreeWalker
@@ -47,12 +48,12 @@ namespace
 			return m_module_name + NameSeparator.data() + name;
 		}
 
-		std::optional<int> DocumentationStart(int line) const
+		MarmotCompiler::Optional<int> DocumentationStart(int line) const
 		{
 			auto first = std::ranges::lower_bound(m_doc_comment_lines, line - 1);
 			if (first == m_doc_comment_lines.end() || *first != line - 1)
 			{
-				return std::nullopt;
+				return MarmotCompiler::None;
 			}
 			while (first != m_doc_comment_lines.begin() && *(first - 1) == *first - 1)
 			{
@@ -61,7 +62,7 @@ namespace
 			return *first;
 		}
 
-		void RecordType(const SourceSpan& span, const MarmotType& type, std::optional<int> documentation_line = std::nullopt)
+		void RecordType(const SourceSpan& span, const MarmotType& type, MarmotCompiler::Optional<int> documentation_line = MarmotCompiler::None)
 		{
 			if (!type.IsType<MarmotType::UndecidedType>())
 			{
@@ -69,14 +70,14 @@ namespace
 			}
 		}
 
-		void Declare(const Token& name, const std::optional<BindingId>& binding, const MarmotType& type, bool documentable = false)
+		void Declare(const Token& name, const MarmotCompiler::Optional<BindingId>& binding, const MarmotType& type, bool documentable = false)
 		{
 			if (name.IsDiscard() || !name.m_column || !name.m_source_length)
 			{
 				return;
 			}
 			SourceSpan span = Span(name, { name.m_line, static_cast<size_t>(*name.m_column) + *name.m_source_length });
-			const std::optional<int> documentation_line = documentable ? DocumentationStart(name.m_line) : std::nullopt;
+			const MarmotCompiler::Optional<int> documentation_line = documentable ? DocumentationStart(name.m_line) : MarmotCompiler::None;
 			RecordType(span, type, documentation_line);
 			SymbolDeclaration declaration{ std::move(span), documentation_line };
 			if (binding)
@@ -102,7 +103,7 @@ namespace
 
 		void operator()(MarmotStatement::VariableDefinition& node) override
 		{
-			Declare(node.m_name, node.m_binding, *node.m_annotated_type.value_or(node.m_value->GetType()), true);
+			Declare(node.m_name, node.m_binding, *node.m_annotated_type.ValueOr(node.m_value->GetType()), true);
 			VisitExpression(node.m_value);
 		}
 

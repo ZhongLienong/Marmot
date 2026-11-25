@@ -1,10 +1,10 @@
 #pragma once
 
 #include "Compiler/CompilationInputs/CompilationInputs.h"
+#include "Support/Expected.h"
+#include "Support/Optional.h"
 
-#include <expected>
 #include <filesystem>
-#include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -38,15 +38,17 @@ struct BuildPlan
 {
 	static constexpr int VERSION = 1;
 
-	std::optional<std::filesystem::path> m_entry = std::nullopt;
+	MarmotCompiler::Optional<std::filesystem::path> m_entry = MarmotCompiler::None;
 	CompilationInputs m_inputs;
 };
 
 namespace MarmotBuildPlan
 {
-	// `base_directory` resolves the plan's relative paths.
-	[[nodiscard]] std::expected<BuildPlan, std::string> Parse(std::string_view json, const std::filesystem::path& base_directory);
-	[[nodiscard]] std::expected<BuildPlan, std::string> Parse(const CompilerJson::JsonValue& root, const std::filesystem::path& base_directory);
+	using PlanResult = MarmotCompiler::Expected<BuildPlan, std::string>;
 
-	[[nodiscard]] std::expected<BuildPlan, std::string> ReadFile(const std::filesystem::path& plan_path);
+	// `base_directory` resolves the plan's relative paths.
+	[[nodiscard]] PlanResult Parse(std::string_view json, const std::filesystem::path& base_directory);
+	[[nodiscard]] PlanResult Parse(const CompilerJson::JsonValue& root, const std::filesystem::path& base_directory);
+
+	[[nodiscard]] PlanResult ReadFile(const std::filesystem::path& plan_path);
 }

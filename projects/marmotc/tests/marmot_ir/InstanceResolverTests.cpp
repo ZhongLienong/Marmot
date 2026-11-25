@@ -2,6 +2,7 @@
 
 #include "Compiler/Lowering/InstanceResolver.h"
 #include "Compiler/TypeTransform/TypeTransform.h"
+#include "Support/Optional.h"
 
 #include <memory>
 #include <string>
@@ -20,18 +21,18 @@ TEST_CASE("Instance resolution retains the declaring module through constraints 
 		metadata.m_instances.emplace_back(std::vector{ integer }, TypeclassInstance::AssociatedTypes(), std::vector<MarmotType::ClassConstraint>(), std::vector{ symbol }, origin);
 		const InstanceResolver resolver({ { "Echo", std::move(metadata) } });
 		const ResolvedInstanceName expected(symbol, origin);
-		const std::optional<ResolvedInstanceName> exact = resolver.ResolveInstanceName("Echo", symbol);
-		REQUIRE(exact.has_value());
-		CHECK(exact.value() == expected);
+		const MarmotCompiler::Optional<ResolvedInstanceName> exact = resolver.ResolveInstanceName("Echo", symbol);
+		REQUIRE(exact.HasValue());
+		CHECK(exact.Value() == expected);
 		const MethodResolutionMap constraints = resolver.ResolveConstraints({ MarmotType::ClassConstraint("Echo", { integer }) }, {});
-		const MethodResolution<std::optional<ResolvedInstanceName>> call = resolver.ResolveConstrainedCall(constraints, "Echo::Copy", { integer }, integer);
-		REQUIRE(call.has_value());
-		REQUIRE(call->has_value());
-		CHECK(call->value() == expected);
-		const MethodResolution<std::optional<ResolvedInstanceName>> value = resolver.ResolveConcreteCall("Echo::Copy", { integer }, integer);
-		REQUIRE(value.has_value());
-		REQUIRE(value->has_value());
-		CHECK(value->value() == expected);
+		const MethodResolution<MarmotCompiler::Optional<ResolvedInstanceName>> call = resolver.ResolveConstrainedCall(constraints, "Echo::Copy", { integer }, integer);
+		REQUIRE(call.HasValue());
+		REQUIRE(call->HasValue());
+		CHECK(call->Value() == expected);
+		const MethodResolution<MarmotCompiler::Optional<ResolvedInstanceName>> value = resolver.ResolveConcreteCall("Echo::Copy", { integer }, integer);
+		REQUIRE(value.HasValue());
+		REQUIRE(value->HasValue());
+		CHECK(value->Value() == expected);
 	}
 }
 
@@ -54,10 +55,10 @@ TEST_CASE("Constrained calls select instances by concrete return identity", "[lo
 				ResolvedMethodCandidate("Int", "Bool", ResolvedInstanceName("to_bool", "Origin"))
 			} }
 		};
-		const MethodResolution<std::optional<ResolvedInstanceName>> resolved = resolver.ResolveConstrainedCall(resolutions, "Convertible::Convert", { argument_type }, return_type);
-		REQUIRE(resolved.has_value());
-		REQUIRE(resolved->has_value());
-		CHECK(resolved->value() == ResolvedInstanceName("to_result", "Origin"));
+		const MethodResolution<MarmotCompiler::Optional<ResolvedInstanceName>> resolved = resolver.ResolveConstrainedCall(resolutions, "Convertible::Convert", { argument_type }, return_type);
+		REQUIRE(resolved.HasValue());
+		REQUIRE(resolved->HasValue());
+		CHECK(resolved->Value() == ResolvedInstanceName("to_result", "Origin"));
 	}
 }
 
@@ -80,13 +81,13 @@ TEST_CASE("Constrained calls keep unresolved return hints ambiguous", "[lowering
 		const MethodResolutionMap resolutions
 		{
 			{ "Convertible::Convert", {
-				ResolvedMethodCandidate("Int", return_type->ToString(), std::nullopt),
+				ResolvedMethodCandidate("Int", return_type->ToString(), MarmotCompiler::None),
 				ResolvedMethodCandidate("Int", "Text", ResolvedInstanceName("to_text", "Origin"))
 			} }
 		};
-		const MethodResolution<std::optional<ResolvedInstanceName>> resolved = resolver.ResolveConstrainedCall(resolutions, "Convertible::Convert", { argument_type }, return_type);
-		REQUIRE_FALSE(resolved.has_value());
-		CHECK(resolved.error().m_code == CompilerErrorCode::LoweringAmbiguousMethodResolution);
+		const MethodResolution<MarmotCompiler::Optional<ResolvedInstanceName>> resolved = resolver.ResolveConstrainedCall(resolutions, "Convertible::Convert", { argument_type }, return_type);
+		REQUIRE_FALSE(resolved.HasValue());
+		CHECK(resolved.Error().m_code == CompilerErrorCode::LoweringAmbiguousMethodResolution);
 	}
 }
 
@@ -101,7 +102,7 @@ TEST_CASE("Associated type resolution binds phantom parameters from a nominal pr
 	metadata.m_associated_type_names = { "Item" };
 	metadata.m_instances.emplace_back(std::vector{ prototype }, TypeclassInstance::AssociatedTypes{ { "Item", parameter } }, std::vector<MarmotType::ClassConstraint>(), std::vector<std::string>(), "Origin");
 	const InstanceResolver resolver({ { "Extract", std::move(metadata) } });
-	const std::optional<std::shared_ptr<MarmotType>> resolved = resolver.ResolveAssociatedType(MarmotType::AssociatedType("Extract", "Item", { concrete }));
-	REQUIRE(resolved.has_value());
+	const MarmotCompiler::Optional<std::shared_ptr<MarmotType>> resolved = resolver.ResolveAssociatedType(MarmotType::AssociatedType("Extract", "Item", { concrete }));
+	REQUIRE(resolved.HasValue());
 	CHECK(**resolved == *integer);
 }

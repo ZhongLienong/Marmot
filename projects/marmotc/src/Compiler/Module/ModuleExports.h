@@ -2,6 +2,7 @@
 
 #include "Compiler/Error/CompilerError.h"
 #include "Compiler/Module/ModuleImports.h"
+#include "Support/Expected.h"
 
 struct LoweredModule;
 
@@ -22,7 +23,7 @@ public:
 	const std::string& ModuleName() const;
 	const ModuleInterface::ExportSet& Names() const;
 	void RecordInferredTypes(const TypeEnvironment& inferred);
-	std::expected<PublishedModuleInterface, CompilerError> Publish(LoweredModule& lowered, const ModuleImports& imports, std::span<const UseImport> use_imports, const std::vector<std::string>& source_lines) &&;
+	MarmotCompiler::Expected<PublishedModuleInterface, CompilerError> Publish(LoweredModule& lowered, const ModuleImports& imports, std::span<const UseImport> use_imports, const std::vector<std::string>& source_lines) &&;
 
 private:
 	std::string m_module_name;

@@ -5,10 +5,9 @@
 #include "support/ScopedEnvVar.h"
 #include "support/CompileHelpers.h"
 #include "support/TempProject.h"
+#include "Support/Optional.h"
 
-#include <expected>
 #include <filesystem>
-#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -27,16 +26,16 @@ namespace
 
 	std::string CheckError(std::string_view json, const std::filesystem::path& base)
 	{
-		const std::expected<BuildPlan, std::string> plan = MarmotBuildPlan::Parse(json, base);
-		REQUIRE_FALSE(plan.has_value());
-		return plan.error();
+		const MarmotBuildPlan::PlanResult plan = MarmotBuildPlan::Parse(json, base);
+		REQUIRE_FALSE(plan.HasValue());
+		return plan.Error();
 	}
 }
 
 TEST_CASE("A build plan resolves its paths against the plan's directory", "[plan]")
 {
 	const MarmotTest::TempProject project = PlanProject();
-	const std::expected<BuildPlan, std::string> plan = MarmotBuildPlan::Parse(R"({
+	const MarmotBuildPlan::PlanResult plan = MarmotBuildPlan::Parse(R"({
 		"version": 1,
 		"entry": "src/Main.mmt",
 		"search_paths": ["lib"],
@@ -45,19 +44,19 @@ TEST_CASE("A build plan resolves its paths against the plan's directory", "[plan
 			{ "name": "plain" }
 		]
 	})", project.Root());
-	REQUIRE(plan.has_value());
+	REQUIRE(plan.HasValue());
 
-	CHECK(plan->m_entry == std::optional<std::filesystem::path>(project.Path("src/Main.mmt")));
+	CHECK(plan->m_entry == MarmotCompiler::Optional<std::filesystem::path>(project.Path("src/Main.mmt")));
 	REQUIRE(plan->m_inputs.SearchPaths().size() == 1u);
 	CHECK(plan->m_inputs.SearchPaths().front() == std::filesystem::weakly_canonical(project.Path("lib")));
 
 	REQUIRE(plan->m_inputs.NativeLibraryPolicies().size() == 2u);
 	const NativeLibraryPolicy& native = plan->m_inputs.NativeLibraryPolicies().at("native");
 	CHECK(native.m_thread_safe);
-	CHECK(native.m_checksum == std::optional<std::string>("sha256:00"));
+	CHECK(native.m_checksum == MarmotCompiler::Optional<std::string>("sha256:00"));
 	const NativeLibraryPolicy& plain = plan->m_inputs.NativeLibraryPolicies().at("plain");
 	CHECK_FALSE(plain.m_thread_safe);
-	CHECK_FALSE(plain.m_checksum.has_value());
+	CHECK_FALSE(plain.m_checksum.HasValue());
 }
 
 TEST_CASE("A build plan rejects what it does not understand", "[plan]")
@@ -68,9 +67,9 @@ TEST_CASE("A build plan rejects what it does not understand", "[plan]")
 	CHECK(CheckError(R"([])", base) == "the plan must be a JSON object, found array");
 	CHECK(CheckError(R"({"entry": "src/Main.mmt"})", base) == "plan: missing \"version\"");
 	CHECK(CheckError(R"({"version": 2, "entry": "src/Main.mmt"})", base) == "version: this compiler reads plan version 1; the plan says 2");
-	const std::expected<BuildPlan, std::string> without_entry = MarmotBuildPlan::Parse(R"({"version": 1, "search_paths": ["lib"]})", base);
-	REQUIRE(without_entry.has_value());
-	CHECK_FALSE(without_entry->m_entry.has_value());
+	const MarmotBuildPlan::PlanResult without_entry = MarmotBuildPlan::Parse(R"({"version": 1, "search_paths": ["lib"]})", base);
+	REQUIRE(without_entry.HasValue());
+	CHECK_FALSE(without_entry->m_entry.HasValue());
 	CHECK(CheckError(R"({"version": 1, "entry": "src/Missing.mmt"})", base).starts_with("entry: no such file: "));
 	CHECK(CheckError(R"({"version": 1, "entry": "src/Main.mmt", "serach_paths": []})", base) == "plan: unknown member \"serach_paths\"");
 	CHECK(CheckError(R"({"version": 1, "entry": "src/Main.mmt", "search_paths": ["lib", 3]})", base) == "search_paths[1]: expected a string, found number");

@@ -2,6 +2,7 @@
 
 #include "Compiler/AbstractSyntaxTree/AbstractSyntaxTree.h"
 #include "Compiler/Result/Result.h"
+#include "Support/Optional.h"
 
 #include <unordered_map>
 
@@ -15,7 +16,7 @@ struct SourceSpan
 struct SymbolDeclaration
 {
 	SourceSpan m_span;
-	std::optional<int> m_documentation_line;
+	MarmotCompiler::Optional<int> m_documentation_line;
 };
 
 struct DefinitionLink
@@ -28,7 +29,7 @@ struct SymbolType
 {
 	SourceSpan m_span;
 	std::string m_type;
-	std::optional<int> m_documentation_line;
+	MarmotCompiler::Optional<int> m_documentation_line;
 };
 
 struct EditorSymbols

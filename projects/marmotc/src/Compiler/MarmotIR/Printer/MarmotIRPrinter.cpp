@@ -92,9 +92,9 @@ std::string MarmotIRPrinter::Print() const
 		const std::string name = global.IsImported() ? std::format("{}{}{}", global.m_module, NameSeparator, global.m_name) : global.m_name;
 		text.append(std::format("global @{} {}: {}\n", slot, name, global.m_type->ToString()));
 	}
-	if (m_module.m_top_level.has_value())
+	if (m_module.m_top_level.HasValue())
 	{
-		text.append(std::format("top-level {}\n", m_module.Function(m_module.m_top_level.value()).m_name));
+		text.append(std::format("top-level {}\n", m_module.Function(m_module.m_top_level.Value()).m_name));
 	}
 
 	for (const MarmotIRFunction& function : m_module.m_functions)
@@ -210,7 +210,7 @@ std::string MarmotIRPrinter::PrintInstruction(const MarmotIRInstruction& instruc
 		return arguments.empty() ? TerminatorName(instruction.m_op) : std::format("{} {}", TerminatorName(instruction.m_op), arguments);
 	}
 
-	std::string text = std::format("{}: {} = {}", names[instruction.m_result.value().m_index], instruction.m_type->ToString(), GetMarmotIROpInfo(instruction.m_op).m_name);
+	std::string text = std::format("{}: {} = {}", names[instruction.m_result.Value().m_index], instruction.m_type->ToString(), GetMarmotIROpInfo(instruction.m_op).m_name);
 	if (!arguments.empty())
 	{
 		text.append(std::format(" {}", arguments));

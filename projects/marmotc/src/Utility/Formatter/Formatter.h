@@ -1,12 +1,12 @@
 #pragma once
 
-#include <expected>
 #include <filesystem>
-#include <optional>
 #include <string>
 #include <vector>
 
 #include "Compiler/Error/CompilerError.h"
+#include "Support/Expected.h"
+#include "Support/Optional.h"
 
 namespace MarmotFormatter
 {
@@ -23,7 +23,7 @@ namespace MarmotFormatter
 		bool m_written = false;
 		std::string m_original_text;
 		std::string m_formatted_text;
-		std::optional<std::string> m_error;
+		MarmotCompiler::Optional<std::string> m_error;
 	};
 
 	struct RunResult
@@ -36,7 +36,7 @@ namespace MarmotFormatter
 		[[nodiscard]] int ChangedCount() const;
 	};
 
-	[[nodiscard]] std::expected<std::string, CompilerError> FormatSource(std::string_view source_code, std::string_view file_name);
+	[[nodiscard]] MarmotCompiler::Expected<std::string, CompilerError> FormatSource(std::string_view source_code, std::string_view file_name);
 
 	[[nodiscard]] RunResult FormatPath(const std::filesystem::path& target_path, const Options& options);
 }

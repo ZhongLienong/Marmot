@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "Compiler/Module/TypeclassMetadata.h"
+#include "Support/Optional.h"
 
 namespace
 {
@@ -31,9 +32,9 @@ TEST_CASE("Typeclass imports keep whole instance facts through a diamond and an 
 	TypeclassMetadata right = shared;
 	right.m_instances.push_back(MakeInstance(text, integer, "Right", "Get_Text"));
 	TypeclassImports imports;
-	REQUIRE_FALSE(imports.Import("Left", { { "Select", shared } }).has_value());
-	REQUIRE_FALSE(imports.Import("Right", { { "Select", right } }).has_value());
-	REQUIRE_FALSE(imports.Import("Origin", { { "Select", shared } }).has_value());
+	REQUIRE_FALSE(imports.Import("Left", { { "Select", shared } }).HasValue());
+	REQUIRE_FALSE(imports.Import("Right", { { "Select", right } }).HasValue());
+	REQUIRE_FALSE(imports.Import("Origin", { { "Select", shared } }).HasValue());
 	const TypeclassMetadataMap merged = std::move(imports).TakeMetadata();
 	const std::vector<TypeclassInstance>& instances = merged.at("Select").m_instances;
 	REQUIRE(instances.size() == 2u);
@@ -54,9 +55,9 @@ TEST_CASE("Typeclass imports diagnose duplicate declarations at their direct ori
 {
 	const TypeRef integer = MarmotType::MakeLiteralType<MarmotType::IntegerType>();
 	TypeclassImports imports;
-	REQUIRE_FALSE(imports.Import("Left", { { "Select", MakeClass({ MakeInstance(integer, integer, "Left", "Get_Int") }) } }).has_value());
-	const std::optional<std::string> conflict = imports.Import("Right", { { "Select", MakeClass({ MakeInstance(integer, integer, "Right", "Get_Int") }) } });
-	REQUIRE(conflict.has_value());
+	REQUIRE_FALSE(imports.Import("Left", { { "Select", MakeClass({ MakeInstance(integer, integer, "Left", "Get_Int") }) } }).HasValue());
+	const MarmotCompiler::Optional<std::string> conflict = imports.Import("Right", { { "Select", MakeClass({ MakeInstance(integer, integer, "Right", "Get_Int") }) } });
+	REQUIRE(conflict.HasValue());
 	CHECK(*conflict == "Typeclass 'Select' has two instances for 'Int': one in module 'Left', one in module 'Right'. An instance belongs in the module that declares the class or the module that declares the type.");
 }
 
@@ -71,8 +72,8 @@ TEST_CASE("Typeclass imports preserve module identity and zero-method instances"
 	right_metadata.m_type_param_names = { "T" };
 	right_metadata.m_instances.emplace_back(TypeclassInstance::TypeArguments{ right }, TypeclassInstance::AssociatedTypes(), std::vector<MarmotType::ClassConstraint>(), std::vector<std::string>(), "Right");
 	TypeclassImports imports;
-	REQUIRE_FALSE(imports.Import("Left", { { "Marker", left_metadata } }).has_value());
-	REQUIRE_FALSE(imports.Import("Right", { { "Marker", right_metadata } }).has_value());
+	REQUIRE_FALSE(imports.Import("Left", { { "Marker", left_metadata } }).HasValue());
+	REQUIRE_FALSE(imports.Import("Right", { { "Marker", right_metadata } }).HasValue());
 	const TypeclassMetadataMap merged = std::move(imports).TakeMetadata();
 	const TypeclassMetadata& marker = merged.at("Marker");
 	REQUIRE(marker.m_instances.size() == 2u);
@@ -88,8 +89,8 @@ TEST_CASE("Typeclass imports diagnose incompatible definitions", "[module][typec
 	TypeclassMetadata right = left;
 	right.m_method_types["Get"] = MarmotType::MakeFunctionType({ MarmotType::MakeGenericType("T") }, TypeRef(MarmotType::MakeLiteralType<MarmotType::TextType>()));
 	TypeclassImports imports;
-	REQUIRE_FALSE(imports.Import("Left", { { "Select", left } }).has_value());
-	const std::optional<std::string> conflict = imports.Import("Right", { { "Select", right } });
-	REQUIRE(conflict.has_value());
+	REQUIRE_FALSE(imports.Import("Left", { { "Select", left } }).HasValue());
+	const MarmotCompiler::Optional<std::string> conflict = imports.Import("Right", { { "Select", right } });
+	REQUIRE(conflict.HasValue());
 	CHECK(*conflict == "Typeclass 'Select' is defined in multiple imported modules ('Left' and 'Right')");
 }

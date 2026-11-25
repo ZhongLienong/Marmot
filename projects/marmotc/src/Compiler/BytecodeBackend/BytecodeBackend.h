@@ -3,9 +3,9 @@
 #include "Compiler/BytecodeModule/BytecodeModule.h"
 #include "Compiler/Lowering/Lowering.h"
 #include "Compiler/Result/Result.h"
+#include "Support/Optional.h"
 
 #include <map>
-#include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -45,14 +45,14 @@ public:
 
 	MarmotResult::BytecodeBackendResult Emit() &&;
 
-	[[nodiscard]] std::optional<BytecodeModule::SourceProvenance> MakeSourceProvenance(const Token& token) const;
+	[[nodiscard]] MarmotCompiler::Optional<BytecodeModule::SourceProvenance> MakeSourceProvenance(const Token& token) const;
 	[[nodiscard]] CompilerError LimitExceeded(std::string_view message, int line) const;
 	size_t ProcedureIndex(MarmotIRFunctionId function) const;
 	size_t CaptureCount(MarmotIRFunctionId function) const;
 	int GlobalOperand(MarmotIRGlobalSlot slot) const;
-	std::expected<int, CompilerError> TextConstant(const std::string& text, int line);
-	std::expected<uint16_t, CompilerError> ShapeIndex(const Shape& pointer_fields, int line);
+	MarmotResult::Result<int> TextConstant(const std::string& text, int line);
+	MarmotResult::Result<uint16_t> ShapeIndex(const Shape& pointer_fields, int line);
 
 private:
-	std::expected<std::vector<BytecodeModule::ImportedSymbol>, CompilerError> AssignGlobals();
+	MarmotResult::Result<std::vector<BytecodeModule::ImportedSymbol>> AssignGlobals();
 };

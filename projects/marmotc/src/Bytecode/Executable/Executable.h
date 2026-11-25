@@ -2,11 +2,12 @@
 
 #include <array>
 #include <cinttypes>
-#include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
 #include <vector>
+
+#include "Support/Optional.h"
 
 enum class OpCode : uint8_t
 {
@@ -133,7 +134,7 @@ public:
 struct NativeLibraryPolicy
 {
 	// Verified before the library loads.
-	std::optional<std::string> m_checksum = std::nullopt;
+	MarmotCompiler::Optional<std::string> m_checksum = MarmotCompiler::None;
 	// Whether workers may call it concurrently.
 	bool m_thread_safe = false;
 };

@@ -1,6 +1,8 @@
 #include "TypeChecker.h"
 #include "PatternCoverage.h"
 #include "Compiler/Constant/Constant.h"
+#include "Support/Expected.h"
+#include "Support/Optional.h"
 #include <algorithm>
 #include <format>
 #include <ranges>
@@ -94,34 +96,34 @@ MarmotResult::TypeResult TypeChecker::CheckPattern(const CheckingContext& contex
 			else if constexpr (std::is_same_v<Node, MarmotPattern::Literal>)
 			{
 				MarmotResult::TypeResult type = CheckLiteral(node, resolved_expected);
-				if (!type.has_value())
+				if (!type.HasValue())
 				{
 					return type;
 				}
 				node.m_type_data = std::move(*type);
 
 				return Unify(context, node.m_token, node.m_type_data, resolved_expected, UnifyDiagnosticMode::ActualExpected)
-					.and_then([&node](std::shared_ptr<MarmotType>&&) -> MarmotResult::TypeResult { return node.m_type_data; });
+					.AndThen([&node](std::shared_ptr<MarmotType>&&) -> MarmotResult::TypeResult { return node.m_type_data; });
 			}
 			else if constexpr (std::is_same_v<Node, MarmotPattern::Tuple>)
 			{
 				if (!resolved_expected->IsType<MarmotType::TupleType>())
 				{
-					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Pattern type error: expected tuple type", node.m_left_paren, m_file_name, m_source_lines, resolved_expected));
+					return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Pattern type error: expected tuple type", node.m_left_paren, m_file_name, m_source_lines, resolved_expected));
 				}
 
 				const MarmotType::TupleType& tuple_type = resolved_expected->GetType<MarmotType::TupleType>();
 				if (tuple_type.m_element_types.size() != node.m_elements.size())
 				{
-					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Pattern type error: tuple arity mismatch", node.m_left_paren, m_file_name, m_source_lines));
+					return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Pattern type error: tuple arity mismatch", node.m_left_paren, m_file_name, m_source_lines));
 				}
 
 				for (size_t i = 0u; i < node.m_elements.size(); i += 1u)
 				{
 					MarmotResult::TypeResult elem_result = CheckPattern(context, *node.m_elements[i], tuple_type.m_element_types[i]);
-					if (!elem_result.has_value())
+					if (!elem_result.HasValue())
 					{
-						return std::unexpected(std::move(elem_result.error()));
+						return MarmotCompiler::Failure(std::move(elem_result.Error()));
 					}
 				}
 
@@ -132,25 +134,25 @@ MarmotResult::TypeResult TypeChecker::CheckPattern(const CheckingContext& contex
 			{
 				if (!resolved_expected->IsType<MarmotType::ArrayType>())
 				{
-					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Pattern type error: expected array type", node.m_left_bracket, m_file_name, m_source_lines, resolved_expected));
+					return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Pattern type error: expected array type", node.m_left_bracket, m_file_name, m_source_lines, resolved_expected));
 				}
 
 				const MarmotType::ArrayType& array_type = resolved_expected->GetType<MarmotType::ArrayType>();
 				for (const std::unique_ptr<MarmotPattern>& elem : node.m_elements)
 				{
 					MarmotResult::TypeResult elem_result = CheckPattern(context, *elem, array_type.m_element_type);
-					if (!elem_result.has_value())
+					if (!elem_result.HasValue())
 					{
-						return std::unexpected(std::move(elem_result.error()));
+						return MarmotCompiler::Failure(std::move(elem_result.Error()));
 					}
 				}
 
-				if (node.m_rest.has_value())
+				if (node.m_rest.HasValue())
 				{
 					MarmotResult::TypeResult rest_result = CheckPattern(context, *node.m_rest->m_pattern, resolved_expected);
-					if (!rest_result.has_value())
+					if (!rest_result.HasValue())
 					{
-						return std::unexpected(std::move(rest_result.error()));
+						return MarmotCompiler::Failure(std::move(rest_result.Error()));
 					}
 				}
 
@@ -163,28 +165,28 @@ MarmotResult::TypeResult TypeChecker::CheckPattern(const CheckingContext& contex
 				{
 					if (!resolved_expected->IsType<MarmotType::UnionType>())
 					{
-						return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Pattern type error: expected union type", node.m_name_token, m_file_name, m_source_lines, resolved_expected));
+						return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Pattern type error: expected union type", node.m_name_token, m_file_name, m_source_lines, resolved_expected));
 					}
 
 					MarmotType::UnionType& union_type = resolved_expected->GetType<MarmotType::UnionType>();
 					if (!union_type.m_member_info.contains(node.m_name))
 					{
-						return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(std::format("Pattern type error: unrecognized union member '{}'", node.m_name), node.m_name_token, m_file_name, m_source_lines));
+						return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext(std::format("Pattern type error: unrecognized union member '{}'", node.m_name), node.m_name_token, m_file_name, m_source_lines));
 					}
 
 					const MarmotType::UnionType::UnionMemberContext& member_ctx = union_type.m_member_info.at(node.m_name);
 					if (member_ctx.m_member_types.size() != node.m_args.size())
 					{
-						return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Pattern type error: incorrect union arity", node.m_name_token, m_file_name, m_source_lines));
+						return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Pattern type error: incorrect union arity", node.m_name_token, m_file_name, m_source_lines));
 					}
 
 					node.m_tag = member_ctx.m_tag;
 					for (size_t i = 0u; i < node.m_args.size(); i += 1u)
 					{
 						MarmotResult::TypeResult arg_result = CheckPattern(context, *node.m_args[i], member_ctx.m_member_types[i]);
-						if (!arg_result.has_value())
+						if (!arg_result.HasValue())
 						{
-							return std::unexpected(std::move(arg_result.error()));
+							return MarmotCompiler::Failure(std::move(arg_result.Error()));
 						}
 					}
 
@@ -194,26 +196,26 @@ MarmotResult::TypeResult TypeChecker::CheckPattern(const CheckingContext& contex
 
 				if (!resolved_expected->IsType<MarmotType::StructType>())
 				{
-					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Pattern type error: expected struct type", node.m_name_token, m_file_name, m_source_lines, resolved_expected));
+					return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Pattern type error: expected struct type", node.m_name_token, m_file_name, m_source_lines, resolved_expected));
 				}
 
 				const MarmotType::StructType& struct_type = resolved_expected->GetType<MarmotType::StructType>();
 				if (struct_type.m_name != node.m_name)
 				{
-					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Pattern type error: struct name mismatch", node.m_name_token, m_file_name, m_source_lines));
+					return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Pattern type error: struct name mismatch", node.m_name_token, m_file_name, m_source_lines));
 				}
 
 				if (struct_type.m_member_types.size() != node.m_args.size())
 				{
-					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Pattern type error: incorrect struct arity", node.m_name_token, m_file_name, m_source_lines));
+					return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Pattern type error: incorrect struct arity", node.m_name_token, m_file_name, m_source_lines));
 				}
 
 				for (size_t i = 0u; i < node.m_args.size(); i += 1u)
 				{
 					MarmotResult::TypeResult arg_result = CheckPattern(context, *node.m_args[i], struct_type.m_member_types[i]);
-					if (!arg_result.has_value())
+					if (!arg_result.HasValue())
 					{
-						return std::unexpected(std::move(arg_result.error()));
+						return MarmotCompiler::Failure(std::move(arg_result.Error()));
 					}
 				}
 
@@ -223,8 +225,8 @@ MarmotResult::TypeResult TypeChecker::CheckPattern(const CheckingContext& contex
 			else if constexpr (std::is_same_v<Node, MarmotPattern::As>)
 			{
 				return CheckPattern(context, *node.m_pattern, resolved_expected)
-					.and_then([&](std::shared_ptr<MarmotType>&&) { return CheckPattern(context, *node.m_binding, resolved_expected); })
-					.transform
+					.AndThen([&](std::shared_ptr<MarmotType>&&) { return CheckPattern(context, *node.m_binding, resolved_expected); })
+					.Transform
 					(
 						[&node, &resolved_expected](std::shared_ptr<MarmotType>&&)
 						{
@@ -237,7 +239,7 @@ MarmotResult::TypeResult TypeChecker::CheckPattern(const CheckingContext& contex
 			{
 				if (!resolved_expected->IsType<MarmotType::StructType>() || resolved_expected->GetType<MarmotType::StructType>().m_name != node.m_name)
 				{
-					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Pattern type error: expected struct type", node.m_name_token, m_file_name, m_source_lines, resolved_expected));
+					return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Pattern type error: expected struct type", node.m_name_token, m_file_name, m_source_lines, resolved_expected));
 				}
 
 				const MarmotType::StructType& struct_type = resolved_expected->GetType<MarmotType::StructType>();
@@ -248,18 +250,18 @@ MarmotResult::TypeResult TypeChecker::CheckPattern(const CheckingContext& contex
 					if (found == struct_type.m_member_names.cend())
 					{
 						const std::string suggestion = std::format("Struct '{}' does not have a member named '{}'", struct_type.m_name, field.m_name.m_lexeme);
-						return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Unknown struct member in record pattern", field.m_name, m_file_name, m_source_lines, std::optional<std::string_view>(suggestion)));
+						return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Unknown struct member in record pattern", field.m_name, m_file_name, m_source_lines, MarmotCompiler::Optional<std::string_view>(suggestion)));
 					}
 
 					field.m_index = static_cast<int>(std::distance(struct_type.m_member_names.cbegin(), found));
 					if (is_matched[static_cast<size_t>(field.m_index)])
 					{
-						return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(std::format("Pattern type error: '{}' is matched twice in this record pattern", field.m_name.m_lexeme), field.m_name, m_file_name, m_source_lines));
+						return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext(std::format("Pattern type error: '{}' is matched twice in this record pattern", field.m_name.m_lexeme), field.m_name, m_file_name, m_source_lines));
 					}
 					is_matched[static_cast<size_t>(field.m_index)] = true;
 
 					MarmotResult::TypeResult field_result = CheckPattern(context, *field.m_pattern, struct_type.m_member_types[static_cast<size_t>(field.m_index)]);
-					if (!field_result.has_value())
+					if (!field_result.HasValue())
 					{
 						return field_result;
 					}
@@ -269,13 +271,13 @@ MarmotResult::TypeResult TypeChecker::CheckPattern(const CheckingContext& contex
 					| std::views::filter([](const std::tuple<const std::string&, bool>& member) { return !std::get<1>(member); })
 					| std::views::transform([](const std::tuple<const std::string&, bool>& member) { return std::format("'{}'", std::get<0>(member)); })
 					| std::ranges::to<std::vector>();
-				if (!node.m_rest.has_value() && !left_out.empty())
+				if (!node.m_rest.HasValue() && !left_out.empty())
 				{
-					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(std::format("Pattern type error: this record pattern leaves out {}; match each, as in 'field = _', or end with '..' to leave them out", left_out | std::views::join_with(std::string_view(", ")) | std::ranges::to<std::string>()), node.m_name_token, m_file_name, m_source_lines));
+					return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext(std::format("Pattern type error: this record pattern leaves out {}; match each, as in 'field = _', or end with '..' to leave them out", left_out | std::views::join_with(std::string_view(", ")) | std::ranges::to<std::string>()), node.m_name_token, m_file_name, m_source_lines));
 				}
-				if (node.m_rest.has_value() && left_out.empty())
+				if (node.m_rest.HasValue() && left_out.empty())
 				{
-					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Pattern type error: every field is matched already, so '..' leaves nothing out", node.m_rest.value(), m_file_name, m_source_lines));
+					return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Pattern type error: every field is matched already, so '..' leaves nothing out", node.m_rest.Value(), m_file_name, m_source_lines));
 				}
 
 				node.m_type_data = resolved_expected;
@@ -285,26 +287,26 @@ MarmotResult::TypeResult TypeChecker::CheckPattern(const CheckingContext& contex
 			{
 				node.m_type_data = MarmotType::MakeLiteralType<MarmotType::IntegerType>();
 				return Unify(context, node.m_start, node.m_type_data, resolved_expected, UnifyDiagnosticMode::ActualExpected)
-					.and_then([&node](std::shared_ptr<MarmotType>&&) -> MarmotResult::TypeResult { return node.m_type_data; });
+					.AndThen([&node](std::shared_ptr<MarmotType>&&) -> MarmotResult::TypeResult { return node.m_type_data; });
 			}
 			else if constexpr (std::is_same_v<Node, MarmotPattern::Or>)
 			{
 				// Each alternative binds the same names; the first decides their types and
 				// every later one must agree with it.
 				MarmotResult::TypeResult first = CheckPattern(context, *node.m_alternatives.front(), resolved_expected);
-				if (!first.has_value())
+				if (!first.HasValue())
 				{
 					return first;
 				}
 				std::unordered_map<BindingId, std::shared_ptr<MarmotType>>& names = context.m_scope->m_bindings;
 				const std::vector<std::tuple<BindingId, std::string, std::shared_ptr<MarmotType>>> bound = node.m_alternatives.front()->Bindings(false)
-					| std::views::transform([&names](const MarmotPattern::Binding* binding) { return std::tuple{ binding->m_binding.value(), binding->m_name.m_lexeme, names.at(binding->m_binding.value()) }; })
+					| std::views::transform([&names](const MarmotPattern::Binding* binding) { return std::tuple{ binding->m_binding.Value(), binding->m_name.m_lexeme, names.at(binding->m_binding.Value()) }; })
 					| std::ranges::to<std::vector>();
 
 				for (std::unique_ptr<MarmotPattern>& alternative : node.m_alternatives | std::views::drop(1))
 				{
 					MarmotResult::TypeResult checked = CheckPattern(context, *alternative, resolved_expected);
-					if (!checked.has_value())
+					if (!checked.HasValue())
 					{
 						return checked;
 					}
@@ -312,9 +314,9 @@ MarmotResult::TypeResult TypeChecker::CheckPattern(const CheckingContext& contex
 					{
 						std::shared_ptr<MarmotType> resolved_type = ApplySubstitution(context, type);
 						std::shared_ptr<MarmotType> alternative_type = ApplySubstitution(context, names.at(binding));
-						if (!Unify(context, GetPatternToken(*alternative), resolved_type, alternative_type).has_value())
+						if (!Unify(context, GetPatternToken(*alternative), resolved_type, alternative_type).HasValue())
 						{
-							return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, std::format("Pattern type error: '{}' has a different type in this alternative than in the first", name), GetPatternToken(*alternative), m_file_name, m_source_lines, alternative_type, resolved_type));
+							return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, std::format("Pattern type error: '{}' has a different type in this alternative than in the first", name), GetPatternToken(*alternative), m_file_name, m_source_lines, alternative_type, resolved_type));
 						}
 						names[binding] = type;
 					}
@@ -325,7 +327,7 @@ MarmotResult::TypeResult TypeChecker::CheckPattern(const CheckingContext& contex
 			}
 			else
 			{
-				return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Pattern type error: unsupported pattern", GetPatternToken(pattern), m_file_name, m_source_lines));
+				return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Pattern type error: unsupported pattern", GetPatternToken(pattern), m_file_name, m_source_lines));
 			}
 		},
 		*pattern
@@ -347,7 +349,7 @@ void TypeChecker::ResolveRecordedTypes(const CheckingContext& context, MarmotPat
 	{
 		MarmotPattern::Array& array = pattern.GetPattern<MarmotPattern::Array>();
 		resolve_all(array.m_elements);
-		if (array.m_rest.has_value())
+		if (array.m_rest.HasValue())
 		{
 			ResolveRecordedTypes(context, *array.m_rest->m_pattern);
 		}
@@ -377,7 +379,7 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 	// The type demanded of the match is its cases' type, not the scrutinee's.
 
 	return Evaluate(context.WithExpectedType(nullptr), match.m_arg_expr)
-		.and_then
+		.AndThen
 		(
 			[&match, this, &context](std::shared_ptr<MarmotType>&& arg_type) -> MarmotResult::TypeResult
 			{
@@ -396,38 +398,38 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 					// likely of another type, and this is the error that says why.
 					if (&case_expr != &match.m_cases.front() && coverage.IsExhaustive())
 					{
-						return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnreachableCase, "The cases above already match every value, so this one can never run. If it belongs to an enclosing match, put the match above it in braces.", match_case.m_keyword, m_file_name, m_source_lines));
+						return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnreachableCase, "The cases above already match every value, so this one can never run. If it belongs to an enclosing match, put the match above it in braces.", match_case.m_keyword, m_file_name, m_source_lines));
 					}
 
 					MarmotResult::TypeResult case_result = CheckPattern(scope_context, *match_case.m_pattern, resolved_arg_type)
-						.and_then
+						.AndThen
 						(
 							[&](std::shared_ptr<MarmotType>&&) -> MarmotResult::TypeResult
 							{
-								const std::optional<CompilerError> error = CheckCaseReachable(coverage, match_case);
-								if (error.has_value())
+								const MarmotCompiler::Optional<CompilerError> error = CheckCaseReachable(coverage, match_case);
+								if (error.HasValue())
 								{
-									return std::unexpected(error.value());
+									return MarmotCompiler::Failure(error.Value());
 								}
 								return {};
 							}
 						)
-						.and_then
+						.AndThen
 						(
 							[&](std::shared_ptr<MarmotType>&&) -> MarmotResult::TypeResult
 							{
-								const std::optional<CompilerError> error = match_case.HasGuard() ? CheckCaseGuard(scope_context, match_case) : std::nullopt;
-								if (error.has_value())
+								const MarmotCompiler::Optional<CompilerError> error = match_case.HasGuard() ? CheckCaseGuard(scope_context, match_case) : MarmotCompiler::None;
+								if (error.HasValue())
 								{
-									return std::unexpected(error.value());
+									return MarmotCompiler::Failure(error.Value());
 								}
 								return Evaluate(scope_context, match_case.m_expr);
 							}
 						);
 
-					if (!case_result.has_value())
+					if (!case_result.HasValue())
 					{
-						return std::unexpected(std::move(case_result.error()));
+						return MarmotCompiler::Failure(std::move(case_result.Error()));
 					}
 
 					// A guarded case may fail its guard, so it covers nothing.
@@ -436,7 +438,7 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 						coverage.Add(*match_case.m_pattern);
 					}
 
-					std::shared_ptr<MarmotType> resolved_case_type = ApplySubstitution(scope_context, case_result.value());
+					std::shared_ptr<MarmotType> resolved_case_type = ApplySubstitution(scope_context, case_result.Value());
 					if (prev_case_type == nullptr)
 					{
 						prev_case_type = resolved_case_type;
@@ -445,14 +447,14 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 					{
 						std::shared_ptr<MarmotType> resolved_prev_case_type = ApplySubstitution(scope_context, prev_case_type);
 						MarmotResult::TypeResult unify_result = Unify(scope_context, match.m_match_keyword, resolved_prev_case_type, resolved_case_type, UnifyDiagnosticMode::CommonType);
-						if (!unify_result.has_value())
+						if (!unify_result.HasValue())
 						{
-							return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, "Match expression type error: case types do not match", match.m_match_keyword, m_file_name, m_source_lines, resolved_prev_case_type, resolved_case_type));
+							return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, "Match expression type error: case types do not match", match.m_match_keyword, m_file_name, m_source_lines, resolved_prev_case_type, resolved_case_type));
 						}
 
 						// What unification gives back, not the previous arm's type: an arm
 						// that never finishes takes the type of the arms that do.
-						prev_case_type = ApplySubstitution(scope_context, unify_result.value());
+						prev_case_type = ApplySubstitution(scope_context, unify_result.Value());
 					}
 				}
 
@@ -460,12 +462,12 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 
 				if (unmatched == std::vector<std::string>{ "_" })
 				{
-					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeNonExhaustiveMatch, "Match expression type error: non-union matches need a catch-all arm such as 'case _ =>'", match.m_match_keyword, m_file_name, m_source_lines));
+					return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeNonExhaustiveMatch, "Match expression type error: non-union matches need a catch-all arm such as 'case _ =>'", match.m_match_keyword, m_file_name, m_source_lines));
 				}
 				if (!unmatched.empty())
 				{
 					const std::string message = std::format("Match expression type error: non-exhaustive match: no case matches {}", unmatched | std::views::join_with(std::string_view(", ")) | std::ranges::to<std::string>());
-					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeNonExhaustiveMatch, message, match.m_match_keyword, m_file_name, m_source_lines));
+					return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeNonExhaustiveMatch, message, match.m_match_keyword, m_file_name, m_source_lines));
 				}
 
 				match.m_type_data = prev_case_type;
@@ -476,7 +478,7 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 
 // A case, and each alternative of every or-pattern in it, must match some value
 // nothing before it does.
-std::optional<CompilerError> TypeChecker::CheckCaseReachable(const PatternCoverage& coverage, const MarmotExpression::Case& match_case)
+MarmotCompiler::Optional<CompilerError> TypeChecker::CheckCaseReachable(const PatternCoverage& coverage, const MarmotExpression::Case& match_case)
 {
 	if (!coverage.IsUseful(*match_case.m_pattern))
 	{
@@ -488,40 +490,40 @@ std::optional<CompilerError> TypeChecker::CheckCaseReachable(const PatternCovera
 	{
 		return MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnreachableCase, "The cases and alternatives before this one already match every value it does, so it can never match.", GetPatternToken(*alternative), m_file_name, m_source_lines);
 	}
-	return std::nullopt;
+	return MarmotCompiler::None;
 }
 
-std::optional<CompilerError> TypeChecker::CheckCaseGuard(const CheckingContext& context, MarmotExpression::Case& case_expr)
+MarmotCompiler::Optional<CompilerError> TypeChecker::CheckCaseGuard(const CheckingContext& context, MarmotExpression::Case& case_expr)
 {
-	MarmotResult::TypeResult guard_result = Evaluate(context, case_expr.m_guard.value());
-	if (!guard_result.has_value())
+	MarmotResult::TypeResult guard_result = Evaluate(context, case_expr.m_guard.Value());
+	if (!guard_result.HasValue())
 	{
-		return std::move(guard_result.error());
+		return std::move(guard_result.Error());
 	}
 
 	std::shared_ptr<MarmotType> bool_type = MarmotType::MakeLiteralType<MarmotType::BoolType>();
-	std::shared_ptr<MarmotType> resolved_guard_type = ApplySubstitution(context, guard_result.value());
-	if (!Unify(context, case_expr.m_keyword, bool_type, resolved_guard_type).has_value())
+	std::shared_ptr<MarmotType> resolved_guard_type = ApplySubstitution(context, guard_result.Value());
+	if (!Unify(context, case_expr.m_keyword, bool_type, resolved_guard_type).HasValue())
 	{
 		return MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, "Match expression type error: case guard must be of type Bool", case_expr.m_keyword, m_file_name, m_source_lines, resolved_guard_type, bool_type);
 	}
 
-	return std::nullopt;
+	return MarmotCompiler::None;
 }
 
 MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context, MarmotExpression::Case& case_expr)
 {
 	if (case_expr.HasGuard())
 	{
-		std::optional<CompilerError> guard_error = CheckCaseGuard(context, case_expr);
-		if (guard_error.has_value())
+		MarmotCompiler::Optional<CompilerError> guard_error = CheckCaseGuard(context, case_expr);
+		if (guard_error.HasValue())
 		{
-			return std::unexpected(std::move(guard_error.value()));
+			return MarmotCompiler::Failure(std::move(guard_error.Value()));
 		}
 	}
 
 	return Evaluate(context, case_expr.m_expr)
-		.and_then
+		.AndThen
 		(
 			[&case_expr, this, &context](std::shared_ptr<MarmotType>&& expr_type) ->MarmotResult::TypeResult
 			{

@@ -2,6 +2,8 @@
 #include "Compiler/Names/SpecialNames.h"
 #include "Compiler/Operator/Operator.h"
 #include "Compiler/TypeMatching/InstanceTypeMatcher.h"
+#include "Support/Expected.h"
+#include "Support/Optional.h"
 #include <algorithm>
 #include <format>
 #include <ranges>
@@ -199,15 +201,15 @@ void TypeChecker::BindParameters(const CheckingContext& context, const FunctionP
 	}
 }
 
-void TypeChecker::BindValue(const CheckingContext& context, const Token& name, const std::optional<BindingId>& binding, std::shared_ptr<MarmotType> type)
+void TypeChecker::BindValue(const CheckingContext& context, const Token& name, const MarmotCompiler::Optional<BindingId>& binding, std::shared_ptr<MarmotType> type)
 {
 	if (name.IsDiscard())
 	{
 		return;
 	}
-	if (binding.has_value())
+	if (binding.HasValue())
 	{
-		context.m_scope->m_bindings.insert_or_assign(binding.value(), std::move(type));
+		context.m_scope->m_bindings.insert_or_assign(binding.Value(), std::move(type));
 	}
 	else
 	{
@@ -452,7 +454,7 @@ void TypeChecker::CollectLaterDefinitions()
 			{
 				continue;
 			}
-			if (def.m_annotated_type.has_value())
+			if (def.m_annotated_type.HasValue())
 			{
 				m_later_definitions[def.m_name.m_lexeme] = GlobalAnnotation(def);
 				continue;
@@ -551,9 +553,9 @@ MarmotResult::TypeCheckerResult TypeChecker::TypeCheck()
 				};
 			const std::function<void(MarmotResult::TypeResult&&)> collect = [&errors](MarmotResult::TypeResult&& result)
 				{
-					if (!result.has_value())
+					if (!result.HasValue())
 					{
-						errors.emplace_back(std::move(result.error()));
+						errors.emplace_back(std::move(result.Error()));
 					}
 				};
 
@@ -570,14 +572,14 @@ MarmotResult::TypeCheckerResult TypeChecker::TypeCheck()
 			}
 			if (!errors.empty())
 			{
-				return std::unexpected(MarmotResult::CompilerDiagnostics(std::move(errors)));
+				return MarmotCompiler::Failure(MarmotResult::CompilerDiagnostics(std::move(errors)));
 			}
 
 			for (std::unique_ptr<MarmotStatement>& statement : m_program_tree | std::views::filter([&is_declaration](const std::unique_ptr<MarmotStatement>& statement) { return !is_declaration(statement); }))
 			{
 				m_used_failed_definition = false;
 				MarmotResult::TypeResult result = Evaluate(context, statement);
-				if (!result.has_value())
+				if (!result.HasValue())
 				{
 					RecordFailedDefinition(*statement);
 					if (m_used_failed_definition)
@@ -590,7 +592,7 @@ MarmotResult::TypeCheckerResult TypeChecker::TypeCheck()
 
 			if (errors.empty())
 			{
-				if (std::optional<CompilerError> error = CheckDecidedPendingInstances(context, 0u))
+				if (MarmotCompiler::Optional<CompilerError> error = CheckDecidedPendingInstances(context, 0u))
 				{
 					errors.push_back(std::move(*error));
 				}
@@ -612,7 +614,7 @@ MarmotResult::TypeCheckerResult TypeChecker::TypeCheck()
 				m_module_types = context.m_scope->m_names;
 				return std::move(m_program_tree);
 			}
-			return std::unexpected(MarmotResult::CompilerDiagnostics(std::move(errors)));
+			return MarmotCompiler::Failure(MarmotResult::CompilerDiagnostics(std::move(errors)));
 		}
 	);
 }
@@ -732,7 +734,7 @@ TypeChecker::TypeEnvironment TypeChecker::ExtractTypeSignatures(const MarmotProg
 				{
 					if (!stmt.m_name.IsDiscard() && (exported_symbols == nullptr || exported_symbols->contains(stmt.m_name.m_lexeme)))
 					{
-						if (stmt.m_annotated_type.has_value())
+						if (stmt.m_annotated_type.HasValue())
 						{
 							signatures[stmt.m_name.m_lexeme] = GlobalAnnotation(stmt);
 						}
@@ -754,7 +756,7 @@ TypeChecker::TypeEnvironment TypeChecker::ExtractTypeSignatures(const MarmotProg
 MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context, MarmotStatement::ExpressionStatement& simple)
 {
 	return Evaluate(context, simple.m_expr)
-		.and_then
+		.AndThen
 		(
 			[](std::shared_ptr<MarmotType>&&) ->MarmotResult::TypeResult
 			{
@@ -765,9 +767,9 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 
 MarmotResult::TypeResult TypeChecker::TypeCheckGenericLambdaDefinition(const CheckingContext& context, MarmotStatement::VariableDefinition& def, MarmotExpression::Function& function)
 {
-	if (def.m_annotated_type.has_value())
+	if (def.m_annotated_type.HasValue())
 	{
-		return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Function expression type error: a generic lambda cannot carry a type annotation, because its type differs at each call site", function.m_function_keyword, m_file_name, m_source_lines));
+		return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Function expression type error: a generic lambda cannot carry a type annotation, because its type differs at each call site", function.m_function_keyword, m_file_name, m_source_lines));
 	}
 
 	// Bound before the body so the lambda can recurse, and recorded as generic so
@@ -778,14 +780,14 @@ MarmotResult::TypeResult TypeChecker::TypeCheckGenericLambdaDefinition(const Che
 		context,
 		function,
 		def.m_name,
-		def.m_binding.value_or(nullptr),
+		def.m_binding.ValueOr(nullptr),
 		[this, &def, &function, &name, &context](const std::shared_ptr<MarmotType>& function_type, const std::vector<int>& parameters)
 		{
 			def.m_value->GetType() = function_type;
 			BindValue(context, def.m_name, def.m_binding, function_type);
-			if (def.m_binding.has_value())
+			if (def.m_binding.HasValue())
 			{
-				context.m_scope->m_generic_functions.emplace_back( def.m_binding.value(), function.m_params.Function(), parameters);
+				context.m_scope->m_generic_functions.emplace_back( def.m_binding.Value(), function.m_params.Function(), parameters);
 			}
 			else
 			{
@@ -797,18 +799,18 @@ MarmotResult::TypeResult TypeChecker::TypeCheckGenericLambdaDefinition(const Che
 
 MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context, MarmotStatement::VariableDefinition& def)
 {
-	if (def.m_annotated_type.has_value())
+	if (def.m_annotated_type.HasValue())
 	{
-		def.m_annotated_type = InstantiateWrittenType(context, def.m_annotated_type.value());
+		def.m_annotated_type = InstantiateWrittenType(context, def.m_annotated_type.Value());
 	}
 
 	if (def.m_name.IsDiscard())
 	{
-		const CheckingContext initializer_context = context.WithExpectedType(def.m_annotated_type.value_or(nullptr));
+		const CheckingContext initializer_context = context.WithExpectedType(def.m_annotated_type.ValueOr(nullptr));
 		MarmotResult::TypeResult value = Evaluate(initializer_context, def.m_value);
-		if (value.has_value() && def.m_annotated_type.has_value())
+		if (value.HasValue() && def.m_annotated_type.HasValue())
 		{
-			return Unify(initializer_context, def.m_name, def.m_annotated_type.value(), value.value(), UnifyDiagnosticMode::ExpectedActual);
+			return Unify(initializer_context, def.m_name, def.m_annotated_type.Value(), value.Value(), UnifyDiagnosticMode::ExpectedActual);
 		}
 		return value;
 	}
@@ -834,9 +836,9 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 			}
 		);
 
-		if (!def.m_annotated_type.has_value() && has_inferred_param_types)
+		if (!def.m_annotated_type.HasValue() && has_inferred_param_types)
 		{
-			return std::unexpected
+			return MarmotCompiler::Failure
 			(
 				MarmotError::GenerateTypeCheckerErrorWithContext
 				(
@@ -858,19 +860,19 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 		std::shared_ptr<MarmotType> return_type_copy = function.m_return_type;
 		std::shared_ptr<MarmotType> function_type = MarmotType::MakeFunctionType(function.m_param_types, std::move(return_type_copy));
 		MarmotType::FunctionType& signature = function_type->GetType<MarmotType::FunctionType>();
-		signature.m_is_transferable = !def.m_binding.has_value();
+		signature.m_is_transferable = !def.m_binding.HasValue();
 		signature.m_constraints = function.m_constraints;
 		ApplyTransferableParameterConstraints(signature);
 		function.m_type_data = function_type;
 		def.m_value->GetType() = function.m_type_data;
 
-		if (def.m_annotated_type.has_value())
+		if (def.m_annotated_type.HasValue())
 		{
-			std::shared_ptr<MarmotType>& annotated_type = def.m_annotated_type.value();
+			std::shared_ptr<MarmotType>& annotated_type = def.m_annotated_type.Value();
 			MarmotResult::TypeResult annotation_result = Unify(context, def.m_name, function_type, annotated_type, UnifyDiagnosticMode::ActualExpected);
-			if (!annotation_result.has_value())
+			if (!annotation_result.HasValue())
 			{
-				return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Define statement type error: function type annotation doesn't match function signature", def.m_name, m_file_name, m_source_lines, function_type, annotated_type));
+				return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Define statement type error: function type annotation doesn't match function signature", def.m_name, m_file_name, m_source_lines, function_type, annotated_type));
 			}
 
 			function.m_type_data = ApplySubstitution(context, function_type);
@@ -890,16 +892,16 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 			{
 				BindParameters(context, function.m_params, function_type_ref.m_param_types);
 
-				return CheckLambda(context.WithExpectedType(def.m_annotated_type.value_or(nullptr)), function, def.m_binding.value_or(nullptr))
-					.and_then
+				return CheckLambda(context.WithExpectedType(def.m_annotated_type.ValueOr(nullptr)), function, def.m_binding.ValueOr(nullptr))
+					.AndThen
 					(
 						[&def, &function, this, &context](std::shared_ptr<MarmotType>&&) -> MarmotResult::TypeResult
 						{
 							std::shared_ptr<MarmotType> resolved_function_type = ApplySubstitution(context, def.m_value->GetType());
-							if (def.m_annotated_type.has_value())
+							if (def.m_annotated_type.HasValue())
 							{
 								MarmotResult::TypeResult annotation_result = Unify(context, def.m_name, resolved_function_type, *def.m_annotated_type, UnifyDiagnosticMode::ActualExpected);
-								if (!annotation_result.has_value())
+								if (!annotation_result.HasValue())
 								{
 									return annotation_result;
 								}
@@ -916,7 +918,7 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 
 							if (HasTypeVariables(resolved_function_type))
 							{
-								return std::unexpected
+								return MarmotCompiler::Failure
 								(
 									MarmotError::GenerateTypeCheckerErrorWithContext
 									(
@@ -928,7 +930,7 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 								);
 							}
 
-							if (std::shared_ptr<MarmotType>* binding = def.m_binding.has_value() ? FindBindingType(context, def.m_binding.value()) : FindNameType(context, def.m_name.m_lexeme))
+							if (std::shared_ptr<MarmotType>* binding = def.m_binding.HasValue() ? FindBindingType(context, def.m_binding.Value()) : FindNameType(context, def.m_name.m_lexeme))
 							{
 								*binding = resolved_function_type;
 							}
@@ -941,24 +943,24 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 	}
 
 	// Set expected type from annotation if present
-	const CheckingContext initializer_context = def.m_annotated_type.has_value() ? context.WithExpectedType(def.m_annotated_type.value()) : context;
+	const CheckingContext initializer_context = def.m_annotated_type.HasValue() ? context.WithExpectedType(def.m_annotated_type.Value()) : context;
 
 	// General case
 	return Evaluate(initializer_context, def.m_value)
-		.and_then
+		.AndThen
 		(
 			[&def, this, &initializer_context](std::shared_ptr<MarmotType>&& type)->MarmotResult::TypeResult
 			{
-				if (def.m_annotated_type.has_value())
+				if (def.m_annotated_type.HasValue())
 				{
-					std::shared_ptr<MarmotType>& annotated_type = def.m_annotated_type.value();
+					std::shared_ptr<MarmotType>& annotated_type = def.m_annotated_type.Value();
 
 					// Reject NeverType values with concrete type annotations
 					// NeverType represents expressions that never return (infinite loops, unconditional returns/breaks)
 					// They cannot be assigned to variables with concrete types
 					if (type->IsType<MarmotType::NeverType>() && !annotated_type->IsType<MarmotType::NeverType>())
 					{
-						return std::unexpected(
+						return MarmotCompiler::Failure(
 							MarmotError::GenerateTypeCheckerErrorWithContext
 							(
 								"Cannot assign a never-returning expression to a variable with type " + annotated_type->DisplayString(),
@@ -970,7 +972,7 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 					}
 
 					return Unify(initializer_context, def.m_name, annotated_type, type, UnifyDiagnosticMode::ExpectedActual)
-						.and_then
+						.AndThen
 						(
 							[&def, &annotated_type, this, &initializer_context](std::shared_ptr<MarmotType>&& unified_type)->MarmotResult::TypeResult
 							{
@@ -986,7 +988,7 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 					const MarmotType::ArrayType& array_type = type->GetType<MarmotType::ArrayType>();
 					if (array_type.m_element_type->IsType<MarmotType::UndecidedType>())
 					{
-						return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Define statement type error: empty arrays require type annotations. Use 'def " + def.m_name.m_lexeme + " : Array<ElementType> = [];'", def.m_name, m_file_name, m_source_lines));
+						return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Define statement type error: empty arrays require type annotations. Use 'def " + def.m_name.m_lexeme + " : Array<ElementType> = [];'", def.m_name, m_file_name, m_source_lines));
 					}
 				}
 
@@ -999,13 +1001,13 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context, MarmotStatement::TupleDefinition& def_tuple)
 {
 	return Evaluate(context, def_tuple.m_value)
-		.and_then
+		.AndThen
 		(
 			[&def_tuple, this, &context](std::shared_ptr<MarmotType>&& type)->MarmotResult::TypeResult
 			{
 				if (!type->IsType<MarmotType::TupleType>())
 				{
-					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("DefineTuple statement type error: expected tuple expression on right-hand side", def_tuple.m_names[0], m_file_name, m_source_lines));
+					return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("DefineTuple statement type error: expected tuple expression on right-hand side", def_tuple.m_names[0], m_file_name, m_source_lines));
 				}
 
 				const MarmotType::TupleType& tuple_type = type->GetType<MarmotType::TupleType>();
@@ -1013,7 +1015,7 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 
 				if (def_tuple.m_names.size() != tuple_type.m_element_types.size())
 				{
-					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("DefineTuple statement type error: tuple pattern has " + std::to_string(def_tuple.m_names.size()) + " bindings but tuple has " + std::to_string(tuple_type.m_element_types.size()) + " elements", def_tuple.m_names[0u], m_file_name, m_source_lines));
+					return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("DefineTuple statement type error: tuple pattern has " + std::to_string(def_tuple.m_names.size()) + " bindings but tuple has " + std::to_string(tuple_type.m_element_types.size()) + " elements", def_tuple.m_names[0u], m_file_name, m_source_lines));
 				}
 
 				for (size_t i = 0u; i < def_tuple.m_names.size(); i += 1u)
@@ -1037,7 +1039,7 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 		{
 			if (!generic_param_names.insert(generic_param.m_lexeme).second)
 			{
-				return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("DefineFunction type error: duplicate generic parameter name", generic_param, m_file_name, m_source_lines));
+				return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("DefineFunction type error: duplicate generic parameter name", generic_param, m_file_name, m_source_lines));
 			}
 		}
 
@@ -1051,7 +1053,7 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 			const Token& param = defun.m_params.SourceToken(index);
 			if (generic_param_names.contains(param.m_lexeme))
 			{
-				return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("DefineFunction type error: generic parameter conflicts with function parameter", param, m_file_name, m_source_lines));
+				return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("DefineFunction type error: generic parameter conflicts with function parameter", param, m_file_name, m_source_lines));
 			}
 		}
 	}
@@ -1066,7 +1068,7 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 	{
 		if (!m_classes.contains(ConstrainedClassName(constraint)))
 		{
-			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("DefineFunction type error: undefined class '" + ConstrainedClassName(constraint) + "' in constraint", defun.m_name, m_file_name, m_source_lines));
+			return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("DefineFunction type error: undefined class '" + ConstrainedClassName(constraint) + "' in constraint", defun.m_name, m_file_name, m_source_lines));
 		}
 
 		// An equality constraint names no class of its own, so the arity check
@@ -1080,7 +1082,7 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 
 		if (constraint.m_type_args.size() != tc_info.m_type_param_names.size())
 		{
-			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("DefineFunction type error: class '" + constraint.m_class_name + "' expects " + std::to_string(tc_info.m_type_param_names.size()) + " type argument(s) but got " + std::to_string(constraint.m_type_args.size()), defun.m_name, m_file_name, m_source_lines));
+			return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("DefineFunction type error: class '" + constraint.m_class_name + "' expects " + std::to_string(tc_info.m_type_param_names.size()) + " type argument(s) but got " + std::to_string(constraint.m_type_args.size()), defun.m_name, m_file_name, m_source_lines));
 		}
 	}
 
@@ -1120,17 +1122,17 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 			const GenericContext generic = ForGenericParameters(context, freshening_context.Bindings(), nullptr);
 			const size_t pending_start = m_pending_instances.size();
 			return CheckFunctionBody(generic.m_context, defun.m_body, defun.m_return_type, defun.m_constraints, defun.m_name)
-				.and_then
+				.AndThen
 				(
 					[&defun, &generic, pending_start, this](std::shared_ptr<MarmotType>&&) -> MarmotResult::TypeResult
 					{
-						if (std::optional<CompilerError> error = CheckGenericParametersStayGeneric(generic.m_context, generic.m_parameters, defun.m_generic_params, defun.m_name))
+						if (MarmotCompiler::Optional<CompilerError> error = CheckGenericParametersStayGeneric(generic.m_context, generic.m_parameters, defun.m_generic_params, defun.m_name))
 						{
-							return std::unexpected(std::move(*error));
+							return MarmotCompiler::Failure(std::move(*error));
 						}
-						if (std::optional<CompilerError> error = CheckDecidedPendingInstances(generic.m_context, pending_start))
+						if (MarmotCompiler::Optional<CompilerError> error = CheckDecidedPendingInstances(generic.m_context, pending_start))
 						{
-							return std::unexpected(std::move(*error));
+							return MarmotCompiler::Failure(std::move(*error));
 						}
 						return defun.m_return_type;
 					}
@@ -1141,11 +1143,11 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 
 MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context, MarmotStatement::ForeignDefinition& foreign)
 {
-	if (foreign.DeclaredPrimitive().has_value())
+	if (foreign.DeclaredPrimitive().HasValue())
 	{
-		if (std::optional<CompilerError> error = CheckPrimitiveDeclaration(foreign))
+		if (MarmotCompiler::Optional<CompilerError> error = CheckPrimitiveDeclaration(foreign))
 		{
-			return std::unexpected(std::move(*error));
+			return MarmotCompiler::Failure(std::move(*error));
 		}
 		if (foreign.DeclaredPrimitive() == MarmotPrimitive::ChannelSend)
 		{
@@ -1160,7 +1162,7 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 
 // The VM gives a primitive's instruction only what its declaration says, so the
 // declaration must say what the instruction takes and gives.
-std::optional<CompilerError> TypeChecker::CheckPrimitiveDeclaration(const MarmotStatement::ForeignDefinition& foreign) const
+MarmotCompiler::Optional<CompilerError> TypeChecker::CheckPrimitiveDeclaration(const MarmotStatement::ForeignDefinition& foreign) const
 {
 	const MarmotType::FunctionType& signature = foreign.m_type->GetType<MarmotType::FunctionType>();
 	const std::vector<std::shared_ptr<MarmotType>>& params = signature.m_param_types;
@@ -1173,7 +1175,7 @@ std::optional<CompilerError> TypeChecker::CheckPrimitiveDeclaration(const Marmot
 	};
 	const DeclaredShape shape = [&]() -> DeclaredShape
 	{
-		if (const MarmotOperator* operation = PrimitiveOperator(foreign.DeclaredPrimitive().value()))
+		if (const MarmotOperator* operation = PrimitiveOperator(foreign.DeclaredPrimitive().Value()))
 		{
 			const size_t arity = operation->m_unary ? 1u : 2u;
 			bool matches = params.size() == arity && params[0u]->IsNumericType() && *params[0u] == *result;
@@ -1187,7 +1189,7 @@ std::optional<CompilerError> TypeChecker::CheckPrimitiveDeclaration(const Marmot
 			}
 			return { matches, "a concrete numeric signature with matching operand and result types (an Int shift amount)" };
 		}
-		switch (foreign.DeclaredPrimitive().value())
+		switch (foreign.DeclaredPrimitive().Value())
 		{
 		case MarmotPrimitive::Spawn:
 			return { params.size() == 2u && IsSpawnSignature(params[0u], params[1u], result), "fn(A, fn(A) -> R) -> Worker<R>" };
@@ -1223,7 +1225,7 @@ std::optional<CompilerError> TypeChecker::CheckPrimitiveDeclaration(const Marmot
 
 	if (shape.m_matches)
 	{
-		return std::nullopt;
+		return MarmotCompiler::None;
 	}
 	return MarmotError::GenerateTypeCheckerErrorWithContext(std::format("Foreign declaration error: '{}' declares the primitive \"{}\", whose type must be {}", foreign.m_function_name.m_lexeme, foreign.m_foreign_name, shape.m_expected), foreign.m_function_name, m_file_name, m_source_lines);
 }
@@ -1237,7 +1239,7 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 		{
 			if (!generic_param_names.insert(generic_param.m_lexeme).second)
 			{
-				return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Struct declaration type error: duplicate generic parameter name", generic_param, m_file_name, m_source_lines));
+				return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Struct declaration type error: duplicate generic parameter name", generic_param, m_file_name, m_source_lines));
 			}
 		}
 
@@ -1248,14 +1250,14 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 	{
 		if (struct_stmt.m_generic_params.empty())
 		{
-			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Struct declaration error: constraints require at least one type parameter", struct_stmt.m_name, m_file_name, m_source_lines));
+			return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Struct declaration error: constraints require at least one type parameter", struct_stmt.m_name, m_file_name, m_source_lines));
 		}
 
 		for (const MarmotType::ClassConstraint& constraint : struct_stmt.m_constraints)
 		{
 			if (!m_classes.contains(ConstrainedClassName(constraint)))
 			{
-				return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Struct declaration error: undefined class '" + ConstrainedClassName(constraint) + "' in constraint", struct_stmt.m_name, m_file_name, m_source_lines));
+				return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Struct declaration error: undefined class '" + ConstrainedClassName(constraint) + "' in constraint", struct_stmt.m_name, m_file_name, m_source_lines));
 			}
 
 			// An equality constraint names no class of its own, so the arity check
@@ -1268,7 +1270,7 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 			const ClassInfo& tc_info = m_classes.at(constraint.m_class_name);
 			if (constraint.m_type_args.size() != tc_info.m_type_param_names.size())
 			{
-				return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Struct declaration error: class '" + constraint.m_class_name + "' expects " + std::to_string(tc_info.m_type_param_names.size()) + " type argument(s) but got " + std::to_string(constraint.m_type_args.size()), struct_stmt.m_name, m_file_name, m_source_lines));
+				return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Struct declaration error: class '" + constraint.m_class_name + "' expects " + std::to_string(tc_info.m_type_param_names.size()) + " type argument(s) but got " + std::to_string(constraint.m_type_args.size()), struct_stmt.m_name, m_file_name, m_source_lines));
 			}
 		}
 	}
@@ -1293,7 +1295,7 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 		{
 			if (!generic_param_names.insert(generic_param.m_lexeme).second)
 			{
-				return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Union declaration type error: duplicate generic parameter name", generic_param, m_file_name, m_source_lines));
+				return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Union declaration type error: duplicate generic parameter name", generic_param, m_file_name, m_source_lines));
 			}
 		}
 
@@ -1304,14 +1306,14 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 	{
 		if (union_stmt.m_generic_params.empty())
 		{
-			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Union declaration error: constraints require at least one type parameter", union_stmt.m_name, m_file_name, m_source_lines));
+			return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Union declaration error: constraints require at least one type parameter", union_stmt.m_name, m_file_name, m_source_lines));
 		}
 
 		for (const MarmotType::ClassConstraint& constraint : union_stmt.m_constraints)
 		{
 			if (!m_classes.contains(ConstrainedClassName(constraint)))
 			{
-				return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Union declaration error: undefined class '" + ConstrainedClassName(constraint) + "' in constraint", union_stmt.m_name, m_file_name, m_source_lines));
+				return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Union declaration error: undefined class '" + ConstrainedClassName(constraint) + "' in constraint", union_stmt.m_name, m_file_name, m_source_lines));
 			}
 
 			// An equality constraint names no class of its own, so the arity check
@@ -1324,7 +1326,7 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 			const ClassInfo& tc_info = m_classes.at(constraint.m_class_name);
 			if (constraint.m_type_args.size() != tc_info.m_type_param_names.size())
 			{
-				return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Union declaration error: class '" + constraint.m_class_name + "' expects " + std::to_string(tc_info.m_type_param_names.size()) + " type argument(s) but got " + std::to_string(constraint.m_type_args.size()), union_stmt.m_name, m_file_name, m_source_lines));
+				return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Union declaration error: class '" + constraint.m_class_name + "' expects " + std::to_string(tc_info.m_type_param_names.size()) + " type argument(s) but got " + std::to_string(constraint.m_type_args.size()), union_stmt.m_name, m_file_name, m_source_lines));
 			}
 		}
 	}
@@ -1351,13 +1353,13 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext&, MarmotS
 	{
 		if (!type_param_names.insert(type_param.m_lexeme).second)
 		{
-			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Class declaration error: duplicate type parameter name", type_param, m_file_name, m_source_lines));
+			return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Class declaration error: duplicate type parameter name", type_param, m_file_name, m_source_lines));
 		}
 	}
 
 	if (m_classes.contains(class_stmt.m_name.m_lexeme))
 	{
-		return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Class declaration error: class already defined", class_stmt.m_name, m_file_name, m_source_lines));
+		return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Class declaration error: class already defined", class_stmt.m_name, m_file_name, m_source_lines));
 	}
 
 	AssociatedTypeEnvironment associated_types;
@@ -1365,11 +1367,11 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext&, MarmotS
 	{
 		if (type_param_names.contains(associated_type_decl.m_name.m_lexeme))
 		{
-			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Class declaration error: associated type name conflicts with class type parameter", associated_type_decl.m_name, m_file_name, m_source_lines));
+			return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Class declaration error: associated type name conflicts with class type parameter", associated_type_decl.m_name, m_file_name, m_source_lines));
 		}
 		if (associated_types.contains(associated_type_decl.m_name.m_lexeme))
 		{
-			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Class declaration error: duplicate associated type name", associated_type_decl.m_name, m_file_name, m_source_lines));
+			return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Class declaration error: duplicate associated type name", associated_type_decl.m_name, m_file_name, m_source_lines));
 		}
 
 		std::vector<std::shared_ptr<MarmotType>> associated_type_args;
@@ -1391,13 +1393,13 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext&, MarmotS
 	{
 		if (!method->IsStatement<MarmotStatement::FunctionDefinition>())
 		{
-			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Class declaration error: methods must be function definitions", class_stmt.m_name, m_file_name, m_source_lines));
+			return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Class declaration error: methods must be function definitions", class_stmt.m_name, m_file_name, m_source_lines));
 		}
 
 		MarmotStatement::FunctionDefinition& defun = method->GetStatement<MarmotStatement::FunctionDefinition>();
 		if (method_types.contains(defun.m_name.m_lexeme))
 		{
-			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Class declaration error: duplicate method name", defun.m_name, m_file_name, m_source_lines));
+			return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Class declaration error: duplicate method name", defun.m_name, m_file_name, m_source_lines));
 		}
 
 		std::shared_ptr<MarmotType> method_type = MarmotType::MakeFunctionType(defun.m_param_types, std::shared_ptr<MarmotType>(defun.m_return_type));
@@ -1423,13 +1425,13 @@ MarmotResult::TypeResult TypeChecker::RegisterInstance(const CheckingContext& co
 	std::unordered_map<std::string, ClassInfo>::iterator tc_it = m_classes.find(instance_stmt.m_class_name.m_lexeme);
 	if (tc_it == m_classes.end())
 	{
-		return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: unknown class '" + instance_stmt.m_class_name.m_lexeme + "'", instance_stmt.m_class_name, m_file_name, m_source_lines));
+		return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: unknown class '" + instance_stmt.m_class_name.m_lexeme + "'", instance_stmt.m_class_name, m_file_name, m_source_lines));
 	}
 
 	const ClassInfo& tc_info = tc_it->second;
 	if (instance_stmt.m_type_args.size() != tc_info.m_type_param_names.size())
 	{
-		return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: type argument count mismatch", instance_stmt.m_class_name, m_file_name, m_source_lines));
+		return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: type argument count mismatch", instance_stmt.m_class_name, m_file_name, m_source_lines));
 	}
 
 	// Numeric describes primitive range bounds; an instance cannot extend the
@@ -1437,7 +1439,7 @@ MarmotResult::TypeResult TypeChecker::RegisterInstance(const CheckingContext& co
 	const std::shared_ptr<MarmotType>& first_type_arg = instance_stmt.m_type_args.front();
 	if (instance_stmt.m_class_name.m_lexeme == NUMERIC_CLASS_NAME && !first_type_arg->IsNumericType())
 	{
-		return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnsatisfiedConstraint, std::format("Instance declaration error: primitive ranges require Int, Float, Byte or Word, so there is no Numeric<{}>", first_type_arg->DisplayString()), instance_stmt.m_class_name, m_file_name, m_source_lines));
+		return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnsatisfiedConstraint, std::format("Instance declaration error: primitive ranges require Int, Float, Byte or Word, so there is no Numeric<{}>", first_type_arg->DisplayString()), instance_stmt.m_class_name, m_file_name, m_source_lines));
 	}
 
 	std::vector<std::string> concrete_type_names;
@@ -1457,7 +1459,7 @@ MarmotResult::TypeResult TypeChecker::RegisterInstance(const CheckingContext& co
 		// this is the only order in which the two can meet.
 		if (!existing_instance_it->second.m_is_derived)
 		{
-			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: instance already defined for this type", instance_stmt.m_class_name, m_file_name, m_source_lines));
+			return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: instance already defined for this type", instance_stmt.m_class_name, m_file_name, m_source_lines));
 		}
 
 		m_instances.erase(existing_instance_it);
@@ -1468,11 +1470,11 @@ MarmotResult::TypeResult TypeChecker::RegisterInstance(const CheckingContext& co
 	{
 		if (!tc_info.m_associated_types.contains(binding.m_name.m_lexeme))
 		{
-			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: unknown associated type '" + binding.m_name.m_lexeme + "'", binding.m_name, m_file_name, m_source_lines));
+			return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: unknown associated type '" + binding.m_name.m_lexeme + "'", binding.m_name, m_file_name, m_source_lines));
 		}
 		if (associated_type_bindings.contains(binding.m_name.m_lexeme))
 		{
-			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: duplicate associated type binding", binding.m_name, m_file_name, m_source_lines));
+			return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: duplicate associated type binding", binding.m_name, m_file_name, m_source_lines));
 		}
 
 		associated_type_bindings.emplace(binding.m_name.m_lexeme, binding.m_type);
@@ -1482,7 +1484,7 @@ MarmotResult::TypeResult TypeChecker::RegisterInstance(const CheckingContext& co
 	{
 		if (!associated_type_bindings.contains(associated_type_name))
 		{
-			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: missing binding for associated type '" + associated_type_name + "'", instance_stmt.m_class_name, m_file_name, m_source_lines));
+			return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: missing binding for associated type '" + associated_type_name + "'", instance_stmt.m_class_name, m_file_name, m_source_lines));
 		}
 	}
 
@@ -1521,12 +1523,12 @@ MarmotResult::TypeResult TypeChecker::RegisterInstance(const CheckingContext& co
 
 		if (!tc_info.m_method_types.contains(method_name))
 		{
-			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' not defined in typeclass", method.m_name, m_file_name, m_source_lines));
+			return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' not defined in typeclass", method.m_name, m_file_name, m_source_lines));
 		}
 
 		if (implemented_methods.contains(method_name))
 		{
-			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: duplicate method implementation", method.m_name, m_file_name, m_source_lines));
+			return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: duplicate method implementation", method.m_name, m_file_name, m_source_lines));
 		}
 
 		implemented_methods.emplace(method_name);
@@ -1536,7 +1538,7 @@ MarmotResult::TypeResult TypeChecker::RegisterInstance(const CheckingContext& co
 	{
 		if (!implemented_methods.contains(method_name))
 		{
-			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: missing implementation for method '" + method_name + "'", instance_stmt.m_class_name, m_file_name, m_source_lines));
+			return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: missing implementation for method '" + method_name + "'", instance_stmt.m_class_name, m_file_name, m_source_lines));
 		}
 	}
 
@@ -1553,13 +1555,13 @@ MarmotResult::TypeResult TypeChecker::RegisterInstance(const CheckingContext& co
 
 		if (!defun.m_generic_params.empty())
 		{
-			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: instance methods cannot declare generic parameters", method.m_name, m_file_name, m_source_lines));
+			return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: instance methods cannot declare generic parameters", method.m_name, m_file_name, m_source_lines));
 		}
 
 		TypeEnvironment::const_iterator expected_it = tc_info.m_method_types.find(method_name);
 		if (expected_it == tc_info.m_method_types.cend())
 		{
-			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' not defined in class", method.m_name, m_file_name, m_source_lines));
+			return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' not defined in class", method.m_name, m_file_name, m_source_lines));
 		}
 
 		std::shared_ptr<MarmotType> expected_signature = ApplySubstitution(context, TypeTransform::Instantiate(expected_it->second, type_param_substitutions));
@@ -1574,7 +1576,7 @@ MarmotResult::TypeResult TypeChecker::RegisterInstance(const CheckingContext& co
 
 				if (expected_type.m_param_types.size() != actual_type.m_param_types.size())
 				{
-					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' parameter count does not match class declaration", method.m_name, m_file_name, m_source_lines, actual_signature, expected_signature));
+					return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' parameter count does not match class declaration", method.m_name, m_file_name, m_source_lines, actual_signature, expected_signature));
 				}
 
 				for (size_t i = 0u; i < expected_type.m_param_types.size(); i += 1u)
@@ -1583,17 +1585,17 @@ MarmotResult::TypeResult TypeChecker::RegisterInstance(const CheckingContext& co
 					const std::shared_ptr<MarmotType>& actual_param = actual_type.m_param_types[i];
 					if (*expected_param != *actual_param)
 					{
-						return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(std::format("Instance declaration error: method '{}' parameter {} type does not match class declaration", method_name, i + 1u), method.m_name, m_file_name, m_source_lines, actual_param, expected_param));
+						return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext(std::format("Instance declaration error: method '{}' parameter {} type does not match class declaration", method_name, i + 1u), method.m_name, m_file_name, m_source_lines, actual_param, expected_param));
 					}
 				}
 
 				if (*expected_type.m_return_type != *actual_type.m_return_type)
 				{
-					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' return type does not match class declaration", method.m_name, m_file_name, m_source_lines, actual_type.m_return_type, expected_type.m_return_type));
+					return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' return type does not match class declaration", method.m_name, m_file_name, m_source_lines, actual_type.m_return_type, expected_type.m_return_type));
 				}
 			}
 
-			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' signature does not match class declaration", method.m_name, m_file_name, m_source_lines, actual_signature, expected_signature));
+			return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' signature does not match class declaration", method.m_name, m_file_name, m_source_lines, actual_signature, expected_signature));
 		}
 	}
 
@@ -1619,7 +1621,7 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 		}
 
 		MarmotResult::TypeResult result = (*this)(context, defun);
-		if (!result.has_value())
+		if (!result.HasValue())
 		{
 			return result;
 		}
@@ -1637,7 +1639,7 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext&, MarmotS
 		{
 			if (!generic_param_names.insert(generic_param.m_lexeme).second)
 			{
-				return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Type alias declaration error: duplicate generic parameter name", generic_param, m_file_name, m_source_lines));
+				return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Type alias declaration error: duplicate generic parameter name", generic_param, m_file_name, m_source_lines));
 			}
 		}
 	}

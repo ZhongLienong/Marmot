@@ -18,10 +18,10 @@ def slots: Array<Slot<Int>> = [Slot::Empty() for index in 0..1..3];
 def scaled = fn(factor: Int) -> Array<fn() -> Int> =>
     [fn() -> Int => index * factor for index in 0..1..3];
 )";
-	const std::expected<MarmotTest::TypedSnippet, CompilerError> checked = MarmotTest::TypeCheckSnippet(source);
-	if (!checked.has_value())
+	const MarmotResult::Result<MarmotTest::TypedSnippet> checked = MarmotTest::TypeCheckSnippet(source);
+	if (!checked.HasValue())
 	{
-		FAIL(checked.error().Rendered());
+		FAIL(checked.Error().Rendered());
 	}
 }
 
@@ -32,14 +32,14 @@ def broken: (fn(Int) -> Int, fn(Text) -> Text) =
     (fn(value) => value, fn(value) => 1);
 def later: fn(Int) -> Bool = fn(value) => value;
 )";
-	const std::expected<MarmotTest::TypedSnippet, MarmotResult::CompilerDiagnostics> checked = MarmotTest::TypeCheckSnippetWithDiagnostics(source);
-	REQUIRE_FALSE(checked.has_value());
-	INFO(checked.error().Rendered());
-	REQUIRE(checked.error().Size() == 2u);
-	CHECK(checked.error().m_items[0u].m_code == CompilerErrorCode::TypeMismatch);
-	CHECK(checked.error().m_items[0u].m_message.find("Text") != std::string::npos);
-	CHECK(checked.error().m_items[1u].m_code == CompilerErrorCode::TypeMismatch);
-	CHECK(checked.error().m_items[1u].m_message.find("Bool") != std::string::npos);
+	const MarmotResult::DiagnosticsResult<MarmotTest::TypedSnippet> checked = MarmotTest::TypeCheckSnippetWithDiagnostics(source);
+	REQUIRE_FALSE(checked.HasValue());
+	INFO(checked.Error().Rendered());
+	REQUIRE(checked.Error().Size() == 2u);
+	CHECK(checked.Error().m_items[0u].m_code == CompilerErrorCode::TypeMismatch);
+	CHECK(checked.Error().m_items[0u].m_message.find("Text") != std::string::npos);
+	CHECK(checked.Error().m_items[1u].m_code == CompilerErrorCode::TypeMismatch);
+	CHECK(checked.Error().m_items[1u].m_message.find("Bool") != std::string::npos);
 }
 
 TEST_CASE("Deferred generic values retain use-site assumptions without lending them to later bodies", "[typechecker][checking-context]")
@@ -50,18 +50,18 @@ def Keep = fn<T>(show: fn(T) -> Text) -> fn(T) -> Text => show;
 def Render = fn<T>(value: T) -> Text where Show<T> => Show::show(value);
 def WithShow = fn<T>(sample: T) -> fn(T) -> Text where Show<T> => Keep(Render);
 )";
-	const std::expected<MarmotTest::TypedSnippet, CompilerError> checked = MarmotTest::TypeCheckSnippet(declarations);
-	if (!checked.has_value())
+	const MarmotResult::Result<MarmotTest::TypedSnippet> checked = MarmotTest::TypeCheckSnippet(declarations);
+	if (!checked.HasValue())
 	{
-		FAIL(checked.error().Rendered());
+		FAIL(checked.Error().Rendered());
 	}
 
 	const std::string source = declarations + R"(def WithoutShow = fn(sample: Int) -> fn(Int) -> Text => Keep(Render);
 )";
-	const std::expected<MarmotTest::TypedSnippet, MarmotResult::CompilerDiagnostics> failed = MarmotTest::TypeCheckSnippetWithDiagnostics(source);
-	REQUIRE_FALSE(failed.has_value());
-	INFO(failed.error().Rendered());
-	REQUIRE(failed.error().Size() == 1u);
-	CHECK(failed.error().First().m_code == CompilerErrorCode::TypeUnsatisfiedConstraint);
-	CHECK(failed.error().First().m_message.find("Show<Int>") != std::string::npos);
+	const MarmotResult::DiagnosticsResult<MarmotTest::TypedSnippet> failed = MarmotTest::TypeCheckSnippetWithDiagnostics(source);
+	REQUIRE_FALSE(failed.HasValue());
+	INFO(failed.Error().Rendered());
+	REQUIRE(failed.Error().Size() == 1u);
+	CHECK(failed.Error().First().m_code == CompilerErrorCode::TypeUnsatisfiedConstraint);
+	CHECK(failed.Error().First().m_message.find("Show<Int>") != std::string::npos);
 }

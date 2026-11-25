@@ -11,6 +11,8 @@
 
 #include "Compiler/Source/Source.h"
 #include "Compiler/Lexer/Lexer.h"
+#include "Support/Expected.h"
+#include "Support/Optional.h"
 
 namespace
 {
@@ -573,13 +575,13 @@ namespace
 		int m_block_depth = 0;
 		bool m_at_line_start = true;
 		TopLevelCategory m_last_top_level_category = TopLevelCategory::None;
-		std::optional<TokenName> m_previous_token;
+		MarmotCompiler::Optional<TokenName> m_previous_token;
 		// Whether the token written last was a unary prefix or a type-argument bracket,
 		// which are spaced unlike the same token as an infix operator.
 		bool m_previous_was_unary = false;
 		// The last token that was code, which a comment does not reset: whether an
 		// operator is unary depends on it even across `1 /* note */ + 2`.
-		std::optional<TokenName> m_last_code_token;
+		MarmotCompiler::Optional<TokenName> m_last_code_token;
 		bool m_previous_was_type_bracket = false;
 		std::unordered_set<size_t> m_type_brackets;
 		std::unordered_set<size_t> m_record_pattern_braces;
@@ -724,7 +726,7 @@ namespace
 					&& IsTopLevelStart(next->m_token_name)
 					&& ClassifyTopLevel(next->m_token_name) == TopLevelCategory::Declaration
 					&& !(index > 0u && IsComment(tokens[index - 1u].m_token_name));
-				if (opens_declaration_comment && m_previous_token.has_value())
+				if (opens_declaration_comment && m_previous_token.HasValue())
 				{
 					EnsureTrailingNewlines(2);
 				}
@@ -748,7 +750,7 @@ namespace
 				}
 
 				WriteCommentLexeme(token.m_lexeme);
-				m_previous_token.reset();
+				m_previous_token.Reset();
 
 				if (token.m_token_name == TokenName::LINE_COMMENT
 					|| CountEmbeddedNewlines(token.m_lexeme) > 0
@@ -776,7 +778,7 @@ namespace
 				WriteCommentLexeme(token.m_lexeme);
 				m_output.push_back(' ');
 				m_at_line_start = false;
-				m_previous_token.reset();
+				m_previous_token.Reset();
 				return;
 			}
 
@@ -787,7 +789,7 @@ namespace
 
 			WriteCurrentIndent();
 			WriteCommentLexeme(token.m_lexeme);
-			m_previous_token.reset();
+			m_previous_token.Reset();
 
 			if (token.m_token_name == TokenName::LINE_COMMENT || CountEmbeddedNewlines(token.m_lexeme) > 0)
 			{
@@ -818,7 +820,7 @@ namespace
 			const TopLevelCategory category = ClassifyTopLevel(token_name);
 			const bool in_header = category != TopLevelCategory::Declaration && m_last_top_level_category != TopLevelCategory::Declaration;
 			const bool after_own_comment = index > 0u && IsComment(tokens[index - 1u].m_token_name) && m_at_line_start;
-			if (m_previous_token.has_value() && !after_own_comment)
+			if (m_previous_token.HasValue() && !after_own_comment)
 			{
 				if (in_header)
 				{
@@ -906,7 +908,7 @@ namespace
 				return;
 			}
 
-			if (!m_previous_token.has_value())
+			if (!m_previous_token.HasValue())
 			{
 				return;
 			}
@@ -977,7 +979,7 @@ namespace
 			{
 				return false;
 			}
-			if (!m_last_code_token.has_value())
+			if (!m_last_code_token.HasValue())
 			{
 				return true;
 			}
@@ -1030,7 +1032,7 @@ namespace
 				const bool is_record_pattern = m_record_pattern_braces.contains(index);
 				const bool inline_brace = is_record_pattern || IsInlineBraceOpen(tokens, index);
 				const bool starts_block_inline = m_record_type_braces.contains(index)
-					|| (m_previous_token.has_value() && *m_previous_token == TokenName::FAT_ARROW);
+					|| (m_previous_token.HasValue() && *m_previous_token == TokenName::FAT_ARROW);
 				WriteCurrentIndent();
 				if (inline_brace)
 				{
@@ -1267,24 +1269,24 @@ namespace
 				continue;
 			}
 
-			tokens.emplace_back(token.m_lexeme, token.m_token_name, token.m_line, token.m_file_name, token.m_column.value_or(0), token.m_source_length.value_or(0u));
+			tokens.emplace_back(token.m_lexeme, token.m_token_name, token.m_line, token.m_file_name, token.m_column.ValueOr(0), token.m_source_length.ValueOr(0u));
 		}
 		return tokens;
 	}
 
-	[[nodiscard]] std::expected<std::string, std::string> ReadFileText(const std::filesystem::path& path)
+	[[nodiscard]] MarmotCompiler::Expected<std::string, std::string> ReadFileText(const std::filesystem::path& path)
 	{
 		std::ifstream input(path, std::ios::binary);
 		if (!input.is_open())
 		{
-			return std::unexpected(std::format("Could not open file: {}", path.string()));
+			return MarmotCompiler::Failure(std::format("Could not open file: {}", path.string()));
 		}
 
 		std::ostringstream buffer;
 		buffer << input.rdbuf();
 		if (!buffer)
 		{
-			return std::unexpected(std::format("Could not read file: {}", path.string()));
+			return MarmotCompiler::Failure(std::format("Could not read file: {}", path.string()));
 		}
 
 		return buffer.str();
@@ -1327,7 +1329,7 @@ namespace MarmotFormatter
 {
 	bool RunResult::HasErrors() const
 	{
-		return std::ranges::any_of(m_files, [](const FileResult& result) { return result.m_error.has_value(); });
+		return std::ranges::any_of(m_files, [](const FileResult& result) { return result.m_error.HasValue(); });
 	}
 
 	bool RunResult::HasChanges() const
@@ -1337,7 +1339,7 @@ namespace MarmotFormatter
 
 	int RunResult::ErrorCount() const
 	{
-		return static_cast<int>(std::ranges::count_if(m_files, [](const FileResult& result) { return result.m_error.has_value(); }));
+		return static_cast<int>(std::ranges::count_if(m_files, [](const FileResult& result) { return result.m_error.HasValue(); }));
 	}
 
 	int RunResult::ChangedCount() const
@@ -1345,19 +1347,19 @@ namespace MarmotFormatter
 		return static_cast<int>(std::ranges::count_if(m_files, [](const FileResult& result) { return result.m_changed; }));
 	}
 
-	std::expected<std::string, CompilerError> FormatSource(std::string_view source_code, std::string_view file_name)
+	MarmotResult::Result<std::string> FormatSource(std::string_view source_code, std::string_view file_name)
 	{
 		MarmotResult::LexerResult lex_result = Lexer(
 			std::string(source_code),
 			file_name,
 			Lexer::Options{ .m_preserve_comments = true }).Lex();
-		if (!lex_result.has_value())
+		if (!lex_result.HasValue())
 		{
-			return std::unexpected(std::move(lex_result.error()));
+			return MarmotCompiler::Failure(std::move(lex_result.Error()));
 		}
 
 		FormatterEngine engine;
-		return engine.Format(TokensWithoutEof(std::move(lex_result.value())));
+		return engine.Format(TokensWithoutEof(std::move(lex_result.Value())));
 	}
 
 	RunResult FormatPath(const std::filesystem::path& target_path, const Options& options)
@@ -1369,19 +1371,19 @@ namespace MarmotFormatter
 			FileResult file_result;
 			file_result.m_path = path;
 
-			const std::expected<std::string, std::string> read_result = ReadFileText(path);
-			if (!read_result.has_value())
+			const MarmotCompiler::Expected<std::string, std::string> read_result = ReadFileText(path);
+			if (!read_result.HasValue())
 			{
-				file_result.m_error = read_result.error();
+				file_result.m_error = read_result.Error();
 				result.m_files.push_back(std::move(file_result));
 				continue;
 			}
 
-			file_result.m_original_text = read_result.value();
-			const std::expected<std::string, CompilerError> format_result = FormatSource(file_result.m_original_text, path.string());
-			if (!format_result.has_value())
+			file_result.m_original_text = read_result.Value();
+			const MarmotResult::Result<std::string> format_result = FormatSource(file_result.m_original_text, path.string());
+			if (!format_result.HasValue())
 			{
-				file_result.m_error = std::string(format_result.error().Rendered());
+				file_result.m_error = std::string(format_result.Error().Rendered());
 				result.m_files.push_back(std::move(file_result));
 				continue;
 			}
@@ -1389,8 +1391,8 @@ namespace MarmotFormatter
 			// A file keeps the byte order mark it came with: formatting a file is
 			// not a decision about its encoding.
 			file_result.m_formatted_text = MarmotSource::StartsWithByteOrderMark(file_result.m_original_text)
-				? std::string(MarmotSource::UTF8_BYTE_ORDER_MARK) + format_result.value()
-				: format_result.value();
+				? std::string(MarmotSource::UTF8_BYTE_ORDER_MARK) + format_result.Value()
+				: format_result.Value();
 			file_result.m_changed = file_result.m_formatted_text != file_result.m_original_text;
 			if (options.m_write_in_place && file_result.m_changed)
 			{

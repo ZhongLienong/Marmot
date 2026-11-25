@@ -1,7 +1,5 @@
 #pragma once
 
-#include <expected>
-#include <optional>
 #include <queue>
 #include <string_view>
 #include <functional>
@@ -14,6 +12,8 @@
 #include "Compiler/Module/ModuleImports.h"
 #include "Compiler/Module/Module.h"
 #include "Compiler/Result/Result.h"
+#include "Support/Expected.h"
+#include "Support/Optional.h"
 
 class Parser
 {
@@ -71,7 +71,7 @@ private:
 		explicit ParsedTypeDeclaration(std::unique_ptr<MarmotStatement> statement, std::vector<Token> deriving_targets = {});
 	};
 
-	using ParsedTypeResult = std::expected<ParsedTypeDeclaration, CompilerError>;
+	using ParsedTypeResult = MarmotResult::Result<ParsedTypeDeclaration>;
 	using TypeBodyParser = std::function<ParsedTypeResult(TypeDeclarationHeader&&)>;
 
 	// The result of matching a name against the struct and union constructor tables.
@@ -89,7 +89,7 @@ private:
 		}
 	};
 
-	using ConstructorResolutionResult = MarmotResult::Result<std::optional<ConstructorResolution>>;
+	using ConstructorResolutionResult = MarmotResult::Result<MarmotCompiler::Optional<ConstructorResolution>>;
 
 	using Scopes = std::vector<Scope>;
 
@@ -197,7 +197,7 @@ private:
 	struct ArrayComprehensionProbe
 	{
 		bool m_is_candidate = false;
-		std::optional<int> m_loop_variable_offset = std::nullopt;
+		MarmotCompiler::Optional<int> m_loop_variable_offset = MarmotCompiler::None;
 	};
 
 	enum class UseImportResolutionStatus
@@ -269,11 +269,11 @@ private:
 	}
 	
 	template<typename Value, typename Condition, typename Step>
-	static std::expected<Value, CompilerError> FoldWhile(std::expected<Value, CompilerError> value, Condition&& condition, Step&& step)
+	static MarmotResult::Result<Value> FoldWhile(MarmotResult::Result<Value> value, Condition&& condition, Step&& step)
 	{
-		while (value.has_value() && condition())
+		while (value.HasValue() && condition())
 		{
-			value = step(std::move(value.value()));
+			value = step(std::move(value.Value()));
 		}
 		return value;
 	}
@@ -289,7 +289,7 @@ private:
 			[this, operand](std::unique_ptr<MarmotExpression>&& left) -> MarmotResult::ExpressionResult
 			{
 				const Token op = Previous();
-				return (this->*operand)().and_then
+				return (this->*operand)().AndThen
 				(
 					[&](std::unique_ptr<MarmotExpression>&& right) -> MarmotResult::ExpressionResult
 					{
@@ -331,11 +331,11 @@ private:
 			if (Match(Token::Name::LEFT_ANGLE))
 			{
 				MarmotResult::TokenListResult parameters = ParseGenericParameters(&types);
-				if (!parameters.has_value())
+				if (!parameters.HasValue())
 				{
-					return std::unexpected(std::move(parameters.error()));
+					return MarmotCompiler::Failure(std::move(parameters.Error()));
 				}
-				names = std::move(parameters.value());
+				names = std::move(parameters.Value());
 			}
 			return std::forward<Parse>(parse)(std::move(names), std::move(types));
 		};
@@ -344,28 +344,28 @@ private:
 	}
 
 	template<typename OutputType, typename ParseFunc>
-	std::expected<OutputType, CompilerError> TryParser(ParseFunc&& func)
+	MarmotResult::Result<OutputType> TryParser(ParseFunc&& func)
 	{
 		ParseState checkpoint = m_state;
 		return func()
-			.or_else
+			.OrElse
 			(
-				[&checkpoint, this](CompilerError&& error) -> std::expected<OutputType, CompilerError> 
+				[&checkpoint, this](CompilerError&& error) -> MarmotResult::Result<OutputType>
 				{
 					m_state = std::move(checkpoint);
-					return std::unexpected(std::move(error));
+					return MarmotCompiler::Failure(std::move(error));
 				}
 			);
 	}
 
 	template<typename OutputType>
-	std::expected<OutputType, CompilerError> NoMatch()
+	MarmotResult::Result<OutputType> NoMatch()
 	{
-		return std::unexpected(CompilerError::NoMatch());
+		return MarmotCompiler::Failure(CompilerError::NoMatch());
 	}
 
 	template<typename OutputType, typename ParseFunc>
-	std::expected<OutputType, CompilerError> ParseWhen(ParseState& state, Token::Name token, ParseFunc&& func)
+	MarmotResult::Result<OutputType> ParseWhen(ParseState& state, Token::Name token, ParseFunc&& func)
 	{
 		if (!Check(state, token, 0))
 		{
@@ -377,16 +377,16 @@ private:
 	}
 
 	template<typename OutputType, typename First, typename... Rest>
-	std::expected<OutputType, CompilerError> ParseChoice(ParseState& state, First&& first, Rest&&... rest)
+	MarmotResult::Result<OutputType> ParseChoice(ParseState& state, First&& first, Rest&&... rest)
 	{
 		static_cast<void>(state);
-		std::expected<OutputType, CompilerError> result = first();
-		if (result.has_value())
+		MarmotResult::Result<OutputType> result = first();
+		if (result.HasValue())
 		{
 			return result;
 		}
 
-		if (!IsNoMatchError(result.error()))
+		if (!IsNoMatchError(result.Error()))
 		{
 			return result;
 		}
@@ -402,61 +402,61 @@ private:
 	}
 
 	template<typename OutputType, typename ParseFunc, typename Delim, typename EndCond>
-	std::expected<std::vector<OutputType>, CompilerError> ParseDelimitedZeroOrMoreLimited(ParseFunc&& func, Delim&& delim, EndCond&& end_cond, std::vector<OutputType>&& acc = {})
+	MarmotResult::Result<std::vector<OutputType>> ParseDelimitedZeroOrMoreLimited(ParseFunc&& func, Delim&& delim, EndCond&& end_cond, std::vector<OutputType>&& acc = {})
 	{
 		return TryParser<OutputType>(std::forward<ParseFunc>(func))
-			.and_then
+			.AndThen
 			(
 				[&func, &end_cond, &delim, &acc, this](OutputType&& elem)
 				{
 					acc.emplace_back(std::move(elem));
 					return delim()
-						.and_then
+						.AndThen
 						(
-							[&func, &end_cond, &delim, &acc, this](Token&&) -> std::expected<std::vector<OutputType>, CompilerError>
+							[&func, &end_cond, &delim, &acc, this](Token&&) -> MarmotResult::Result<std::vector<OutputType>>
 							{
 								return ParseDelimitedZeroOrMoreLimited(std::forward<ParseFunc>(func), std::forward<Delim>(delim), std::forward<EndCond>(end_cond), std::move(acc));
 							}
 						)
-						.or_else(
-							[&end_cond, &acc](CompilerError&& delim_error) -> std::expected<std::vector<OutputType>, CompilerError>
+						.OrElse(
+							[&end_cond, &acc](CompilerError&& delim_error) -> MarmotResult::Result<std::vector<OutputType>>
 							{
 								return end_cond()
-									.and_then
+									.AndThen
 									(
-										[&acc](Token&&) -> std::expected<std::vector<OutputType>, CompilerError>
+										[&acc](Token&&) -> MarmotResult::Result<std::vector<OutputType>>
 										{
 											return std::move(acc);
 										}
 									)
-									.or_else
+									.OrElse
 									(
-										[&delim_error](CompilerError&&) -> std::expected<std::vector<OutputType>, CompilerError>
+										[&delim_error](CompilerError&&) -> MarmotResult::Result<std::vector<OutputType>>
 										{
-											return std::unexpected(std::move(delim_error));
+											return MarmotCompiler::Failure(std::move(delim_error));
 										}
 									);
 							}
 						);
 				}
 			)
-			.or_else
+			.OrElse
 			(
 				[&acc, &end_cond](CompilerError&& try_parser_error)
 				{
 					return end_cond()
-						.and_then
+						.AndThen
 						(
-							[&acc](Token&&) -> std::expected<std::vector<OutputType>, CompilerError>
+							[&acc](Token&&) -> MarmotResult::Result<std::vector<OutputType>>
 							{
 								return std::move(acc);
 							}
 						)
-						.or_else
+						.OrElse
 						(
-							[&try_parser_error](CompilerError&&) -> std::expected<std::vector<OutputType>, CompilerError>
+							[&try_parser_error](CompilerError&&) -> MarmotResult::Result<std::vector<OutputType>>
 							{
-								return std::unexpected(std::move(try_parser_error));
+								return MarmotCompiler::Failure(std::move(try_parser_error));
 							}
 						);
 				}
@@ -467,16 +467,16 @@ private:
 	// delimiter is an error in that element: swallowing it left the list's caller
 	// to report a missing terminator at the element's first token.
 	template<typename OutputType, typename ParseFunc, typename Delim>
-	std::expected<std::vector<OutputType>, CompilerError> ParseDelimitedOneOrMoreUnlimited(ParseFunc&& func, Delim&& delim, std::vector<OutputType>&& acc = {})
+	MarmotResult::Result<std::vector<OutputType>> ParseDelimitedOneOrMoreUnlimited(ParseFunc&& func, Delim&& delim, std::vector<OutputType>&& acc = {})
 	{
-		std::expected<OutputType, CompilerError> elem = func();
-		if (!elem.has_value())
+		MarmotResult::Result<OutputType> elem = func();
+		if (!elem.HasValue())
 		{
-			return std::unexpected(std::move(elem.error()));
+			return MarmotCompiler::Failure(std::move(elem.Error()));
 		}
 
-		acc.emplace_back(std::move(elem.value()));
-		if (!delim().has_value())
+		acc.emplace_back(std::move(elem.Value()));
+		if (!delim().HasValue())
 		{
 			return std::move(acc);
 		}
@@ -485,10 +485,10 @@ private:
 	}
 
 	template<typename OutputType, typename ParseFunc>
-	std::expected<std::vector<OutputType>, CompilerError> ParseZeroOrMoreUnlimited(ParseFunc&& func, std::vector<OutputType>&& acc = {})
+	MarmotResult::Result<std::vector<OutputType>> ParseZeroOrMoreUnlimited(ParseFunc&& func, std::vector<OutputType>&& acc = {})
 	{
 		return TryParser<OutputType>(std::forward<ParseFunc>(func))
-			.and_then
+			.AndThen
 			(
 				[&func, &acc, this](OutputType&& elem) mutable
 				{
@@ -496,16 +496,16 @@ private:
 					return ParseZeroOrMoreUnlimited<OutputType>(std::forward<ParseFunc>(func), std::move(acc));
 				}
 			)
-			.or_else
+			.OrElse
 			(
-				[&acc, this](CompilerError&& try_parser_error) mutable -> std::expected<std::vector<OutputType>, CompilerError>
+				[&acc, this](CompilerError&& try_parser_error) mutable -> MarmotResult::Result<std::vector<OutputType>>
 				{
 					if (IsNoMatchError(try_parser_error))
 					{
 						return std::move(acc);
 					}
 
-					return std::unexpected(std::move(try_parser_error));
+					return MarmotCompiler::Failure(std::move(try_parser_error));
 				}
 			);
 	}
@@ -594,7 +594,7 @@ private:
 
 	bool ReachesUnfinishedType(const std::shared_ptr<MarmotType>& type) const;
 
-	std::optional<CompilerError> FillDeferredInstantiations();
+	MarmotCompiler::Optional<CompilerError> FillDeferredInstantiations();
 
 	MarmotResult::TypeResult InstantiateUnfinishedType(const Token& type_name, const std::shared_ptr<MarmotType>& type_template, const std::vector<std::string>& generic_params, std::vector<std::shared_ptr<MarmotType>>&& type_args);
 
@@ -602,7 +602,7 @@ private:
 
 	void RecordTopLevelReference(const Token& name);
 
-	std::optional<CompilerError> CheckDefinitionOrder();
+	MarmotCompiler::Optional<CompilerError> CheckDefinitionOrder();
 
 	std::string ExtractSymbolName(const std::string& qualified_name) const;
 
@@ -642,7 +642,7 @@ private:
 	MarmotResult::TokenResult DefineName(Token& name, bool is_variable);
 	MarmotResult::TokenResult DefineBinding(Token& name);
 
-	std::optional<BindingId> RegisterLocalBinding(const std::string& name);
+	MarmotCompiler::Optional<BindingId> RegisterLocalBinding(const std::string& name);
 
 	ArrayComprehensionProbe ProbeArrayComprehension();
 
@@ -753,7 +753,7 @@ private:
 
 	MarmotResult::StatementResult FinishTypeDeclaration(ParsedTypeDeclaration declaration);
 
-	std::expected<MarmotStatement::FunctionDefinition, CompilerError> ParseInstanceMethodBody(const Token& method_name);
+	MarmotResult::Result<MarmotStatement::FunctionDefinition> ParseInstanceMethodBody(const Token& method_name);
 
 	ParsedTypeResult ParseStructBody(TypeDeclarationHeader&& header);
 
@@ -779,19 +779,21 @@ private:
 
 	MarmotResult::StatementResult ParseForeignBlock(const Token& library);
 
-	MarmotResult::StatementResult ParseForeignDeclaration(const Token& foreign_name, const std::optional<std::string>& block_library);
+	MarmotResult::StatementResult ParseForeignDeclaration(const Token& foreign_name, const MarmotCompiler::Optional<std::string>& block_library);
 
-	std::expected<std::vector<MarmotType::ClassConstraint>, CompilerError> ParseClassConstraints();
+	using ClassConstraintListResult = MarmotResult::Result<std::vector<MarmotType::ClassConstraint>>;
+
+	ClassConstraintListResult ParseClassConstraints();
 
 	void PushActiveConstraints(const std::vector<MarmotType::ClassConstraint>& constraints);
 
-	std::expected<std::vector<Token>, CompilerError> ParseDerivingTargets(const Token& context_token);
+	MarmotResult::TokenListResult ParseDerivingTargets(const Token& context_token);
 
 	void RegisterSyntheticInstanceMetadata(const std::string& class_name, const std::vector<std::shared_ptr<MarmotType>>& type_args, const std::vector<MarmotType::ClassConstraint>& constraints, const std::vector<std::string>& mangled_method_names);
 	MarmotResult::StatementResult GenerateDerivedStatement(const DerivedDeclarationGenerator& generator, const OrderingType* ordering);
 
 	template<typename Declaration>
-	std::expected<void, CompilerError> QueueDerivedStatements(const Declaration& declaration, const std::vector<Token>& deriving_targets);
+	MarmotResult::VoidResult QueueDerivedStatements(const Declaration& declaration, const std::vector<Token>& deriving_targets);
 
 	MarmotResult::StatementResult ParseStatement();
 };

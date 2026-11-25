@@ -3,12 +3,13 @@
 #include <compare>
 #include <iterator>
 #include <memory>
-#include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
 #include <vector>
 
+
+#include "Support/Optional.h"
 
 struct Token
 {
@@ -23,8 +24,8 @@ struct Token
 	std::string m_lexeme;
 	Name m_token_name;
 	int m_line;
-	std::optional<int> m_column = std::nullopt;
-	std::optional<size_t> m_source_length = std::nullopt;
+	MarmotCompiler::Optional<int> m_column = MarmotCompiler::None;
+	MarmotCompiler::Optional<size_t> m_source_length = MarmotCompiler::None;
 
 	Token(std::string lexeme, Name token_name, int line, std::string_view file_name) noexcept;
 	Token(std::string lexeme, Name token_name, int line, std::string_view file_name, int column, size_t source_length) noexcept;
@@ -33,7 +34,7 @@ struct Token
 
 	// Empty for tokens whose spelling comes from source.
 	static std::string_view Spelling(Name token_name);
-	static std::optional<Name> KeywordName(std::string_view spelling);
+	static MarmotCompiler::Optional<Name> KeywordName(std::string_view spelling);
 	static bool IsKeyword(Name token_name);
 
 	bool IsDiscard() const { return m_token_name == Name::IDENTIFIER_LITERAL && m_lexeme == "_"; }

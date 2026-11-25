@@ -1,6 +1,7 @@
 #include "Parser.h"
 #include "Bytecode/Format/Format.h"
 #include "Compiler/Names/SpecialNames.h"
+#include "Support/Expected.h"
 #include <algorithm>
 #include <cctype>
 #include <format>
@@ -172,7 +173,7 @@ MarmotResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 	const UseImportResolution use_import_resolution = ResolveUseImport(lookup_name);
 	if (use_import_resolution.m_status == UseImportResolutionStatus::Ambiguous)
 	{
-		return std::unexpected(GenerateParserError(BuildAmbiguousUseImportError(lookup_name, use_import_resolution.m_conflicting_modules), name_token));
+		return MarmotCompiler::Failure(GenerateParserError(BuildAmbiguousUseImportError(lookup_name, use_import_resolution.m_conflicting_modules), name_token));
 	}
 
 	if (use_import_resolution.m_status == UseImportResolutionStatus::Resolved)
@@ -186,14 +187,14 @@ MarmotResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 			return std::make_unique<MarmotExpression>(MarmotExpression::NameAccess(qualified_token, MarmotExpression::NameContext::Global(), &name_token));
 		}
 
-		return std::unexpected(GenerateParserError(BuildImportedSymbolAccessError(imported_module_name, lookup_name, access), name_token));
+		return MarmotCompiler::Failure(GenerateParserError(BuildImportedSymbolAccessError(imported_module_name, lookup_name, access), name_token));
 	}
 
 	if (name_token.m_lexeme == Token::Spelling(Token::Name::REF))
 	{
 		const Token op(Token::Name::REF, name_token);
 		return ParseUnaryLogicalBitwise()
-			.transform([&op](std::unique_ptr<MarmotExpression>&& value)
+			.Transform([&op](std::unique_ptr<MarmotExpression>&& value)
 			{
 				return std::make_unique<MarmotExpression>(MarmotExpression::UnaryPrefix(op, std::move(value)));
 			});
@@ -202,7 +203,7 @@ MarmotResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 	const std::vector<std::string> exporting_modules = ModulesExporting(lookup_name);
 	if (!exporting_modules.empty())
 	{
-		return std::unexpected(GenerateParserError(BuildUnimportedSymbolError(lookup_name, exporting_modules), name_token));
+		return MarmotCompiler::Failure(GenerateParserError(BuildUnimportedSymbolError(lookup_name, exporting_modules), name_token));
 	}
 
 	std::vector<std::string> matching_typeclasses;
@@ -219,7 +220,7 @@ MarmotResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 	{
 		if (matching_typeclasses.size() == 1u)
 		{
-			return std::unexpected
+			return MarmotCompiler::Failure
 			(
 				GenerateParserError
 				(
@@ -234,7 +235,7 @@ MarmotResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 			| std::views::join_with(std::string_view(", "))
 			| std::ranges::to<std::string>();
 
-		return std::unexpected
+		return MarmotCompiler::Failure
 		(
 			GenerateParserError
 			(
@@ -244,7 +245,7 @@ MarmotResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 		);
 	}
 
-	return std::unexpected(GenerateParserError(CompilerErrorCode::TypeUndefinedName, "Undefined name.", name_token));
+	return MarmotCompiler::Failure(GenerateParserError(CompilerErrorCode::TypeUndefinedName, "Undefined name.", name_token));
 }
 
 Parser::ParamSplit Parser::SplitParamTuples(std::vector<std::pair<Token, std::shared_ptr<MarmotType>>>&& tuples)
@@ -273,7 +274,7 @@ MarmotResult::ExpressionResult Parser::ParseShift()
 MarmotResult::ExpressionResult Parser::ParseRange()
 {
 	return ParseShift()
-		.and_then
+		.AndThen
 		(
 			[this](std::unique_ptr<MarmotExpression>&& start) -> MarmotResult::ExpressionResult
 			{
@@ -285,7 +286,7 @@ MarmotResult::ExpressionResult Parser::ParseRange()
 				Token first_range_op = Previous();
 
 				return ParseShift()
-					.and_then
+					.AndThen
 					(
 						[this, &first_range_op, &start](std::unique_ptr<MarmotExpression>&& middle) -> MarmotResult::ExpressionResult
 						{
@@ -297,7 +298,7 @@ MarmotResult::ExpressionResult Parser::ParseRange()
 							Token second_range_op = Previous();
 
 							return ParseShift()
-								.and_then
+								.AndThen
 								(
 									[&first_range_op, &second_range_op, &start, &middle](std::unique_ptr<MarmotExpression>&& end) -> MarmotResult::ExpressionResult
 									{
@@ -346,7 +347,7 @@ MarmotResult::ExpressionResult Parser::ParseUnaryLogicalBitwise()
 	{
 		Token& op = Previous();
 		return ParseUnaryLogicalBitwise()
-			.and_then
+			.AndThen
 			(
 				[&op](std::unique_ptr<MarmotExpression>&& right) -> MarmotResult::ExpressionResult
 				{
@@ -364,7 +365,7 @@ MarmotResult::ExpressionResult Parser::ParseUnaryArithmetic()
 	{
 		Token& op = Previous();
 		return ParseUnaryLogicalBitwise()
-			.and_then
+			.AndThen
 			(
 				[&op](std::unique_ptr<MarmotExpression>&& right) -> MarmotResult::ExpressionResult
 				{
@@ -393,14 +394,14 @@ MarmotResult::ExpressionResult Parser::RejectExponent(std::unique_ptr<MarmotExpr
 	const Token& next = Peek(0);
 	const bool adjacent = next.m_token_name == Token::Name::IDENTIFIER_LITERAL
 		&& next.m_line == number.m_line
-		&& number.m_column.has_value() && next.m_column.has_value()
-		&& next.m_column.value() == number.m_column.value() + static_cast<int>(number.m_source_length.value_or(number.m_lexeme.size()));
+		&& number.m_column.HasValue() && next.m_column.HasValue()
+		&& next.m_column.Value() == number.m_column.Value() + static_cast<int>(number.m_source_length.ValueOr(number.m_lexeme.size()));
 	const bool looks_like_exponent = !next.m_lexeme.empty()
 		&& (next.m_lexeme[0u] == 'e' || next.m_lexeme[0u] == 'E')
 		&& std::all_of(next.m_lexeme.begin() + 1, next.m_lexeme.end(), [](char ch) { return std::isdigit(static_cast<unsigned char>(ch)) != 0; });
 	if (adjacent && looks_like_exponent)
 	{
-		return std::unexpected(GenerateParserError("A number has no exponent form: write the digits out, as in 1000000.0 or 0.000001, or compute it with Math::Pow.", next));
+		return MarmotCompiler::Failure(GenerateParserError("A number has no exponent form: write the digits out, as in 1000000.0 or 0.000001, or compute it with Math::Pow.", next));
 	}
 
 	return std::move(literal);
@@ -409,7 +410,7 @@ MarmotResult::ExpressionResult Parser::RejectExponent(std::unique_ptr<MarmotExpr
 MarmotResult::ExpressionResult Parser::ParseExpression()
 {
 	return ParseAs()
-		.and_then
+		.AndThen
 		(
 			[this](std::unique_ptr<MarmotExpression>&& cell) -> MarmotResult::ExpressionResult
 			{
@@ -419,7 +420,7 @@ MarmotResult::ExpressionResult Parser::ParseExpression()
 				}
 				const Token& op = Previous();
 				return ParseExpression()
-					.transform([&cell, &op](std::unique_ptr<MarmotExpression>&& value)
+					.Transform([&cell, &op](std::unique_ptr<MarmotExpression>&& value)
 					{
 						return std::make_unique<MarmotExpression>(MarmotExpression::Binary(op, std::move(cell), std::move(value)));
 					});
@@ -436,7 +437,7 @@ MarmotResult::ExpressionResult Parser::ParseAs()
 		[this](std::unique_ptr<MarmotExpression>&& expression) -> MarmotResult::ExpressionResult
 		{
 			const Token as = Previous();
-			return ParseType().transform([&](std::shared_ptr<MarmotType>&& type)
+			return ParseType().Transform([&](std::shared_ptr<MarmotType>&& type)
 			{
 				return std::make_unique<MarmotExpression>(MarmotExpression::As(as, std::move(type), std::move(expression)));
 			});
@@ -449,17 +450,17 @@ MarmotResult::ExpressionResult Parser::ParseArrayAccessHelper(std::unique_ptr<Ma
 	Token& op = Previous();
 
 	return Consume(Token::Name::LEFT_BRACKET, "Expected '[' before index.")
-		.and_then
+		.AndThen
 		(
 			[&op, &arr_var, this](Token&&) ->MarmotResult::ExpressionResult
 			{
 				return ParseLogicalOr()
-					.and_then
+					.AndThen
 					(
 						[&op, &arr_var, this](std::unique_ptr<MarmotExpression>&& index) ->MarmotResult::ExpressionResult
 						{
 							return Consume(Token::Name::RIGHT_BRACKET, "Expected ']' after index.")
-								.and_then
+								.AndThen
 								(
 									[&op, &arr_var, index = std::move(index)](Token&&) mutable ->MarmotResult::ExpressionResult
 									{
@@ -490,7 +491,7 @@ MarmotResult::ExpressionResult Parser::ParsePostfixChain(std::unique_ptr<MarmotE
 			if (Match(Token::Name::SINGLE_DOT))
 			{
 				return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected identifier after '.'.")
-					.transform([&](Token&& name)
+					.Transform([&](Token&& name)
 					{
 						return std::make_unique<MarmotExpression>(MarmotExpression::MemberAccess(name, std::move(value)));
 					});
@@ -503,7 +504,7 @@ MarmotResult::ExpressionResult Parser::ParsePostfixChain(std::unique_ptr<MarmotE
 MarmotResult::ExpressionResult Parser::ParseCall()
 {
 	return ParsePrimary()
-		.and_then
+		.AndThen
 		(
 			[this](std::unique_ptr<MarmotExpression>&& expr)
 			{
@@ -520,7 +521,7 @@ MarmotResult::ExpressionResult Parser::FinishCall(std::unique_ptr<MarmotExpressi
 			[this]() { return Consume(Token::Name::COMMA, "Expected ',' after expression."); },
 			[this]() { return Consume(Token::Name::RIGHT_PAREN, "Expected ')' after arguments."); }
 		)
-		.and_then
+		.AndThen
 		(
 			[&callee, this](std::vector<std::unique_ptr<MarmotExpression>>&& arguments) ->MarmotResult::ExpressionResult
 			{
@@ -532,9 +533,9 @@ MarmotResult::ExpressionResult Parser::FinishCall(std::unique_ptr<MarmotExpressi
 MarmotResult::ExpressionResult Parser::FinishConstruct(Token&& constructor_token, std::shared_ptr<MarmotType>&& constructed_type, bool is_struct)
 {
 	MarmotResult::TokenResult left_paren = Consume(Token::Name::LEFT_PAREN, "Expected '(' after type.");
-	if (!left_paren.has_value())
+	if (!left_paren.HasValue())
 	{
-		return std::unexpected(std::move(left_paren.error()));
+		return MarmotCompiler::Failure(std::move(left_paren.Error()));
 	}
 
 	MarmotResult::Result<std::vector<std::unique_ptr<MarmotExpression>>> arguments = ParseDelimitedZeroOrMoreLimited<std::unique_ptr<MarmotExpression>>
@@ -543,18 +544,18 @@ MarmotResult::ExpressionResult Parser::FinishConstruct(Token&& constructor_token
 			[this]() { return Consume(Token::Name::COMMA, "Expected ',' after expression."); },
 			[this]() { return Consume(Token::Name::RIGHT_PAREN, "Expected ')' after arguments."); }
 		);
-	if (!arguments.has_value())
+	if (!arguments.HasValue())
 	{
-		return std::unexpected(std::move(arguments.error()));
+		return MarmotCompiler::Failure(std::move(arguments.Error()));
 	}
 
 	if (is_struct)
 	{
-		return std::make_unique<MarmotExpression>(MarmotExpression::Construct(constructor_token, std::move(arguments.value()), std::move(constructed_type), false, MarmotExpression::Construct::Struct{}));
+		return std::make_unique<MarmotExpression>(MarmotExpression::Construct(constructor_token, std::move(arguments.Value()), std::move(constructed_type), false, MarmotExpression::Construct::Struct{}));
 	}
 
 	const int tag = constructed_type->GetType<MarmotType::UnionType>().m_member_info.at(constructor_token.m_lexeme).m_tag;
-	return std::make_unique<MarmotExpression>(MarmotExpression::Construct(constructor_token, std::move(arguments.value()), std::move(constructed_type), false, MarmotExpression::Construct::Union(tag)));
+	return std::make_unique<MarmotExpression>(MarmotExpression::Construct(constructor_token, std::move(arguments.Value()), std::move(constructed_type), false, MarmotExpression::Construct::Union(tag)));
 }
 
 // The record's fields by name, in any order, each exactly once. The type
@@ -562,9 +563,9 @@ MarmotResult::ExpressionResult Parser::FinishConstruct(Token&& constructor_token
 MarmotResult::ExpressionResult Parser::FinishNamedConstruct(Token&& constructor_token, std::shared_ptr<MarmotType>&& constructed_type)
 {
 	MarmotResult::TokenResult left_brace = Consume(Token::Name::LEFT_BRACE, "Expected '{' after the record type.");
-	if (!left_brace.has_value())
+	if (!left_brace.HasValue())
 	{
-		return std::unexpected(std::move(left_brace.error()));
+		return MarmotCompiler::Failure(std::move(left_brace.Error()));
 	}
 
 	std::vector<Token> names;
@@ -577,33 +578,33 @@ MarmotResult::ExpressionResult Parser::FinishNamedConstruct(Token&& constructor_
 		}
 
 		MarmotResult::TokenResult name = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected a field name.");
-		if (!name.has_value())
+		if (!name.HasValue())
 		{
-			return std::unexpected(std::move(name.error()));
+			return MarmotCompiler::Failure(std::move(name.Error()));
 		}
 		if (std::ranges::contains(names, name->m_lexeme, &Token::m_lexeme))
 		{
-			return std::unexpected(GenerateParserError(std::format("Field '{}' is given more than once in this construction.", name->m_lexeme), name.value()));
+			return MarmotCompiler::Failure(GenerateParserError(std::format("Field '{}' is given more than once in this construction.", name->m_lexeme), name.Value()));
 		}
 
 		MarmotResult::TokenResult equal = Consume(Token::Name::SINGLE_EQUAL, "Expected '=' after the field name.");
-		if (!equal.has_value())
+		if (!equal.HasValue())
 		{
-			return std::unexpected(std::move(equal.error()));
+			return MarmotCompiler::Failure(std::move(equal.Error()));
 		}
 		MarmotResult::ExpressionResult value = ParseExpression();
-		if (!value.has_value())
+		if (!value.HasValue())
 		{
-			return std::unexpected(std::move(value.error()));
+			return MarmotCompiler::Failure(std::move(value.Error()));
 		}
-		names.push_back(std::move(name.value()));
-		values.push_back(std::move(value.value()));
+		names.push_back(std::move(name.Value()));
+		values.push_back(std::move(value.Value()));
 	} while (Match(Token::Name::COMMA));
 
 	MarmotResult::TokenResult right_brace = Consume(Token::Name::RIGHT_BRACE, "Expected '}' after the fields.");
-	if (!right_brace.has_value())
+	if (!right_brace.HasValue())
 	{
-		return std::unexpected(std::move(right_brace.error()));
+		return MarmotCompiler::Failure(std::move(right_brace.Error()));
 	}
 
 	std::unique_ptr<MarmotExpression> construct = std::make_unique<MarmotExpression>(MarmotExpression::Construct(constructor_token, std::move(values), std::move(constructed_type), false, MarmotExpression::Construct::Struct{}));
@@ -630,7 +631,7 @@ MarmotResult::ExpressionResult Parser::ParsePrimary()
 		}
 
 		return ParseExpression()
-			.and_then
+			.AndThen
 			(
 				[this, left_paren](std::unique_ptr<MarmotExpression>&& first_expr) -> MarmotResult::ExpressionResult
 				{
@@ -648,11 +649,11 @@ MarmotResult::ExpressionResult Parser::ParsePrimary()
 							{
 								return elem_result;
 							}
-							elements.push_back(std::move(elem_result.value()));
+							elements.push_back(std::move(elem_result.Value()));
 						} while (Match(Token::Name::COMMA));
 
 						return Consume(Token::Name::RIGHT_PAREN, "Expected ')' after tuple elements.")
-							.and_then
+							.AndThen
 							(
 								[&elements, left_paren](Token&&) -> MarmotResult::ExpressionResult
 								{
@@ -663,7 +664,7 @@ MarmotResult::ExpressionResult Parser::ParsePrimary()
 					else
 					{
 						return Consume(Token::Name::RIGHT_PAREN, "Expected right parentheses.")
-							.and_then
+							.AndThen
 							(
 								[&first_expr](Token&&) -> MarmotResult::ExpressionResult
 								{
@@ -678,10 +679,10 @@ MarmotResult::ExpressionResult Parser::ParsePrimary()
 	{
 		if (Previous().IsDiscard())
 		{
-			return std::unexpected(GenerateParserError("'_' discards a value and cannot be read.", Previous()));
+			return MarmotCompiler::Failure(GenerateParserError("'_' discards a value and cannot be read.", Previous()));
 		}
 		return MatchNameResolution()
-			.and_then
+			.AndThen
 			(
 				[this](Token&& variable) -> MarmotResult::ExpressionResult
 				{
@@ -691,7 +692,7 @@ MarmotResult::ExpressionResult Parser::ParsePrimary()
 
 					if (qualifier.empty() && (IsBeingDefined(symbol_name) || IsBeingDefined(mangled_name)))
 					{
-						return std::unexpected
+						return MarmotCompiler::Failure
 						(
 							GenerateParserError
 							(
@@ -711,14 +712,14 @@ MarmotResult::ExpressionResult Parser::ParsePrimary()
 					if (FindVariableScope(variable_lookup_name) == m_state.m_scopes.crend())
 					{
 						ConstructorResolutionResult resolution = ResolveConstructorName(variable, mangled_name);
-						if (!resolution.has_value())
+						if (!resolution.HasValue())
 						{
-							return std::unexpected(std::move(resolution.error()));
+							return MarmotCompiler::Failure(std::move(resolution.Error()));
 						}
 
-						if (resolution.value().has_value())
+						if (resolution.Value().HasValue())
 						{
-							ConstructorResolution& constructor = resolution.value().value();
+							ConstructorResolution& constructor = resolution.Value().Value();
 							Token constructor_token = variable;
 							constructor_token.m_lexeme = constructor.m_constructor_name;
 
@@ -731,7 +732,7 @@ MarmotResult::ExpressionResult Parser::ParsePrimary()
 
 							if (!Check(Token::Name::LEFT_PAREN, 0))
 							{
-								return std::unexpected
+								return MarmotCompiler::Failure
 								(
 									GenerateParserError
 									(
@@ -776,7 +777,7 @@ MarmotResult::ExpressionResult Parser::ParsePrimary()
 							return std::make_unique<MarmotExpression>(MarmotExpression::NameAccess(variable, MarmotExpression::NameContext::Global(), &Previous()));
 						}
 
-						return std::unexpected(GenerateParserError(BuildImportedSymbolAccessError(qualifier, symbol_name, access), variable));
+						return MarmotCompiler::Failure(GenerateParserError(BuildImportedSymbolAccessError(qualifier, symbol_name, access), variable));
 					}
 
 					return ResolveQualifiedName(variable, mangled_name);
@@ -830,7 +831,7 @@ MarmotResult::ExpressionResult Parser::ParsePrimary()
 
 		// Otherwise, parse as normal array literal
 		return ParseExpression()
-			.and_then
+			.AndThen
 			(
 				[&op, this](std::unique_ptr<MarmotExpression>&& first_expr) -> MarmotResult::ExpressionResult
 				{
@@ -849,11 +850,11 @@ MarmotResult::ExpressionResult Parser::ParsePrimary()
 									}
 									else
 									{
-										return std::unexpected(GenerateParserError("Expected ']' for array expression.", Peek(0)));
+										return MarmotCompiler::Failure(GenerateParserError("Expected ']' for array expression.", Peek(0)));
 									}
 								}
 							)
-							.and_then
+							.AndThen
 							(
 								[&op, first_expr = std::move(first_expr)](std::vector<std::unique_ptr<MarmotExpression>>&& expressions) mutable -> MarmotResult::ExpressionResult
 								{
@@ -871,7 +872,7 @@ MarmotResult::ExpressionResult Parser::ParsePrimary()
 					}
 					else
 					{
-						return std::unexpected(GenerateParserError("Expected ',' or ']' after array element.", Peek(0)));
+						return MarmotCompiler::Failure(GenerateParserError("Expected ',' or ']' after array element.", Peek(0)));
 					}
 				}
 			);
@@ -890,7 +891,7 @@ MarmotResult::ExpressionResult Parser::ParsePrimary()
 	}
 	else
 	{
-		return std::unexpected(GenerateParserError("Expected expression.", Peek(0)));
+		return MarmotCompiler::Failure(GenerateParserError("Expected expression.", Peek(0)));
 	}
 }
 
@@ -920,7 +921,7 @@ MarmotResult::ExpressionResult Parser::ParsePipe()
 			}
 
 			m_state.m_next_function_is_pipe_stage = Check(Token::Name::FUNCTION, 0);
-			return ParseBitwiseOr().transform
+			return ParseBitwiseOr().Transform
 			(
 				[&](std::unique_ptr<MarmotExpression>&& right)
 				{
@@ -1027,17 +1028,17 @@ MarmotResult::ExpressionResult Parser::ParseRecordUpdate()
 	// Called with the opening '{' already consumed and ProbeRecordUpdate() having said
 	// there is a 'with' at depth 0 ahead of any ';' or '}'.
 	MarmotResult::ExpressionResult source_result = ParseExpression();
-	if (!source_result.has_value())
+	if (!source_result.HasValue())
 	{
 		return source_result;
 	}
 
 	MarmotResult::TokenResult with_result = Consume(Token::Name::WITH, "Expected 'with' in record update.");
-	if (!with_result.has_value())
+	if (!with_result.HasValue())
 	{
-		return std::unexpected(std::move(with_result.error()));
+		return MarmotCompiler::Failure(std::move(with_result.Error()));
 	}
-	Token with_keyword = with_result.value();
+	Token with_keyword = with_result.Value();
 
 	std::vector<MarmotExpression::RecordUpdate::FieldUpdate> updates;
 	std::vector<std::string> seen_paths;
@@ -1048,11 +1049,11 @@ MarmotResult::ExpressionResult Parser::ParseRecordUpdate()
 		do
 		{
 			MarmotResult::TokenResult name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected field name in record update.");
-			if (!name_result.has_value())
+			if (!name_result.HasValue())
 			{
-				return std::unexpected(std::move(name_result.error()));
+				return MarmotCompiler::Failure(std::move(name_result.Error()));
 			}
-			path.push_back(std::move(name_result.value()));
+			path.push_back(std::move(name_result.Value()));
 		} while (Match(Token::Name::SINGLE_DOT));
 
 		// A field set twice, directly or through a path, is an error, not last-one-wins.
@@ -1063,23 +1064,23 @@ MarmotResult::ExpressionResult Parser::ParseRecordUpdate()
 		});
 		if (overlaps)
 		{
-			return std::unexpected(GenerateParserError(std::format("Field '{}' is assigned more than once in this record update.", joined), path.back()));
+			return MarmotCompiler::Failure(GenerateParserError(std::format("Field '{}' is assigned more than once in this record update.", joined), path.back()));
 		}
 		seen_paths.push_back(joined);
 
 		MarmotResult::TokenResult equal_result = Consume(Token::Name::SINGLE_EQUAL, "Expected '=' after field name in record update.");
-		if (!equal_result.has_value())
+		if (!equal_result.HasValue())
 		{
-			return std::unexpected(std::move(equal_result.error()));
+			return MarmotCompiler::Failure(std::move(equal_result.Error()));
 		}
 
 		MarmotResult::ExpressionResult value_result = ParseExpression();
-		if (!value_result.has_value())
+		if (!value_result.HasValue())
 		{
 			return value_result;
 		}
 
-		updates.emplace_back(std::move(path), std::move(value_result.value()));
+		updates.emplace_back(std::move(path), std::move(value_result.Value()));
 
 		if (!Match(Token::Name::COMMA))
 		{
@@ -1094,11 +1095,11 @@ MarmotResult::ExpressionResult Parser::ParseRecordUpdate()
 	}
 
 	return Consume(Token::Name::RIGHT_BRACE, "Expected '}' after record update fields.")
-		.and_then
+		.AndThen
 		(
 			[&with_keyword, &source_result, &updates](Token&&) -> MarmotResult::ExpressionResult
 			{
-				return std::make_unique<MarmotExpression>(MarmotExpression::RecordUpdate(with_keyword, std::move(source_result.value()), std::move(updates)));
+				return std::make_unique<MarmotExpression>(MarmotExpression::RecordUpdate(with_keyword, std::move(source_result.Value()), std::move(updates)));
 			}
 		);
 }
@@ -1112,7 +1113,7 @@ MarmotResult::ExpressionResult Parser::ParseBlockExpression()
 			std::function<MarmotResult::ExpressionResult(std::vector<std::unique_ptr<MarmotStatement>>&&, std::unique_ptr<MarmotExpression>&&)> build_block = [this](std::vector<std::unique_ptr<MarmotStatement>>&& stmts, std::unique_ptr<MarmotExpression>&& final_expr) -> MarmotResult::ExpressionResult
 				{
 					return Consume(Token::Name::RIGHT_BRACE, "Expected '}' after block expression.")
-						.and_then
+						.AndThen
 						(
 							[&stmts, &final_expr](Token&& right_brace)
 							{
@@ -1124,7 +1125,7 @@ MarmotResult::ExpressionResult Parser::ParseBlockExpression()
 				};
 
 			return ParseZeroOrMoreUnlimited<std::unique_ptr<MarmotStatement>>([this]() { return ParseDeclaration(); })
-				.and_then
+				.AndThen
 				(
 					[&build_block, this](std::vector<std::unique_ptr<MarmotStatement>>&& stmts) ->MarmotResult::ExpressionResult
 					{
@@ -1135,7 +1136,7 @@ MarmotResult::ExpressionResult Parser::ParseBlockExpression()
 									// Peek ahead: if next token is '}', do NOT try to parse an expression
 									if (Check(Token::Name::RIGHT_BRACE, 0))
 									{
-										return std::unexpected(CompilerError::NoMatch());  // Signal: no expression expected
+										return MarmotCompiler::Failure(CompilerError::NoMatch());  // Signal: no expression expected
 									}
 									else
 									{
@@ -1143,14 +1144,14 @@ MarmotResult::ExpressionResult Parser::ParseBlockExpression()
 									}
 								}
 							)
-							.and_then
+							.AndThen
 							(
 								[&stmts, &build_block](std::unique_ptr<MarmotExpression>&& final_expr) -> MarmotResult::ExpressionResult
 								{
 									return build_block(std::move(stmts), std::move(final_expr));
 								}
 							)
-							.or_else
+							.OrElse
 							(
 								[&stmts, &build_block](CompilerError&& err) -> MarmotResult::ExpressionResult
 								{
@@ -1160,7 +1161,7 @@ MarmotResult::ExpressionResult Parser::ParseBlockExpression()
 										return build_block(std::move(stmts), nullptr);
 									}
 
-									return std::unexpected(std::move(err));
+									return MarmotCompiler::Failure(std::move(err));
 								}
 							);
 					}
@@ -1175,18 +1176,18 @@ MarmotResult::ExpressionResult Parser::ParseForExpression()
 
 	if (!Match(Token::Name::IDENTIFIER_LITERAL))
 	{
-		return std::unexpected(GenerateParserError("Expected identifier after 'for'.", Peek(0)));
+		return MarmotCompiler::Failure(GenerateParserError("Expected identifier after 'for'.", Peek(0)));
 	}
 	Token loop_variable = Previous();
 
 	if (!Match(Token::Name::IN))
 	{
-		return std::unexpected(GenerateParserError("Expected 'in' after loop variable.", Peek(0)));
+		return MarmotCompiler::Failure(GenerateParserError("Expected 'in' after loop variable.", Peek(0)));
 	}
 	Token in_keyword = Previous();
 
 	return ParseExpression()
-		.and_then
+		.AndThen
 		(
 			[&for_keyword, &loop_variable, &in_keyword, this](std::unique_ptr<MarmotExpression>&& range)->MarmotResult::ExpressionResult
 			{
@@ -1194,10 +1195,10 @@ MarmotResult::ExpressionResult Parser::ParseForExpression()
 				(
 					[&]() -> MarmotResult::ExpressionResult
 					{
-						const BindingId loop_binding = RegisterLocalBinding(loop_variable.m_lexeme).value_or(nullptr);
+						const BindingId loop_binding = RegisterLocalBinding(loop_variable.m_lexeme).ValueOr(nullptr);
 
 						return ParseExpression()
-							.and_then
+							.AndThen
 							(
 								[&for_keyword, &loop_variable, &in_keyword, range = std::move(range), loop_binding](std::unique_ptr<MarmotExpression>&& body) mutable ->MarmotResult::ExpressionResult
 								{
@@ -1304,44 +1305,44 @@ MarmotResult::ExpressionResult Parser::ParseArrayComprehension(Token& bracket, c
 	{
 		BindingId loop_binding;
 
-		if (probe.m_loop_variable_offset.has_value())
+		if (probe.m_loop_variable_offset.HasValue())
 		{
-			Token loop_variable = Peek(probe.m_loop_variable_offset.value());
+			Token loop_variable = Peek(probe.m_loop_variable_offset.Value());
 
 			// The transform is parsed first, so its loop binding must already exist.
-			loop_binding = RegisterLocalBinding(loop_variable.m_lexeme).value_or(nullptr);
+			loop_binding = RegisterLocalBinding(loop_variable.m_lexeme).ValueOr(nullptr);
 		}
 
 		return ParseExpression()
-			.and_then
+			.AndThen
 			(
 				[&bracket, loop_binding, this](std::unique_ptr<MarmotExpression>&& transform_expr) -> MarmotResult::ExpressionResult
 				{
 					if (!Match(Token::Name::FOR))
 					{
-						return std::unexpected(GenerateParserError("Expected 'for' in array comprehension. Use '[expr for item in range]' syntax.", Peek(0)));
+						return MarmotCompiler::Failure(GenerateParserError("Expected 'for' in array comprehension. Use '[expr for item in range]' syntax.", Peek(0)));
 					}
 
 					if (!Match(Token::Name::IDENTIFIER_LITERAL))
 					{
-						return std::unexpected(GenerateParserError("Expected identifier after 'for' in array comprehension.", Peek(0)));
+						return MarmotCompiler::Failure(GenerateParserError("Expected identifier after 'for' in array comprehension.", Peek(0)));
 					}
 					Token actual_loop_var = Previous();
 
 					if (!Match(Token::Name::IN))
 					{
-						return std::unexpected(GenerateParserError("Expected 'in' after loop variable in array comprehension. Use '[expr for item in range]' syntax.", Peek(0)));
+						return MarmotCompiler::Failure(GenerateParserError("Expected 'in' after loop variable in array comprehension. Use '[expr for item in range]' syntax.", Peek(0)));
 					}
 					Token in_keyword = Previous();
 
 					return ParseExpression()
-						.and_then
+						.AndThen
 						(
 							[&bracket, &actual_loop_var, &in_keyword, loop_binding, transform_expr = std::move(transform_expr), this](std::unique_ptr<MarmotExpression>&& range) mutable -> MarmotResult::ExpressionResult
 							{
 								if (!Match(Token::Name::RIGHT_BRACKET))
 								{
-									return std::unexpected(GenerateParserError("Expected ']' after array comprehension.", Peek(0)));
+									return MarmotCompiler::Failure(GenerateParserError("Expected ']' after array comprehension.", Peek(0)));
 								}
 
 								std::unique_ptr<MarmotExpression> comp_expr = std::make_unique<MarmotExpression>(MarmotExpression::ArrayComprehension(bracket, actual_loop_var, in_keyword, std::move(transform_expr), std::move(range)));
@@ -1355,13 +1356,13 @@ MarmotResult::ExpressionResult Parser::ParseArrayComprehension(Token& bracket, c
 				}
 			);
 	};
-	return probe.m_loop_variable_offset.has_value() ? InScope(parse) : parse();
+	return probe.m_loop_variable_offset.HasValue() ? InScope(parse) : parse();
 }
 
 MarmotResult::ExpressionResult Parser::ParseMatchExpressionWithScrutinee(Token& match_keyword, std::unique_ptr<MarmotExpression>&& expr)
 {
 	return Consume(Token::Name::WITH, "Expected 'with' after match expression.")
-		.and_then
+		.AndThen
 		(
 			[expr = std::move(expr), &match_keyword, this](Token&&) mutable ->MarmotResult::ExpressionResult
 			{
@@ -1371,16 +1372,16 @@ MarmotResult::ExpressionResult Parser::ParseMatchExpressionWithScrutinee(Token& 
 				{
 					Token& case_keyword = Previous();
 					MarmotResult::ExpressionResult case_result = ParseCaseExpression(case_keyword);
-					if (!case_result.has_value())
+					if (!case_result.HasValue())
 					{
-						return std::unexpected(std::move(case_result.error()));
+						return MarmotCompiler::Failure(std::move(case_result.Error()));
 					}
-					cases.emplace_back(std::move(case_result.value()));
+					cases.emplace_back(std::move(case_result.Value()));
 				}
 
 				if (cases.empty())
 				{
-					return std::unexpected(GenerateParserError("Expected at least one case.", match_keyword));
+					return MarmotCompiler::Failure(GenerateParserError("Expected at least one case.", match_keyword));
 				}
 
 				return std::make_unique<MarmotExpression>(MarmotExpression::Match(match_keyword, std::move(expr), std::move(cases)));
@@ -1392,7 +1393,7 @@ MarmotResult::ExpressionResult Parser::ParseMatchExpression()
 {
 	Token& match_keyword = Previous();
 	return ParseExpression()
-		.and_then
+		.AndThen
 		(
 			[&match_keyword, this](std::unique_ptr<MarmotExpression>&& expr) ->MarmotResult::ExpressionResult
 			{
@@ -1405,27 +1406,27 @@ MarmotResult::ExpressionResult Parser::ParseIfElseExpression()
 {
 	Token& if_token = Previous();
 	return ParseExpression()
-		.and_then
+		.AndThen
 		(
 			[&if_token, this](std::unique_ptr<MarmotExpression>&& condition) -> MarmotResult::ExpressionResult
 			{
 				return Consume(Token::Name::THEN, "Expected 'then'.")
-					.and_then
+					.AndThen
 					(
 						[&if_token, &condition, this](Token&& then_token) -> MarmotResult::ExpressionResult
 						{
 							return ParseExpression()
-								.and_then
+								.AndThen
 								(
 									[&if_token, &condition, &then_token, this](std::unique_ptr<MarmotExpression>&& true_branch) -> MarmotResult::ExpressionResult
 									{
 										return Consume(Token::Name::ELSE, "Expected 'else'.")
-											.and_then
+											.AndThen
 											(
 												[&if_token, &condition, &true_branch, &then_token, this](Token&& else_token) -> MarmotResult::ExpressionResult
 												{
 													return ParseExpression()
-														.and_then
+														.AndThen
 														(
 															[&if_token, &condition, &true_branch, &then_token, &else_token](std::unique_ptr<MarmotExpression>&& else_branch) -> MarmotResult::ExpressionResult
 															{
@@ -1457,20 +1458,20 @@ MarmotResult::ExpressionResult Parser::ParseFunctionExpression()
 				[&]() -> MarmotResult::ExpressionResult
 				{
 					MarmotResult::TokenResult left_paren_result = Consume(Token::Name::LEFT_PAREN, "Expected '(' before function parameters.");
-					if (!left_paren_result.has_value())
+					if (!left_paren_result.HasValue())
 					{
-						return std::unexpected(left_paren_result.error());
+						return MarmotCompiler::Failure(left_paren_result.Error());
 					}
 
 					m_state.m_function = std::make_shared<LexicalFunction>();
 
 					MarmotResult::FunctionParamsResult params_parse_result = ParseFunctionParameters(true);
-					if (!params_parse_result.has_value())
+					if (!params_parse_result.HasValue())
 					{
-						return std::unexpected(params_parse_result.error());
+						return MarmotCompiler::Failure(params_parse_result.Error());
 					}
 
-					std::vector<std::pair<Token, std::shared_ptr<MarmotType>>> param_tuples = std::move(params_parse_result.value());
+					std::vector<std::pair<Token, std::shared_ptr<MarmotType>>> param_tuples = std::move(params_parse_result.Value());
 					ParamSplit split = SplitParamTuples(std::move(param_tuples));
 					FunctionParameters params = ParametersFor(std::move(split.m_params));
 					std::vector<std::shared_ptr<MarmotType>> param_types = std::move(split.m_types);
@@ -1479,12 +1480,12 @@ MarmotResult::ExpressionResult Parser::ParseFunctionExpression()
 					if (Match(Token::Name::THIN_ARROW))
 					{
 						MarmotResult::TypeResult return_type_result = ParseType();
-						if (!return_type_result.has_value())
+						if (!return_type_result.HasValue())
 						{
-							return std::unexpected(return_type_result.error());
+							return MarmotCompiler::Failure(return_type_result.Error());
 						}
 
-						return_type = std::move(return_type_result.value());
+						return_type = std::move(return_type_result.Value());
 					}
 
 					// Parse optional 'where' clauses. A where clause may name constraints the
@@ -1492,19 +1493,19 @@ MarmotResult::ExpressionResult Parser::ParseFunctionExpression()
 					std::vector<MarmotType::ClassConstraint> constraints;
 					if (Match(Token::Name::WHERE))
 					{
-						std::expected<std::vector<MarmotType::ClassConstraint>, CompilerError> constraints_result = ParseClassConstraints();
-						if (!constraints_result.has_value())
+						ClassConstraintListResult constraints_result = ParseClassConstraints();
+						if (!constraints_result.HasValue())
 						{
-							return std::unexpected(constraints_result.error());
+							return MarmotCompiler::Failure(constraints_result.Error());
 						}
 
-						constraints = std::move(constraints_result.value());
+						constraints = std::move(constraints_result.Value());
 					}
 
 					MarmotResult::TokenResult fat_arrow_result = Consume(Token::Name::FAT_ARROW, "Expected '=>' before function body.");
-					if (!fat_arrow_result.has_value())
+					if (!fat_arrow_result.HasValue())
 					{
-						return std::unexpected(fat_arrow_result.error());
+						return MarmotCompiler::Failure(fat_arrow_result.Error());
 					}
 
 					std::vector<MarmotType::ClassConstraint> propagated_constraints = CollectSignatureConstraints(param_types, return_type);
@@ -1534,7 +1535,7 @@ MarmotResult::ExpressionResult Parser::ParseFunctionExpression()
 							}
 
 							return ParseRecordUpdate()
-								.and_then
+								.AndThen
 								(
 									[this](std::unique_ptr<MarmotExpression>&& record_update) -> MarmotResult::ExpressionResult
 									{
@@ -1543,12 +1544,12 @@ MarmotResult::ExpressionResult Parser::ParseFunctionExpression()
 								);
 						}();
 
-					if (!body_result.has_value())
+					if (!body_result.HasValue())
 					{
-						return std::unexpected(body_result.error());
+						return MarmotCompiler::Failure(body_result.Error());
 					}
 
-					return std::make_unique<MarmotExpression>(MarmotExpression::Function(keyword, std::move(generic_params), std::move(params), std::move(param_types), std::move(return_type), std::move(body_result.value()), std::move(constraints)));
+					return std::make_unique<MarmotExpression>(MarmotExpression::Function(keyword, std::move(generic_params), std::move(params), std::move(param_types), std::move(return_type), std::move(body_result.Value()), std::move(constraints)));
 				}
 			);
 		}
@@ -1562,31 +1563,31 @@ MarmotResult::ExpressionResult Parser::ParseCaseExpression(Token& keyword)
 		[&]() -> MarmotResult::ExpressionResult
 		{
 			MarmotResult::PatternResult pattern_result = ParsePattern();
-			if (!pattern_result.has_value())
+			if (!pattern_result.HasValue())
 			{
-				return std::unexpected(std::move(pattern_result.error()));
+				return MarmotCompiler::Failure(std::move(pattern_result.Error()));
 			}
 
-			std::unique_ptr<MarmotPattern> pattern = std::move(pattern_result.value());
+			std::unique_ptr<MarmotPattern> pattern = std::move(pattern_result.Value());
 
 			std::unique_ptr<MarmotExpression> guard = nullptr;
 			if (Match(Token::Name::IF))
 			{
 				MarmotResult::ExpressionResult guard_result = ParseExpression();
-				if (!guard_result.has_value())
+				if (!guard_result.HasValue())
 				{
-					return std::unexpected(std::move(guard_result.error()));
+					return MarmotCompiler::Failure(std::move(guard_result.Error()));
 				}
-				guard = std::move(guard_result.value());
+				guard = std::move(guard_result.Value());
 			}
 
 			return Consume(Token::Name::FAT_ARROW, "Expected '=>' after case.")
-				.and_then
+				.AndThen
 				(
 					[&keyword, &pattern, &guard, this](Token&&)->MarmotResult::ExpressionResult
 					{
 						return ParseExpression()
-							.and_then
+							.AndThen
 							(
 								[&keyword, &pattern, &guard](std::unique_ptr<MarmotExpression>&& case_expr)->MarmotResult::ExpressionResult
 								{
@@ -1606,12 +1607,12 @@ MarmotResult::FunctionParamsResult Parser::ParseFunctionParameters(bool allow_in
 			[this, allow_inferred_types]() -> MarmotResult::FunctionParamResult
 			{
 				return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected parameter name.")
-					.and_then
+					.AndThen
 					(
 						[this, allow_inferred_types](Token&& param_name) -> MarmotResult::FunctionParamResult
 						{
 							return DefineBinding(param_name)
-								.and_then
+								.AndThen
 								(
 									[this, allow_inferred_types](Token&& param_name) -> MarmotResult::FunctionParamResult
 									{
@@ -1624,7 +1625,7 @@ MarmotResult::FunctionParamsResult Parser::ParseFunctionParameters(bool allow_in
 										if (Match(Token::Name::SINGLE_COLON))
 										{
 											return ParseType()
-												.and_then
+												.AndThen
 												(
 													[&finish_param](std::shared_ptr<MarmotType>&& type) -> MarmotResult::FunctionParamResult
 													{
@@ -1635,7 +1636,7 @@ MarmotResult::FunctionParamsResult Parser::ParseFunctionParameters(bool allow_in
 
 										if (!allow_inferred_types)
 										{
-											return std::unexpected(GenerateParserError("Expected ':' after parameter name.", param_name));
+											return MarmotCompiler::Failure(GenerateParserError("Expected ':' after parameter name.", param_name));
 										}
 
 										return finish_param(std::shared_ptr<MarmotType>(MarmotType::MakeUndecidedType()));

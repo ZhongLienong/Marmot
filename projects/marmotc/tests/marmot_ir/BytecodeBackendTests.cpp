@@ -27,11 +27,11 @@ namespace
 	{
 		const std::vector<std::string> source_lines;
 		MarmotResult::BytecodeBackendResult bytecode = BytecodeBackend(lowered, "Test.mmt", source_lines).Emit();
-		if (!bytecode.has_value())
+		if (!bytecode.HasValue())
 		{
-			FAIL(bytecode.error().Rendered());
+			FAIL(bytecode.Error().Rendered());
 		}
-		return std::move(bytecode).value();
+		return std::move(bytecode).Value();
 	}
 
 	std::vector<OpCode> Opcodes(const BytecodeStream& procedure)
@@ -49,12 +49,12 @@ namespace
 
 TEST_CASE("The backend leaves a value used once, where it is made, on the stack", "[marmot_ir][backend]")
 {
-	std::expected<LoweredModule, MarmotResult::CompilerDiagnostics> lowered = MarmotTest::LowerSnippetWithDiagnostics(R"(module Stack
+	MarmotResult::DiagnosticsResult<LoweredModule> lowered = MarmotTest::LowerSnippetWithDiagnostics(R"(module Stack
 def Square = fn(n: Int) -> Int => (n * n) + 1;
 )");
-	REQUIRE(lowered.has_value());
+	REQUIRE(lowered.HasValue());
 
-	const BytecodeModule bytecode = RequireBytecode(lowered.value());
+	const BytecodeModule bytecode = RequireBytecode(lowered.Value());
 	REQUIRE(bytecode.m_procedure_names[1u] == "Square@Stack");
 	CHECK(Opcodes(bytecode.m_procedures[1u]) == std::vector<OpCode>
 	{
@@ -68,13 +68,13 @@ def Square = fn(n: Int) -> Int => (n * n) + 1;
 
 TEST_CASE("The backend jumps on a comparison without making its Bool", "[marmot_ir][backend]")
 {
-	std::expected<LoweredModule, MarmotResult::CompilerDiagnostics> lowered = MarmotTest::LowerSnippetWithDiagnostics(R"(module Fused
+	MarmotResult::DiagnosticsResult<LoweredModule> lowered = MarmotTest::LowerSnippetWithDiagnostics(R"(module Fused
 def Fib = fn(n: Int) -> Int => if n <= 1 then n else Fib(n - 1) + Fib(n - 2);
 def Order = fn(a: Float, b: Float) -> Int => if a < b then 0 else 1;
 )");
-	REQUIRE(lowered.has_value());
+	REQUIRE(lowered.HasValue());
 
-	const BytecodeModule bytecode = RequireBytecode(lowered.value());
+	const BytecodeModule bytecode = RequireBytecode(lowered.Value());
 	CHECK(Opcodes(bytecode.m_procedures[1u]) == std::vector<OpCode>
 	{
 		OpCode::IF_LOCAL_LE_INT,
@@ -100,7 +100,7 @@ def Order = fn(a: Float, b: Float) -> Int => if a < b then 0 else 1;
 
 TEST_CASE("Two values in slots that are never live at once share one", "[marmot_ir][backend]")
 {
-	std::expected<LoweredModule, MarmotResult::CompilerDiagnostics> lowered = MarmotTest::LowerSnippetWithDiagnostics(R"(module Share
+	MarmotResult::DiagnosticsResult<LoweredModule> lowered = MarmotTest::LowerSnippetWithDiagnostics(R"(module Share
 def Twice = fn(n: Int) -> Int => {
 	def a = n * 3;
 	def b = a + a;
@@ -108,24 +108,24 @@ def Twice = fn(n: Int) -> Int => {
 	c + c
 };
 )");
-	REQUIRE(lowered.has_value());
+	REQUIRE(lowered.HasValue());
 
 	// n is dead once a is made, and a once b is, so a, b and c take n's slot
 	// in turn and the frame needs no slot beyond its parameter.
-	const BytecodeModule bytecode = RequireBytecode(lowered.value());
+	const BytecodeModule bytecode = RequireBytecode(lowered.Value());
 	const std::vector<OpCode> opcodes = Opcodes(bytecode.m_procedures[1u]);
 	CHECK(std::ranges::count(opcodes, OpCode::PUSH_PLACEHOLDER) == 0);
 }
 
 TEST_CASE("The backend makes the top-level function procedure 0 and names each procedure for its module", "[marmot_ir][backend]")
 {
-	std::expected<LoweredModule, MarmotResult::CompilerDiagnostics> lowered = MarmotTest::LowerSnippetWithDiagnostics(R"(module Names
+	MarmotResult::DiagnosticsResult<LoweredModule> lowered = MarmotTest::LowerSnippetWithDiagnostics(R"(module Names
 def One = fn() -> Int => 1;
 def two = One() + 1;
 )");
-	REQUIRE(lowered.has_value());
+	REQUIRE(lowered.HasValue());
 
-	const BytecodeModule bytecode = RequireBytecode(lowered.value());
+	const BytecodeModule bytecode = RequireBytecode(lowered.Value());
 	CHECK(bytecode.m_procedure_names == std::vector<std::string>{ "$main$@Names", "One@Names" });
 	CHECK(bytecode.m_global_variables == std::vector<std::string>{ "One", "two" });
 	CHECK(Opcodes(bytecode.m_procedures[0u]).back() == OpCode::RETURN);
@@ -145,13 +145,13 @@ def Even = fn(n: Int) -> Int => if n == 0 then right + left + left else Odd(n - 
 def Odd = fn(n: Int) -> Int => if n == 0 then 0 else Even(n - 1) + 1;
 def MakeReader = fn(n: Int) -> fn() -> Int => fn() -> Int => n + left;
 )";
-	std::expected<LoweredModule, MarmotResult::CompilerDiagnostics> lowered = MarmotTest::LowerSnippetWithDiagnostics(std::move(source));
-	REQUIRE(lowered.has_value());
+	MarmotResult::DiagnosticsResult<LoweredModule> lowered = MarmotTest::LowerSnippetWithDiagnostics(std::move(source));
+	REQUIRE(lowered.HasValue());
 	std::vector<BytecodeModule> modules;
-	modules.push_back(RequireBytecode(lowered.value()));
+	modules.push_back(RequireBytecode(lowered.Value()));
 	MarmotResult::BytecodeLinkerResult result = BytecodeLinker(std::move(modules), "References").Link();
-	REQUIRE(result.has_value());
-	const MarmotExecutable& executable = result.value();
+	REQUIRE(result.HasValue());
+	const MarmotExecutable& executable = result.Value();
 	REQUIRE(executable.GetGlobalVariable(258) == "left");
 	REQUIRE(executable.GetGlobalVariable(259) == "right");
 
@@ -190,13 +190,13 @@ def MakeReader = fn(n: Int) -> fn() -> Int => fn() -> Int => n + left;
 // stored the first before reading the second would get wrong.
 TEST_CASE("The backend reads a union's tag and fields straight from its slot in a loop", "[marmot_ir][backend]")
 {
-	std::expected<BytecodeModule, MarmotResult::CompilerDiagnostics> bytecode = MarmotTest::GenerateBytecodeSnippetWithDiagnostics(R"(module Walk
+	MarmotResult::DiagnosticsResult<BytecodeModule> bytecode = MarmotTest::GenerateBytecodeSnippetWithDiagnostics(R"(module Walk
 type Chain = End | Link(Int, Chain);
 def Sum = fn(chain: Chain, total: Int) -> Int => match chain with
 	case Chain::Link(value, rest) => Sum(rest, total + value)
 	case Chain::End() => total;
 )");
-	REQUIRE(bytecode.has_value());
+	REQUIRE(bytecode.HasValue());
 
 	// The match's last arm needs no test of its own, so the tag is read once,
 	// from the slot, and not kept.
@@ -220,7 +220,7 @@ def Sum = fn(chain: Chain, total: Int) -> Int => match chain with
 
 TEST_CASE("The backend compares, steps and builds from slots in a loop without the stack", "[marmot_ir][backend]")
 {
-	std::expected<BytecodeModule, MarmotResult::CompilerDiagnostics> bytecode = MarmotTest::GenerateBytecodeSnippetWithDiagnostics(R"(module Split
+	MarmotResult::DiagnosticsResult<BytecodeModule> bytecode = MarmotTest::GenerateBytecodeSnippetWithDiagnostics(R"(module Split
 type Chain = End | Link(Int, Chain);
 def Keep = fn(values: Array<Int>, index: Int, pivot: Int, below: Chain) -> Chain =>
 	if index < 0
@@ -236,7 +236,7 @@ def Keep = fn(values: Array<Int>, index: Int, pivot: Int, below: Chain) -> Chain
 	};
 def Doubles = fn(n: Int) -> Array<Int> => [i * 2 for i in 0..1..n];
 )");
-	REQUIRE(bytecode.has_value());
+	REQUIRE(bytecode.HasValue());
 
 	// A union made of two locals is one instruction; one made of a value
 	// computed on the stack is built there.

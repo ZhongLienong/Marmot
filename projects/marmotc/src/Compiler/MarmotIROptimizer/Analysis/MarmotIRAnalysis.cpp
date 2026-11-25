@@ -1,4 +1,5 @@
 #include "MarmotIRAnalysis.h"
+#include "Support/Optional.h"
 
 #include <bit>
 #include <ranges>
@@ -66,11 +67,11 @@ MarmotIRControlFlow::MarmotIRControlFlow(const MarmotIRFunction& function)
 		{
 			while (m_order[left] > m_order[right])
 			{
-				left = m_immediate_dominators[left].value();
+				left = m_immediate_dominators[left].Value();
 			}
 			while (m_order[right] > m_order[left])
 			{
-				right = m_immediate_dominators[right].value();
+				right = m_immediate_dominators[right].Value();
 			}
 		}
 		return left;
@@ -83,12 +84,12 @@ MarmotIRControlFlow::MarmotIRControlFlow(const MarmotIRFunction& function)
 		changed = false;
 		for (const uint32_t block : m_reverse_postorder | std::views::drop(1))
 		{
-			std::optional<uint32_t> dominator;
+			MarmotCompiler::Optional<uint32_t> dominator;
 			for (const uint32_t predecessor : m_predecessors[block])
 			{
-				if (m_immediate_dominators[predecessor].has_value())
+				if (m_immediate_dominators[predecessor].HasValue())
 				{
-					dominator = dominator.has_value() ? intersect(predecessor, dominator.value()) : predecessor;
+					dominator = dominator.HasValue() ? intersect(predecessor, dominator.Value()) : predecessor;
 				}
 			}
 			if (dominator != m_immediate_dominators[block])
@@ -132,7 +133,7 @@ bool MarmotIRControlFlow::Dominates(uint32_t dominator, uint32_t block) const
 		{
 			return false;
 		}
-		block = m_immediate_dominators[block].value();
+		block = m_immediate_dominators[block].Value();
 	}
 	return true;
 }
@@ -142,7 +143,7 @@ std::vector<std::vector<uint32_t>> MarmotIRControlFlow::DominatorTree() const
 	std::vector<std::vector<uint32_t>> children(m_successors.size());
 	for (const uint32_t block : m_reverse_postorder | std::views::drop(1))
 	{
-		children[m_immediate_dominators[block].value()].push_back(block);
+		children[m_immediate_dominators[block].Value()].push_back(block);
 	}
 	return children;
 }
@@ -181,15 +182,15 @@ namespace MarmotIRAnalysis
 		return function.m_blocks[edge.m_block].m_instructions.back().m_successors[edge.m_successor];
 	}
 
-	std::vector<std::optional<MarmotIRSite>> DefinitionSites(const MarmotIRFunction& function)
+	std::vector<MarmotCompiler::Optional<MarmotIRSite>> DefinitionSites(const MarmotIRFunction& function)
 	{
-		std::vector<std::optional<MarmotIRSite>> sites(function.m_values.size());
+		std::vector<MarmotCompiler::Optional<MarmotIRSite>> sites(function.m_values.size());
 		for (uint32_t block = 0u; block < function.m_blocks.size(); block += 1u)
 		{
 			const std::vector<MarmotIRInstruction>& instructions = function.m_blocks[block].m_instructions;
 			for (uint32_t position = 0u; position < instructions.size(); position += 1u)
 			{
-				if (instructions[position].m_result.has_value())
+				if (instructions[position].m_result.HasValue())
 				{
 					sites[instructions[position].m_result->m_index] = MarmotIRSite{ block, position };
 				}
@@ -198,23 +199,23 @@ namespace MarmotIRAnalysis
 		return sites;
 	}
 
-	const MarmotIRInstruction* Definition(const MarmotIRFunction& function, const std::vector<std::optional<MarmotIRSite>>& sites, MarmotIRValueId value)
+	const MarmotIRInstruction* Definition(const MarmotIRFunction& function, const std::vector<MarmotCompiler::Optional<MarmotIRSite>>& sites, MarmotIRValueId value)
 	{
-		const std::optional<MarmotIRSite>& site = sites[value.m_index];
-		if (!site.has_value())
+		const MarmotCompiler::Optional<MarmotIRSite>& site = sites[value.m_index];
+		if (!site.HasValue())
 		{
 			return nullptr;
 		}
 		return &function.m_blocks[site->m_block].m_instructions[site->m_position];
 	}
 
-	void ReplaceUses(MarmotIRFunction& function, const std::vector<std::optional<MarmotIRValueId>>& replacements)
+	void ReplaceUses(MarmotIRFunction& function, const std::vector<MarmotCompiler::Optional<MarmotIRValueId>>& replacements)
 	{
 		const auto resolve = [&replacements](MarmotIRValueId value)
 		{
-			while (value.m_index < replacements.size() && replacements[value.m_index].has_value())
+			while (value.m_index < replacements.size() && replacements[value.m_index].HasValue())
 			{
-				value = replacements[value.m_index].value();
+				value = replacements[value.m_index].Value();
 			}
 			return value;
 		};
@@ -252,7 +253,7 @@ namespace MarmotIRAnalysis
 	void RemoveUnreachableBlocks(MarmotIRFunction& function)
 	{
 		const MarmotIRControlFlow control_flow(function);
-		std::vector<std::optional<uint32_t>> renumbered(function.m_blocks.size());
+		std::vector<MarmotCompiler::Optional<uint32_t>> renumbered(function.m_blocks.size());
 		std::vector<MarmotIRBlock> kept;
 		for (uint32_t block = 0u; block < function.m_blocks.size(); block += 1u)
 		{
@@ -266,7 +267,7 @@ namespace MarmotIRAnalysis
 		{
 			for (MarmotIRSuccessor& successor : block.m_instructions.back().m_successors)
 			{
-				successor.m_block = MarmotIRBlockId{ renumbered[successor.m_block.m_index].value() };
+				successor.m_block = MarmotIRBlockId{ renumbered[successor.m_block.m_index].Value() };
 			}
 		}
 		function.m_blocks = std::move(kept);
@@ -279,12 +280,12 @@ namespace MarmotIRAnalysis
 
 	MarmotIRInstruction Jump(MarmotIRSuccessor target, int line)
 	{
-		return MarmotIRInstruction(MarmotIROp::Jump, std::nullopt, MarmotType::MakeLiteralType<MarmotType::NeverType>(), {}, {}, { std::move(target) }, line);
+		return MarmotIRInstruction(MarmotIROp::Jump, MarmotCompiler::None, MarmotType::MakeLiteralType<MarmotType::NeverType>(), {}, {}, { std::move(target) }, line);
 	}
 
 	MarmotIRInstruction Unreachable(int line)
 	{
-		return MarmotIRInstruction(MarmotIROp::Unreachable, std::nullopt, MarmotType::MakeLiteralType<MarmotType::NeverType>(), {}, {}, {}, line);
+		return MarmotIRInstruction(MarmotIROp::Unreachable, MarmotCompiler::None, MarmotType::MakeLiteralType<MarmotType::NeverType>(), {}, {}, {}, line);
 	}
 
 	std::shared_ptr<MarmotType> ConstantType(const MarmotIRImmediate& value, const std::shared_ptr<MarmotType>& fallback)
@@ -350,7 +351,7 @@ namespace MarmotIRAnalysis
 		return size;
 	}
 
-	bool IsRemovable(const MarmotIRFunction& function, const std::vector<std::optional<MarmotIRSite>>& sites, const MarmotIRInstruction& instruction)
+	bool IsRemovable(const MarmotIRFunction& function, const std::vector<MarmotCompiler::Optional<MarmotIRSite>>& sites, const MarmotIRInstruction& instruction)
 	{
 		switch (instruction.m_effect.m_kind)
 		{
@@ -399,7 +400,7 @@ namespace MarmotIRAnalysis
 
 	bool RefineEffects(MarmotIRFunction& function)
 	{
-		const std::vector<std::optional<MarmotIRSite>> sites = DefinitionSites(function);
+		const std::vector<MarmotCompiler::Optional<MarmotIRSite>> sites = DefinitionSites(function);
 		bool changed = false;
 		for (MarmotIRBlock& block : function.m_blocks)
 		{
@@ -417,7 +418,7 @@ namespace MarmotIRAnalysis
 
 	bool IsFrameTransparent(const MarmotIRFunction& function)
 	{
-		const std::vector<std::optional<MarmotIRSite>> sites = DefinitionSites(function);
+		const std::vector<MarmotCompiler::Optional<MarmotIRSite>> sites = DefinitionSites(function);
 		return std::ranges::all_of(function.m_blocks, [&](const MarmotIRBlock& block)
 		{
 			return std::ranges::all_of(block.m_instructions, [&](const MarmotIRInstruction& instruction)

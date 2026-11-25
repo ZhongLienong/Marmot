@@ -2,6 +2,8 @@
 #include "Bytecode/Format/Format.h"
 #include "Bytecode/Intrinsics/IntrinsicTable.h"
 #include "Compiler/Names/SpecialNames.h"
+#include "Support/Expected.h"
+#include "Support/Optional.h"
 #include <algorithm>
 #include <format>
 #include <ranges>
@@ -59,25 +61,25 @@ MarmotResult::StatementResult Parser::ParseDefineStatement()
 	if (Match(Token::Name::LEFT_PAREN))
 	{
 		std::vector<Token> names;
-		std::vector<std::optional<BindingId>> bindings;
+		std::vector<MarmotCompiler::Optional<BindingId>> bindings;
 
 		do
 		{
 			MarmotResult::TokenResult name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected identifier in tuple pattern.");
 			if (!name_result)
 			{
-				return std::unexpected(name_result.error());
+				return MarmotCompiler::Failure(name_result.Error());
 			}
 
-			Token var_name = std::move(name_result.value());
+			Token var_name = std::move(name_result.Value());
 			MarmotResult::TokenResult defined_name_result = DefineBinding(var_name);
 			if (!defined_name_result)
 			{
-				return std::unexpected(defined_name_result.error());
+				return MarmotCompiler::Failure(defined_name_result.Error());
 			}
 
-			Token defined_name = std::move(defined_name_result.value());
-			std::optional<BindingId> binding = RegisterLocalBinding(defined_name.m_lexeme);
+			Token defined_name = std::move(defined_name_result.Value());
+			MarmotCompiler::Optional<BindingId> binding = RegisterLocalBinding(defined_name.m_lexeme);
 
 			names.emplace_back(std::move(defined_name));
 			bindings.emplace_back(std::move(binding));
@@ -85,12 +87,12 @@ MarmotResult::StatementResult Parser::ParseDefineStatement()
 		} while (Match(Token::Name::COMMA));
 
 		return Consume(Token::Name::RIGHT_PAREN, "Expected ')' after tuple pattern.")
-			.and_then
+			.AndThen
 			(
 				[&names, &bindings, this](Token&&) -> MarmotResult::StatementResult
 				{
 					return Consume(Token::Name::SINGLE_EQUAL, "Expected '=' after tuple pattern.")
-						.and_then
+						.AndThen
 						(
 							[&names, &bindings, this](Token&&) -> MarmotResult::StatementResult
 							{
@@ -107,12 +109,12 @@ MarmotResult::StatementResult Parser::ParseDefineStatement()
 										}
 
 										return ParseExpression()
-											.and_then
+											.AndThen
 											(
 												[&names, &bindings, this](std::unique_ptr<MarmotExpression>&& expr) -> MarmotResult::StatementResult
 												{
 													return Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after tuple binding.")
-														.and_then
+														.AndThen
 														(
 															[&names, &bindings, &expr](Token&&) -> MarmotResult::StatementResult
 															{
@@ -131,21 +133,21 @@ MarmotResult::StatementResult Parser::ParseDefineStatement()
 
 	// Single variable: def x = ...
 	return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected name.")
-		.and_then
+		.AndThen
 		(
 			[this](Token&& var_name) -> MarmotResult::StatementResult
 			{
 				return DefineBinding(var_name)
-					.and_then
+					.AndThen
 					(
 						[this](Token&& define_name) -> MarmotResult::StatementResult
 						{
-							std::function<MarmotResult::StatementResult(std::optional<std::shared_ptr<MarmotType>>)> def_aux_func = [&define_name, this](std::optional<std::shared_ptr<MarmotType>> type_annotation)
+							std::function<MarmotResult::StatementResult(MarmotCompiler::Optional<std::shared_ptr<MarmotType>>)> def_aux_func = [&define_name, this](MarmotCompiler::Optional<std::shared_ptr<MarmotType>> type_annotation)
 								{
-									std::optional<BindingId> binding = RegisterLocalBinding(define_name.m_lexeme);
+									MarmotCompiler::Optional<BindingId> binding = RegisterLocalBinding(define_name.m_lexeme);
 
 									return Consume(Token::Name::SINGLE_EQUAL, "Expected '=' after defining a name.")
-										.and_then
+										.AndThen
 										(
 											[&define_name, &type_annotation, &binding, this](Token&&) -> MarmotResult::StatementResult
 											{
@@ -158,12 +160,12 @@ MarmotResult::StatementResult Parser::ParseDefineStatement()
 															m_state.m_pending_definitions.emplace_back(define_name.m_lexeme, m_state.m_function);
 														}
 														return ParseExpression()
-															.and_then
+															.AndThen
 															(
 																[&define_name, &type_annotation, &binding, this](std::unique_ptr<MarmotExpression>&& expr) -> MarmotResult::StatementResult
 																{
 																	return Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after name binding.")
-																		.and_then
+																		.AndThen
 																		(
 																			[&define_name, &expr, &type_annotation, &binding](Token&&) -> MarmotResult::StatementResult
 																			{
@@ -181,7 +183,7 @@ MarmotResult::StatementResult Parser::ParseDefineStatement()
 							if (Match(Token::Name::SINGLE_COLON))
 							{
 								return ParseType()
-									.and_then
+									.AndThen
 									(
 										[&def_aux_func](std::shared_ptr<MarmotType>&& type)->MarmotResult::StatementResult
 										{
@@ -191,7 +193,7 @@ MarmotResult::StatementResult Parser::ParseDefineStatement()
 							}
 							else
 							{
-								return def_aux_func(std::nullopt);
+								return def_aux_func(MarmotCompiler::None);
 							}
 						}
 					);
@@ -202,28 +204,28 @@ MarmotResult::StatementResult Parser::ParseDefineStatement()
 Parser::ParsedTypeResult Parser::WithTypeDeclarationHeader(std::string_view noun, std::string_view capitalized_noun, const TypeBodyParser& parse_body)
 {
 	MarmotResult::TokenResult name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected "s + std::string(noun) + " name."s);
-	if (!name_result.has_value())
+	if (!name_result.HasValue())
 	{
-		return std::unexpected(name_result.error());
+		return MarmotCompiler::Failure(name_result.Error());
 	}
 
-	Token declaration_name = std::move(name_result.value());
+	Token declaration_name = std::move(name_result.Value());
 	std::string name_before_mangle = declaration_name.m_lexeme;
 	declaration_name.m_lexeme = Mangle(declaration_name.m_lexeme);
 
 	if (declaration_name.m_lexeme[0u] != std::toupper(declaration_name.m_lexeme[0u]))
 	{
-		return std::unexpected(GenerateParserError(std::string(capitalized_noun) + " name must start with a capital letter."s, declaration_name));
+		return MarmotCompiler::Failure(GenerateParserError(std::string(capitalized_noun) + " name must start with a capital letter."s, declaration_name));
 	}
 
 	constexpr bool is_variable = false;
 	MarmotResult::TokenResult defined_name_result = DefineName(declaration_name, is_variable);
-	if (!defined_name_result.has_value())
+	if (!defined_name_result.HasValue())
 	{
-		return std::unexpected(defined_name_result.error());
+		return MarmotCompiler::Failure(defined_name_result.Error());
 	}
 
-	TypeDeclarationHeader header(std::move(defined_name_result.value()), std::move(name_before_mangle), m_state.m_scopes.size() - 1u);
+	TypeDeclarationHeader header(std::move(defined_name_result.Value()), std::move(name_before_mangle), m_state.m_scopes.size() - 1u);
 	return WithGenericParameters
 	(
 		[&](std::vector<Token> parameters, std::vector<std::shared_ptr<MarmotType>> types) -> ParsedTypeResult
@@ -236,16 +238,16 @@ Parser::ParsedTypeResult Parser::WithTypeDeclarationHeader(std::string_view noun
 			{
 				if (!header.m_has_generic_params)
 				{
-					return std::unexpected(GenerateParserError(std::string(capitalized_noun) + " constraints require at least one type parameter."s, header.m_name));
+					return MarmotCompiler::Failure(GenerateParserError(std::string(capitalized_noun) + " constraints require at least one type parameter."s, header.m_name));
 				}
 
-				std::expected<std::vector<MarmotType::ClassConstraint>, CompilerError> constraints_result = ParseClassConstraints();
-				if (!constraints_result.has_value())
+				ClassConstraintListResult constraints_result = ParseClassConstraints();
+				if (!constraints_result.HasValue())
 				{
-					return std::unexpected(constraints_result.error());
+					return MarmotCompiler::Failure(constraints_result.Error());
 				}
 
-				header.m_constraints = std::move(constraints_result.value());
+				header.m_constraints = std::move(constraints_result.Value());
 			}
 
 			return parse_body(std::move(header));
@@ -256,9 +258,9 @@ Parser::ParsedTypeResult Parser::WithTypeDeclarationHeader(std::string_view noun
 Parser::ParsedTypeResult Parser::ParseStructBody(TypeDeclarationHeader&& header)
 {
 	MarmotResult::TokenResult brace_result = Consume(Token::Name::LEFT_BRACE, "Expected '{' before struct body.");
-	if (!brace_result.has_value())
+	if (!brace_result.HasValue())
 	{
-		return std::unexpected(brace_result.error());
+		return MarmotCompiler::Failure(brace_result.Error());
 	}
 
 	std::vector<std::string> generic_param_names;
@@ -270,66 +272,66 @@ Parser::ParsedTypeResult Parser::ParseStructBody(TypeDeclarationHeader&& header)
 	struct_type->GetType<MarmotType::StructType>().m_constraints = header.m_constraints;
 	m_state.m_scopes[header.m_scope_index].m_defined_types[header.m_name.m_lexeme] = struct_type;
 
-	std::expected<std::vector<StructMemberTuple>, CompilerError> members_result = InContext
+	MarmotResult::Result<std::vector<StructMemberTuple>> members_result = InContext
 	(
 		[this, &struct_type]()
 		{
 			m_state.m_types_being_declared.push_back(struct_type);
 			return ParseDelimitedZeroOrMoreLimited<StructMemberTuple>
 			(
-				[this]() -> std::expected<StructMemberTuple, CompilerError>
+				[this]() -> MarmotResult::Result<StructMemberTuple>
 				{
 					MarmotResult::TokenResult member_name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected struct member name.");
-					if (!member_name_result.has_value())
+					if (!member_name_result.HasValue())
 					{
-						return std::unexpected(member_name_result.error());
+						return MarmotCompiler::Failure(member_name_result.Error());
 					}
 
-					Token member_name = std::move(member_name_result.value());
+					Token member_name = std::move(member_name_result.Value());
 
 					MarmotResult::TokenResult colon_result = Consume(Token::Name::SINGLE_COLON, "Expected ':' before struct member type token.");
-					if (!colon_result.has_value())
+					if (!colon_result.HasValue())
 					{
-						return std::unexpected(colon_result.error());
+						return MarmotCompiler::Failure(colon_result.Error());
 					}
 
 					MarmotResult::TypeResult member_type_result = ParseType();
-					if (!member_type_result.has_value())
+					if (!member_type_result.HasValue())
 					{
-						return std::unexpected(member_type_result.error());
+						return MarmotCompiler::Failure(member_type_result.Error());
 					}
 
-					return std::make_tuple(std::move(member_type_result.value()), member_name.m_lexeme);
+					return std::make_tuple(std::move(member_type_result.Value()), member_name.m_lexeme);
 				},
 				[this]() { return Consume(Token::Name::COMMA, "Expected ',' struct member."); },
 				[this]() { return Consume(Token::Name::RIGHT_BRACE, "Expected '}' struct members."); }
 			);
 		}
 	);
-	if (!members_result.has_value())
+	if (!members_result.HasValue())
 	{
-		return std::unexpected(members_result.error());
+		return MarmotCompiler::Failure(members_result.Error());
 	}
 
 	std::vector<Token> deriving_targets;
 	if (Match(Token::Name::DERIVING))
 	{
-		std::expected<std::vector<Token>, CompilerError> deriving_result = ParseDerivingTargets(header.m_name);
-		if (!deriving_result.has_value())
+		MarmotResult::TokenListResult deriving_result = ParseDerivingTargets(header.m_name);
+		if (!deriving_result.HasValue())
 		{
-			return std::unexpected(std::move(deriving_result.error()));
+			return MarmotCompiler::Failure(std::move(deriving_result.Error()));
 		}
 
-		deriving_targets = std::move(deriving_result.value());
+		deriving_targets = std::move(deriving_result.Value());
 	}
 
 	MarmotResult::TokenResult semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after struct body.");
-	if (!semicolon_result.has_value())
+	if (!semicolon_result.HasValue())
 	{
-		return std::unexpected(semicolon_result.error());
+		return MarmotCompiler::Failure(semicolon_result.Error());
 	}
 
-	StructMemberSplit member_split = SplitStructMemberTuples(std::move(members_result.value()));
+	StructMemberSplit member_split = SplitStructMemberTuples(std::move(members_result.Value()));
 	struct_type->GetType<MarmotType::StructType>().m_member_types = std::move(member_split.m_types);
 	struct_type->GetType<MarmotType::StructType>().m_member_names = std::move(member_split.m_names);
 	CompleteType(struct_type);
@@ -362,7 +364,7 @@ Parser::ParsedTypeResult Parser::ParseUnionBody(TypeDeclarationHeader&& header)
 			std::vector<Token> constructor_names;
 			int tag = 0;
 
-			std::expected<std::vector<UnionMemberTuple>, CompilerError> members_result = InContext
+			MarmotResult::Result<std::vector<UnionMemberTuple>> members_result = InContext
 			(
 				[&constructor_names, &tag, &union_type, this]()
 				{
@@ -370,25 +372,25 @@ Parser::ParsedTypeResult Parser::ParseUnionBody(TypeDeclarationHeader&& header)
 
 					return ParseDelimitedOneOrMoreUnlimited<UnionMemberTuple>
 					(
-						[&constructor_names, &tag, this]() -> std::expected<UnionMemberTuple, CompilerError>
+						[&constructor_names, &tag, this]() -> MarmotResult::Result<UnionMemberTuple>
 						{
 							MarmotResult::TokenResult member_name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected union member name.");
-							if (!member_name_result.has_value())
+							if (!member_name_result.HasValue())
 							{
-								return std::unexpected(member_name_result.error());
+								return MarmotCompiler::Failure(member_name_result.Error());
 							}
 
-							Token member_name = std::move(member_name_result.value());
+							Token member_name = std::move(member_name_result.Value());
 							member_name.m_lexeme = Mangle(member_name.m_lexeme);
 
 							constexpr bool is_variable = false;
 							MarmotResult::TokenResult defined_member_result = DefineName(member_name, is_variable);
-							if (!defined_member_result.has_value())
+							if (!defined_member_result.HasValue())
 							{
-								return std::unexpected(defined_member_result.error());
+								return MarmotCompiler::Failure(defined_member_result.Error());
 							}
 
-							member_name = std::move(defined_member_result.value());
+							member_name = std::move(defined_member_result.Value());
 							constructor_names.push_back(member_name);
 
 							std::vector<std::shared_ptr<MarmotType>> member_types;
@@ -400,12 +402,12 @@ Parser::ParsedTypeResult Parser::ParseUnionBody(TypeDeclarationHeader&& header)
 									[this]() { return Consume(Token::Name::COMMA, "Expected ',' after type."); },
 									[this]() { return Consume(Token::Name::RIGHT_PAREN, "Expected ')' after union constructor."); }
 								);
-								if (!member_types_result.has_value())
+								if (!member_types_result.HasValue())
 								{
-									return std::unexpected(member_types_result.error());
+									return MarmotCompiler::Failure(member_types_result.Error());
 								}
 
-								member_types = std::move(member_types_result.value());
+								member_types = std::move(member_types_result.Value());
 							}
 
 							UnionMemberTuple member = std::make_tuple(member_name.m_lexeme, std::move(member_types), tag);
@@ -417,12 +419,12 @@ Parser::ParsedTypeResult Parser::ParseUnionBody(TypeDeclarationHeader&& header)
 				}
 			);
 
-			if (!members_result.has_value())
+			if (!members_result.HasValue())
 			{
-				return std::unexpected(members_result.error());
+				return MarmotCompiler::Failure(members_result.Error());
 			}
 
-			union_type_ref.m_member_info = BuildUnionMemberInfo(std::move(members_result.value()));
+			union_type_ref.m_member_info = BuildUnionMemberInfo(std::move(members_result.Value()));
 			CompleteType(union_type);
 
 			Scope& constructor_scope = m_state.m_scopes[header.m_scope_index];
@@ -435,19 +437,19 @@ Parser::ParsedTypeResult Parser::ParseUnionBody(TypeDeclarationHeader&& header)
 			std::vector<Token> deriving_targets;
 			if (Match(Token::Name::DERIVING))
 			{
-				std::expected<std::vector<Token>, CompilerError> deriving_result = ParseDerivingTargets(header.m_name);
-				if (!deriving_result.has_value())
+				MarmotResult::TokenListResult deriving_result = ParseDerivingTargets(header.m_name);
+				if (!deriving_result.HasValue())
 				{
-					return std::unexpected(std::move(deriving_result.error()));
+					return MarmotCompiler::Failure(std::move(deriving_result.Error()));
 				}
 
-				deriving_targets = std::move(deriving_result.value());
+				deriving_targets = std::move(deriving_result.Value());
 			}
 
 			MarmotResult::TokenResult semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after union body.");
-			if (!semicolon_result.has_value())
+			if (!semicolon_result.HasValue())
 			{
-				return std::unexpected(semicolon_result.error());
+				return MarmotCompiler::Failure(semicolon_result.Error());
 			}
 
 			return ParsedTypeDeclaration(std::make_unique<MarmotStatement>(MarmotStatement::Union(std::move(header.m_name), std::move(header.m_generic_params), std::move(constructor_names), std::move(header.m_constraints), std::move(union_type))), std::move(deriving_targets));
@@ -563,12 +565,12 @@ Parser::ParsedTypeResult Parser::ParseNewTypeBody(TypeDeclarationHeader&& header
 				return ParseType();
 			}
 	);
-	if (!representation_result.has_value())
+	if (!representation_result.HasValue())
 	{
-		return std::unexpected(representation_result.error());
+		return MarmotCompiler::Failure(representation_result.Error());
 	}
 
-	new_type->GetType<MarmotType::NewType>().m_representation = std::move(representation_result.value());
+	new_type->GetType<MarmotType::NewType>().m_representation = std::move(representation_result.Value());
 	CompleteType(new_type);
 
 	// A newtype is its representation wherever it is erased, so one that
@@ -576,13 +578,13 @@ Parser::ParsedTypeResult Parser::ParseNewTypeBody(TypeDeclarationHeader&& header
 	std::unordered_set<const MarmotType*> visited;
 	if (RepresentationNames(new_type->GetType<MarmotType::NewType>().m_representation, new_type.get(), visited))
 	{
-		return std::unexpected(GenerateParserError(std::format("A newtype cannot contain itself: '{}' is represented by {}.", header.m_name.m_lexeme, new_type->GetType<MarmotType::NewType>().m_representation->DisplayString()), header.m_name));
+		return MarmotCompiler::Failure(GenerateParserError(std::format("A newtype cannot contain itself: '{}' is represented by {}.", header.m_name.m_lexeme, new_type->GetType<MarmotType::NewType>().m_representation->DisplayString()), header.m_name));
 	}
 
 	MarmotResult::TokenResult semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after newtype definition.");
-	if (!semicolon_result.has_value())
+	if (!semicolon_result.HasValue())
 	{
-		return std::unexpected(semicolon_result.error());
+		return MarmotCompiler::Failure(semicolon_result.Error());
 	}
 
 	// Registered in the enclosing scope so uses of the name resolve to the
@@ -596,12 +598,12 @@ MarmotResult::StatementResult Parser::FinishTypeDeclaration(ParsedTypeDeclaratio
 {
 	if (!declaration.m_deriving_targets.empty())
 	{
-		const std::expected<void, CompilerError> generated = declaration.m_statement->IsStatement<MarmotStatement::Struct>()
+		const MarmotResult::VoidResult generated = declaration.m_statement->IsStatement<MarmotStatement::Struct>()
 			? QueueDerivedStatements(declaration.m_statement->GetStatement<MarmotStatement::Struct>(), declaration.m_deriving_targets)
 			: QueueDerivedStatements(declaration.m_statement->GetStatement<MarmotStatement::Union>(), declaration.m_deriving_targets);
-		if (!generated.has_value())
+		if (!generated.HasValue())
 		{
-			return std::unexpected(std::move(generated.error()));
+			return MarmotCompiler::Failure(std::move(generated.Error()));
 		}
 	}
 	return std::move(declaration.m_statement);
@@ -617,9 +619,9 @@ MarmotResult::StatementResult Parser::ParseTypeDeclaration()
 		[&](TypeDeclarationHeader&& header) -> ParsedTypeResult
 		{
 			MarmotResult::TokenResult equal_result = Consume(Token::Name::SINGLE_EQUAL, "Expected '=' after type name.");
-			if (!equal_result.has_value())
+			if (!equal_result.HasValue())
 			{
-				return std::unexpected(equal_result.error());
+				return MarmotCompiler::Failure(equal_result.Error());
 			}
 
 			if (is_top_level)
@@ -652,13 +654,13 @@ MarmotResult::StatementResult Parser::ParseTypeDeclaration()
 			Match(Token::Name::SINGLE_BAR);
 			return ParseUnionBody(std::move(header));
 		}
-	).and_then([this](ParsedTypeDeclaration&& declaration) { return FinishTypeDeclaration(std::move(declaration)); });
+	).AndThen([this](ParsedTypeDeclaration&& declaration) { return FinishTypeDeclaration(std::move(declaration)); });
 }
 
 MarmotResult::StatementResult Parser::ParseAliasDeclaration()
 {
 	return WithTypeDeclarationHeader("alias", "Alias", [this](TypeDeclarationHeader&& header) { return ParseAliasBody(std::move(header)); })
-		.and_then([this](ParsedTypeDeclaration&& declaration) { return FinishTypeDeclaration(std::move(declaration)); });
+		.AndThen([this](ParsedTypeDeclaration&& declaration) { return FinishTypeDeclaration(std::move(declaration)); });
 }
 
 Parser::ParsedTypeResult Parser::ParseAliasBody(TypeDeclarationHeader&& header)
@@ -667,27 +669,27 @@ Parser::ParsedTypeResult Parser::ParseAliasBody(TypeDeclarationHeader&& header)
 	// discharge a constraint written on it. Rejecting is the only honest answer.
 	if (!header.m_constraints.empty())
 	{
-		return std::unexpected(GenerateParserError("Alias declarations cannot carry 'where' constraints. Constrain the type the alias expands to instead.", header.m_name));
+		return MarmotCompiler::Failure(GenerateParserError("Alias declarations cannot carry 'where' constraints. Constrain the type the alias expands to instead.", header.m_name));
 	}
 
 	MarmotResult::TokenResult equal_result = Consume(Token::Name::SINGLE_EQUAL, "Expected '=' after alias name.");
-	if (!equal_result.has_value())
+	if (!equal_result.HasValue())
 	{
-		return std::unexpected(equal_result.error());
+		return MarmotCompiler::Failure(equal_result.Error());
 	}
 
 	MarmotResult::TypeResult aliased_type_result = ParseType();
-	if (!aliased_type_result.has_value())
+	if (!aliased_type_result.HasValue())
 	{
-		return std::unexpected(aliased_type_result.error());
+		return MarmotCompiler::Failure(aliased_type_result.Error());
 	}
 
-	std::shared_ptr<MarmotType> aliased_type = std::move(aliased_type_result.value());
+	std::shared_ptr<MarmotType> aliased_type = std::move(aliased_type_result.Value());
 
 	MarmotResult::TokenResult semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after alias definition.");
-	if (!semicolon_result.has_value())
+	if (!semicolon_result.HasValue())
 	{
-		return std::unexpected(semicolon_result.error());
+		return MarmotCompiler::Failure(semicolon_result.Error());
 	}
 
 	// aliased_type is already the template a use site needs: substituting Box's own
@@ -710,28 +712,28 @@ Parser::ParsedTypeResult Parser::ParseAliasBody(TypeDeclarationHeader&& header)
 MarmotResult::StatementResult Parser::ParseClassDeclaration()
 {
 	MarmotResult::TokenResult class_name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected class name.");
-	if (!class_name_result.has_value())
+	if (!class_name_result.HasValue())
 	{
-		return std::unexpected(class_name_result.error());
+		return MarmotCompiler::Failure(class_name_result.Error());
 	}
 
-	Token typeclass_name = std::move(class_name_result.value());
+	Token typeclass_name = std::move(class_name_result.Value());
 	typeclass_name.m_lexeme = Mangle(typeclass_name.m_lexeme);
 	if (typeclass_name.m_lexeme[0u] != std::toupper(typeclass_name.m_lexeme[0u]))
 	{
-		return std::unexpected(GenerateParserError("Class name must start with a capital letter.", typeclass_name));
+		return MarmotCompiler::Failure(GenerateParserError("Class name must start with a capital letter.", typeclass_name));
 	}
 
 	MarmotResult::TokenResult defined_name_result = DefineName(typeclass_name, false);
-	if (!defined_name_result.has_value())
+	if (!defined_name_result.HasValue())
 	{
-		return std::unexpected(defined_name_result.error());
+		return MarmotCompiler::Failure(defined_name_result.Error());
 	}
-	typeclass_name = std::move(defined_name_result.value());
+	typeclass_name = std::move(defined_name_result.Value());
 
 	if (!Match(Token::Name::LEFT_ANGLE))
 	{
-		return std::unexpected(GenerateParserError("Class must have at least one type parameter.", typeclass_name));
+		return MarmotCompiler::Failure(GenerateParserError("Class must have at least one type parameter.", typeclass_name));
 	}
 
 	return InScope
@@ -742,11 +744,11 @@ MarmotResult::StatementResult Parser::ParseClassDeclaration()
 			std::vector<Token> type_params;
 			std::vector<std::shared_ptr<MarmotType>> type_param_types;
 			MarmotResult::TokenListResult generic_parse_result = ParseGenericParameters(&type_param_types);
-			if (!generic_parse_result.has_value())
+			if (!generic_parse_result.HasValue())
 			{
-				return std::unexpected(generic_parse_result.error());
+				return MarmotCompiler::Failure(generic_parse_result.Error());
 			}
-			type_params = std::move(generic_parse_result.value());
+			type_params = std::move(generic_parse_result.Value());
 
 			std::vector<std::string> type_param_names;
 			std::ranges::transform(type_params, std::back_inserter(type_param_names), [](const Token& tok) { return tok.m_lexeme; });
@@ -755,9 +757,9 @@ MarmotResult::StatementResult Parser::ParseClassDeclaration()
 			associated_type_names.clear();
 
 			MarmotResult::TokenResult brace_result = Consume(Token::Name::LEFT_BRACE, "Expected '{' before class body.");
-			if (!brace_result.has_value())
+			if (!brace_result.HasValue())
 			{
-				return std::unexpected(brace_result.error());
+				return MarmotCompiler::Failure(brace_result.Error());
 			}
 
 			std::vector<MarmotStatement::Class::AssociatedTypeDeclaration> associated_types;
@@ -766,35 +768,35 @@ MarmotResult::StatementResult Parser::ParseClassDeclaration()
 			{
 				if (IsAtEnd())
 				{
-					return std::unexpected(GenerateParserError("Expected '}' after class body.", Previous()));
+					return MarmotCompiler::Failure(GenerateParserError("Expected '}' after class body.", Previous()));
 				}
 
 				if (Match(Token::Name::TYPE))
 				{
 					MarmotResult::TokenResult assoc_name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected associated type name.");
-					if (!assoc_name_result.has_value())
+					if (!assoc_name_result.HasValue())
 					{
-						return std::unexpected(assoc_name_result.error());
+						return MarmotCompiler::Failure(assoc_name_result.Error());
 					}
 
-					Token assoc_name = std::move(assoc_name_result.value());
+					Token assoc_name = std::move(assoc_name_result.Value());
 					assoc_name.m_lexeme = Mangle(assoc_name.m_lexeme);
 					if (assoc_name.m_lexeme[0u] != std::toupper(assoc_name.m_lexeme[0u]))
 					{
-						return std::unexpected(GenerateParserError("Associated type name must start with a capital letter.", assoc_name));
+						return MarmotCompiler::Failure(GenerateParserError("Associated type name must start with a capital letter.", assoc_name));
 					}
 
 					MarmotResult::TokenResult defined_assoc_result = DefineName(assoc_name, false);
-					if (!defined_assoc_result.has_value())
+					if (!defined_assoc_result.HasValue())
 					{
-						return std::unexpected(defined_assoc_result.error());
+						return MarmotCompiler::Failure(defined_assoc_result.Error());
 					}
-					assoc_name = std::move(defined_assoc_result.value());
+					assoc_name = std::move(defined_assoc_result.Value());
 
 					MarmotResult::TokenResult assoc_semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after associated type declaration.");
-					if (!assoc_semicolon_result.has_value())
+					if (!assoc_semicolon_result.HasValue())
 					{
-						return std::unexpected(assoc_semicolon_result.error());
+						return MarmotCompiler::Failure(assoc_semicolon_result.Error());
 					}
 
 					associated_type_names.push_back(assoc_name.m_lexeme);
@@ -805,83 +807,83 @@ MarmotResult::StatementResult Parser::ParseClassDeclaration()
 				}
 
 				MarmotResult::TokenResult method_name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected method name.");
-				if (!method_name_result.has_value())
+				if (!method_name_result.HasValue())
 				{
-					return std::unexpected(method_name_result.error());
+					return MarmotCompiler::Failure(method_name_result.Error());
 				}
 
-				Token method_name = std::move(method_name_result.value());
+				Token method_name = std::move(method_name_result.Value());
 				std::string method_name_str = method_name.m_lexeme;
 
 				MarmotResult::TokenResult colon_result = Consume(Token::Name::SINGLE_COLON, "Expected ':' after method name.");
-				if (!colon_result.has_value())
+				if (!colon_result.HasValue())
 				{
-					return std::unexpected(colon_result.error());
+					return MarmotCompiler::Failure(colon_result.Error());
 				}
 
 				MarmotResult::TokenResult function_result = Consume(Token::Name::FUNCTION, "Expected 'fn' in method signature.");
-				if (!function_result.has_value())
+				if (!function_result.HasValue())
 				{
-					return std::unexpected(function_result.error());
+					return MarmotCompiler::Failure(function_result.Error());
 				}
 
 				MarmotResult::TokenResult left_paren_result = Consume(Token::Name::LEFT_PAREN, "Expected '(' before method parameters.");
-				if (!left_paren_result.has_value())
+				if (!left_paren_result.HasValue())
 				{
-					return std::unexpected(left_paren_result.error());
+					return MarmotCompiler::Failure(left_paren_result.Error());
 				}
 
 				using MethodParam = std::tuple<Token, std::shared_ptr<MarmotType>>;
-				std::expected<std::vector<MethodParam>, CompilerError> params_result = ParseDelimitedZeroOrMoreLimited<MethodParam>
+				MarmotResult::Result<std::vector<MethodParam>> params_result = ParseDelimitedZeroOrMoreLimited<MethodParam>
 				(
-					[this]() -> std::expected<MethodParam, CompilerError>
+					[this]() -> MarmotResult::Result<MethodParam>
 					{
 						MarmotResult::TokenResult param_name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected parameter name.");
-						if (!param_name_result.has_value())
+						if (!param_name_result.HasValue())
 						{
-							return std::unexpected(param_name_result.error());
+							return MarmotCompiler::Failure(param_name_result.Error());
 						}
 
-						Token param_name = std::move(param_name_result.value());
+						Token param_name = std::move(param_name_result.Value());
 						MarmotResult::TokenResult param_colon_result = Consume(Token::Name::SINGLE_COLON, "Expected ':' after parameter name.");
-						if (!param_colon_result.has_value())
+						if (!param_colon_result.HasValue())
 						{
-							return std::unexpected(param_colon_result.error());
+							return MarmotCompiler::Failure(param_colon_result.Error());
 						}
 
 						MarmotResult::TypeResult param_type_result = ParseType();
-						if (!param_type_result.has_value())
+						if (!param_type_result.HasValue())
 						{
-							return std::unexpected(param_type_result.error());
+							return MarmotCompiler::Failure(param_type_result.Error());
 						}
 
-						return std::make_tuple(std::move(param_name), std::move(param_type_result.value()));
+						return std::make_tuple(std::move(param_name), std::move(param_type_result.Value()));
 					},
 					[this]() { return Consume(Token::Name::COMMA, "Expected ',' between parameters."); },
 					[this]() { return Consume(Token::Name::RIGHT_PAREN, "Expected ')' after parameters."); }
 				);
-				if (!params_result.has_value())
+				if (!params_result.HasValue())
 				{
-					return std::unexpected(std::move(params_result.error()));
+					return MarmotCompiler::Failure(std::move(params_result.Error()));
 				}
 
 				MarmotResult::TokenResult arrow_result = Consume(Token::Name::THIN_ARROW, "Expected '->' before return type.");
-				if (!arrow_result.has_value())
+				if (!arrow_result.HasValue())
 				{
-					return std::unexpected(arrow_result.error());
+					return MarmotCompiler::Failure(arrow_result.Error());
 				}
 
 				MarmotResult::TypeResult return_type_result = ParseType();
-				if (!return_type_result.has_value())
+				if (!return_type_result.HasValue())
 				{
-					return std::unexpected(return_type_result.error());
+					return MarmotCompiler::Failure(return_type_result.Error());
 				}
-				std::shared_ptr<MarmotType> return_type = std::move(return_type_result.value());
+				std::shared_ptr<MarmotType> return_type = std::move(return_type_result.Value());
 
 				MarmotResult::TokenResult method_semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after method signature.");
-				if (!method_semicolon_result.has_value())
+				if (!method_semicolon_result.HasValue())
 				{
-					return std::unexpected(method_semicolon_result.error());
+					return MarmotCompiler::Failure(method_semicolon_result.Error());
 				}
 
 				std::vector<std::shared_ptr<MarmotType>> param_types;
@@ -890,7 +892,7 @@ MarmotResult::StatementResult Parser::ParseClassDeclaration()
 				const LexicalFunctionId method_function = std::make_shared<LexicalFunction>();
 				param_types.reserve(params_result->size());
 				param_tokens.reserve(params_result->size());
-				for (MethodParam& tuple : params_result.value())
+				for (MethodParam& tuple : params_result.Value())
 				{
 					param_types.emplace_back(std::get<1>(tuple));
 					param_tokens.emplace_back(std::move(std::get<0>(tuple)));
@@ -907,15 +909,15 @@ MarmotResult::StatementResult Parser::ParseClassDeclaration()
 				(
 					std::make_unique<MarmotStatement>
 					(
-						MarmotStatement::FunctionDefinition(method_name, std::vector<Token>(), FunctionParameters(std::move(param_tokens), std::move(param_bindings), method_function), std::move(param_types), std::move(return_type), nullptr, std::nullopt, std::vector<MarmotType::ClassConstraint>())
+						MarmotStatement::FunctionDefinition(method_name, std::vector<Token>(), FunctionParameters(std::move(param_tokens), std::move(param_bindings), method_function), std::move(param_types), std::move(return_type), nullptr, MarmotCompiler::None, std::vector<MarmotType::ClassConstraint>())
 					)
 				);
 			}
 
 			MarmotResult::TokenResult class_semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after class body.");
-			if (!class_semicolon_result.has_value())
+			if (!class_semicolon_result.HasValue())
 			{
-				return std::unexpected(class_semicolon_result.error());
+				return MarmotCompiler::Failure(class_semicolon_result.Error());
 			}
 
 			return std::make_unique<MarmotStatement>
@@ -926,63 +928,63 @@ MarmotResult::StatementResult Parser::ParseClassDeclaration()
 	);
 }
 
-std::expected<MarmotStatement::FunctionDefinition, CompilerError> Parser::ParseInstanceMethodBody(const Token& method_name)
+MarmotResult::Result<MarmotStatement::FunctionDefinition> Parser::ParseInstanceMethodBody(const Token& method_name)
 {
-	return WithGenericParameters([&](std::vector<Token> generic_params, std::vector<std::shared_ptr<MarmotType>>) -> std::expected<MarmotStatement::FunctionDefinition, CompilerError>
+	return WithGenericParameters([&](std::vector<Token> generic_params, std::vector<std::shared_ptr<MarmotType>>) -> MarmotResult::Result<MarmotStatement::FunctionDefinition>
 	{
-		return InScope([&]() -> std::expected<MarmotStatement::FunctionDefinition, CompilerError>
+		return InScope([&]() -> MarmotResult::Result<MarmotStatement::FunctionDefinition>
 		{
 			MarmotResult::TokenResult left_paren_result = Consume(Token::Name::LEFT_PAREN, "Expected '(' before method parameters.");
-			if (!left_paren_result.has_value())
+			if (!left_paren_result.HasValue())
 			{
-				return std::unexpected(left_paren_result.error());
+				return MarmotCompiler::Failure(left_paren_result.Error());
 			}
 
 			m_state.m_function = std::make_shared<LexicalFunction>();
 
 			MarmotResult::FunctionParamsResult params_parse_result = ParseFunctionParameters();
-			if (!params_parse_result.has_value())
+			if (!params_parse_result.HasValue())
 			{
-				return std::unexpected(params_parse_result.error());
+				return MarmotCompiler::Failure(params_parse_result.Error());
 			}
 
-			std::vector<std::pair<Token, std::shared_ptr<MarmotType>>> param_tuples = std::move(params_parse_result.value());
+			std::vector<std::pair<Token, std::shared_ptr<MarmotType>>> param_tuples = std::move(params_parse_result.Value());
 			ParamSplit split = SplitParamTuples(std::move(param_tuples));
 			FunctionParameters params = ParametersFor(std::move(split.m_params));
 			std::vector<std::shared_ptr<MarmotType>> param_types = std::move(split.m_types);
 
 			MarmotResult::TokenResult return_colon_result = ConsumeReturnTypeSeparator("Expected '->' before return type.");
-			if (!return_colon_result.has_value())
+			if (!return_colon_result.HasValue())
 			{
-				return std::unexpected(return_colon_result.error());
+				return MarmotCompiler::Failure(return_colon_result.Error());
 			}
 
 			MarmotResult::TypeResult return_type_result = ParseType();
-			if (!return_type_result.has_value())
+			if (!return_type_result.HasValue())
 			{
-				return std::unexpected(return_type_result.error());
+				return MarmotCompiler::Failure(return_type_result.Error());
 			}
-			std::shared_ptr<MarmotType> return_type = std::move(return_type_result.value());
+			std::shared_ptr<MarmotType> return_type = std::move(return_type_result.Value());
 
 			MarmotResult::TokenResult fat_arrow_result = Consume(Token::Name::FAT_ARROW, "Expected '=>' before method body.");
-			if (!fat_arrow_result.has_value())
+			if (!fat_arrow_result.HasValue())
 			{
-				return std::unexpected(fat_arrow_result.error());
+				return MarmotCompiler::Failure(fat_arrow_result.Error());
 			}
 
 			MarmotResult::ExpressionResult body_result = ParseExpression();
-			if (!body_result.has_value())
+			if (!body_result.HasValue())
 			{
-				return std::unexpected(body_result.error());
+				return MarmotCompiler::Failure(body_result.Error());
 			}
-			std::unique_ptr<MarmotExpression> body = std::move(body_result.value());
+			std::unique_ptr<MarmotExpression> body = std::move(body_result.Value());
 
 			MarmotResult::TokenResult method_semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after method body.");
-			if (!method_semicolon_result.has_value())
+			if (!method_semicolon_result.HasValue())
 			{
-				return std::unexpected(method_semicolon_result.error());
+				return MarmotCompiler::Failure(method_semicolon_result.Error());
 			}
-			return MarmotStatement::FunctionDefinition(method_name, std::move(generic_params), std::move(params), std::move(param_types), std::move(return_type), std::move(body), std::nullopt, std::vector<MarmotType::ClassConstraint>());
+			return MarmotStatement::FunctionDefinition(method_name, std::move(generic_params), std::move(params), std::move(param_types), std::move(return_type), std::move(body), MarmotCompiler::None, std::vector<MarmotType::ClassConstraint>());
 		});
 	});
 }
@@ -990,21 +992,21 @@ std::expected<MarmotStatement::FunctionDefinition, CompilerError> Parser::ParseI
 MarmotResult::StatementResult Parser::ParseInstanceDeclaration()
 {
 	MarmotResult::TokenResult class_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected class name.");
-	if (!class_result.has_value())
+	if (!class_result.HasValue())
 	{
-		return std::unexpected(class_result.error());
+		return MarmotCompiler::Failure(class_result.Error());
 	}
 
-	Token typeclass_name = std::move(class_result.value());
+	Token typeclass_name = std::move(class_result.Value());
 	if (!m_state.m_typeclass_type_params.contains(typeclass_name.m_lexeme))
 	{
-		return std::unexpected(GenerateParserError("Unknown class '" + typeclass_name.m_lexeme + "'.", typeclass_name));
+		return MarmotCompiler::Failure(GenerateParserError("Unknown class '" + typeclass_name.m_lexeme + "'.", typeclass_name));
 	}
 
 	MarmotResult::TokenResult angle_result = Consume(Token::Name::LEFT_ANGLE, "Expected '<' before type arguments.");
-	if (!angle_result.has_value())
+	if (!angle_result.HasValue())
 	{
-		return std::unexpected(angle_result.error());
+		return MarmotCompiler::Failure(angle_result.Error());
 	}
 
 	return InScope
@@ -1025,35 +1027,35 @@ MarmotResult::StatementResult Parser::ParseInstanceDeclaration()
 					);
 				}
 			);
-			if (!type_args_result.has_value())
+			if (!type_args_result.HasValue())
 			{
-				return std::unexpected(type_args_result.error());
+				return MarmotCompiler::Failure(type_args_result.Error());
 			}
-			std::vector<std::shared_ptr<MarmotType>> type_args = std::move(type_args_result.value());
+			std::vector<std::shared_ptr<MarmotType>> type_args = std::move(type_args_result.Value());
 
 			if (type_args.empty())
 			{
-				return std::unexpected(GenerateParserError("Instance must have at least one type argument.", typeclass_name));
+				return MarmotCompiler::Failure(GenerateParserError("Instance must have at least one type argument.", typeclass_name));
 			}
 
 			std::vector<MarmotType::ClassConstraint> constraints;
 			if (Match(Token::Name::WHERE))
 			{
-				std::expected<std::vector<MarmotType::ClassConstraint>, CompilerError> constraints_result = ParseClassConstraints();
-				if (!constraints_result.has_value())
+				ClassConstraintListResult constraints_result = ParseClassConstraints();
+				if (!constraints_result.HasValue())
 				{
-					return std::unexpected(constraints_result.error());
+					return MarmotCompiler::Failure(constraints_result.Error());
 				}
 
-				constraints = std::move(constraints_result.value());
+				constraints = std::move(constraints_result.Value());
 			}
 
 			PushActiveConstraints(constraints);
 
 			MarmotResult::TokenResult brace_result = Consume(Token::Name::LEFT_BRACE, "Expected '{' before instance methods.");
-			if (!brace_result.has_value())
+			if (!brace_result.HasValue())
 			{
-				return std::unexpected(brace_result.error());
+				return MarmotCompiler::Failure(brace_result.Error());
 			}
 
 			const std::vector<std::string>& declared_associated_types = m_state.m_typeclass_associated_types[typeclass_name.m_lexeme];
@@ -1065,52 +1067,52 @@ MarmotResult::StatementResult Parser::ParseInstanceDeclaration()
 			{
 				if (IsAtEnd())
 				{
-					return std::unexpected(GenerateParserError("Expected '}' after instance body.", Previous()));
+					return MarmotCompiler::Failure(GenerateParserError("Expected '}' after instance body.", Previous()));
 				}
 
 				if (Match(Token::Name::TYPE))
 				{
 					MarmotResult::TokenResult assoc_name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected associated type name.");
-					if (!assoc_name_result.has_value())
+					if (!assoc_name_result.HasValue())
 					{
-						return std::unexpected(assoc_name_result.error());
+						return MarmotCompiler::Failure(assoc_name_result.Error());
 					}
 
-					Token assoc_name = std::move(assoc_name_result.value());
+					Token assoc_name = std::move(assoc_name_result.Value());
 					assoc_name.m_lexeme = Mangle(assoc_name.m_lexeme);
 					if (!std::ranges::contains(declared_associated_types, assoc_name.m_lexeme))
 					{
-						return std::unexpected(GenerateParserError("Unknown associated type '" + assoc_name.m_lexeme + "' for class '" + typeclass_name.m_lexeme + "'.", assoc_name));
+						return MarmotCompiler::Failure(GenerateParserError("Unknown associated type '" + assoc_name.m_lexeme + "' for class '" + typeclass_name.m_lexeme + "'.", assoc_name));
 					}
 					if (!bound_associated_type_names.insert(assoc_name.m_lexeme).second)
 					{
-						return std::unexpected(GenerateParserError("Duplicate associated type binding '" + assoc_name.m_lexeme + "'.", assoc_name));
+						return MarmotCompiler::Failure(GenerateParserError("Duplicate associated type binding '" + assoc_name.m_lexeme + "'.", assoc_name));
 					}
 
 					MarmotResult::TokenResult defined_assoc_result = DefineName(assoc_name, false);
-					if (!defined_assoc_result.has_value())
+					if (!defined_assoc_result.HasValue())
 					{
-						return std::unexpected(defined_assoc_result.error());
+						return MarmotCompiler::Failure(defined_assoc_result.Error());
 					}
-					assoc_name = std::move(defined_assoc_result.value());
+					assoc_name = std::move(defined_assoc_result.Value());
 
 					MarmotResult::TokenResult equals_result = Consume(Token::Name::SINGLE_EQUAL, "Expected '=' after associated type name.");
-					if (!equals_result.has_value())
+					if (!equals_result.HasValue())
 					{
-						return std::unexpected(equals_result.error());
+						return MarmotCompiler::Failure(equals_result.Error());
 					}
 
 					MarmotResult::TypeResult assoc_type_result = ParseType();
-					if (!assoc_type_result.has_value())
+					if (!assoc_type_result.HasValue())
 					{
-						return std::unexpected(assoc_type_result.error());
+						return MarmotCompiler::Failure(assoc_type_result.Error());
 					}
-					std::shared_ptr<MarmotType> assoc_type = std::move(assoc_type_result.value());
+					std::shared_ptr<MarmotType> assoc_type = std::move(assoc_type_result.Value());
 
 					MarmotResult::TokenResult assoc_semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after associated type binding.");
-					if (!assoc_semicolon_result.has_value())
+					if (!assoc_semicolon_result.HasValue())
 					{
-						return std::unexpected(assoc_semicolon_result.error());
+						return MarmotCompiler::Failure(assoc_semicolon_result.Error());
 					}
 
 					m_state.m_scopes.back().m_defined_types[assoc_name.m_lexeme] = assoc_type;
@@ -1122,40 +1124,40 @@ MarmotResult::StatementResult Parser::ParseInstanceDeclaration()
 				// binding form a module-level function uses.
 				if (!Match(Token::Name::DEF))
 				{
-					return std::unexpected(GenerateParserError("Expected 'def' or associated type binding in instance body.", Peek(0)));
+					return MarmotCompiler::Failure(GenerateParserError("Expected 'def' or associated type binding in instance body.", Peek(0)));
 				}
 
 				MarmotResult::TokenResult method_name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected method name.");
-				if (!method_name_result.has_value())
+				if (!method_name_result.HasValue())
 				{
-					return std::unexpected(method_name_result.error());
+					return MarmotCompiler::Failure(method_name_result.Error());
 				}
-				Token method_name = std::move(method_name_result.value());
+				Token method_name = std::move(method_name_result.Value());
 
 				MarmotResult::TokenResult method_equal_result = Consume(Token::Name::SINGLE_EQUAL, "Expected '=' after instance method name.");
-				if (!method_equal_result.has_value())
+				if (!method_equal_result.HasValue())
 				{
-					return std::unexpected(method_equal_result.error());
+					return MarmotCompiler::Failure(method_equal_result.Error());
 				}
 
 				MarmotResult::TokenResult method_function_result = Consume(Token::Name::FUNCTION, "Expected 'fn' after '=' in an instance method binding.");
-				if (!method_function_result.has_value())
+				if (!method_function_result.HasValue())
 				{
-					return std::unexpected(method_function_result.error());
+					return MarmotCompiler::Failure(method_function_result.Error());
 				}
 
-				std::expected<MarmotStatement::FunctionDefinition, CompilerError> method = ParseInstanceMethodBody(method_name);
-				if (!method.has_value())
+				MarmotResult::Result<MarmotStatement::FunctionDefinition> method = ParseInstanceMethodBody(method_name);
+				if (!method.HasValue())
 				{
-					return std::unexpected(std::move(method.error()));
+					return MarmotCompiler::Failure(std::move(method.Error()));
 				}
-				methods.emplace_back(method_name, std::move(method.value()));
+				methods.emplace_back(method_name, std::move(method.Value()));
 			}
 
 			MarmotResult::TokenResult instance_semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after instance body.");
-			if (!instance_semicolon_result.has_value())
+			if (!instance_semicolon_result.HasValue())
 			{
-				return std::unexpected(instance_semicolon_result.error());
+				return MarmotCompiler::Failure(instance_semicolon_result.Error());
 			}
 
 			std::unordered_map<std::string, std::shared_ptr<MarmotType>> associated_type_bindings;
@@ -1188,14 +1190,14 @@ MarmotResult::StatementResult Parser::ParseSimpleStatement()
 	ParseState checkpoint = m_state;
 
 	MarmotResult::ExpressionResult expr_result = ParseExpression();
-	if (!expr_result.has_value())
+	if (!expr_result.HasValue())
 	{
-		return std::unexpected(std::move(expr_result.error()));
+		return MarmotCompiler::Failure(std::move(expr_result.Error()));
 	}
 
-	std::unique_ptr<MarmotExpression> expr = std::move(expr_result.value());
+	std::unique_ptr<MarmotExpression> expr = std::move(expr_result.Value());
 	MarmotResult::TokenResult semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after expression.");
-	if (!semicolon_result.has_value())
+	if (!semicolon_result.HasValue())
 	{
 		if (Check(Token::Name::RIGHT_BRACE, 0))
 		{
@@ -1208,20 +1210,20 @@ MarmotResult::StatementResult Parser::ParseSimpleStatement()
 		// not before the line that follows.
 		if (expr->IsExpression<MarmotExpression::For>())
 		{
-			return std::unexpected(GenerateParserError("Expected ';' after the for loop: it is an expression, and as a statement it ends with ';'.", Previous()));
+			return MarmotCompiler::Failure(GenerateParserError("Expected ';' after the for loop: it is an expression, and as a statement it ends with ';'.", Previous()));
 		}
 
-		return std::unexpected(std::move(semicolon_result.error()));
+		return MarmotCompiler::Failure(std::move(semicolon_result.Error()));
 	}
 
-	Token semi_colon = std::move(semicolon_result.value());
+	Token semi_colon = std::move(semicolon_result.Value());
 	return std::make_unique<MarmotStatement>(MarmotStatement::ExpressionStatement(semi_colon, std::move(expr)));
 }
 
 MarmotResult::StatementResult Parser::ParseForeignStatement()
 {
 	return Consume(Token::Name::TEXT_LITERAL, "Expected the foreign symbol, or the library of a foreign block.")
-		.and_then
+		.AndThen
 		(
 			[this](Token&& name) -> MarmotResult::StatementResult
 			{
@@ -1230,7 +1232,7 @@ MarmotResult::StatementResult Parser::ParseForeignStatement()
 					return ParseForeignBlock(name);
 				}
 
-				return ParseForeignDeclaration(name, std::nullopt);
+				return ParseForeignDeclaration(name, MarmotCompiler::None);
 			}
 		);
 }
@@ -1243,34 +1245,34 @@ MarmotResult::StatementResult Parser::ParseForeignBlock(const Token& library)
 	while (!Check(Token::Name::RIGHT_BRACE, 0) && !IsAtEnd())
 	{
 		MarmotResult::TokenResult symbol = Consume(Token::Name::TEXT_LITERAL, "Expected the symbol of a foreign function in the foreign block.");
-		if (!symbol.has_value())
+		if (!symbol.HasValue())
 		{
-			return std::unexpected(std::move(symbol.error()));
+			return MarmotCompiler::Failure(std::move(symbol.Error()));
 		}
 
-		MarmotResult::StatementResult declaration = ParseForeignDeclaration(symbol.value(), library.m_lexeme);
-		if (!declaration.has_value())
+		MarmotResult::StatementResult declaration = ParseForeignDeclaration(symbol.Value(), library.m_lexeme);
+		if (!declaration.HasValue())
 		{
 			return declaration;
 		}
 
-		if (declaration.value()->GetStatement<MarmotStatement::ForeignDefinition>().m_binding.has_value())
+		if (declaration.Value()->GetStatement<MarmotStatement::ForeignDefinition>().m_binding.HasValue())
 		{
-			return std::unexpected(GenerateParserError("A foreign block can only appear at the top level of a module.", library));
+			return MarmotCompiler::Failure(GenerateParserError("A foreign block can only appear at the top level of a module.", library));
 		}
 
-		declarations.emplace_back(std::move(declaration.value()));
+		declarations.emplace_back(std::move(declaration.Value()));
 	}
 
 	MarmotResult::TokenResult closing = Consume(Token::Name::RIGHT_BRACE, "Expected '}' after the foreign block.");
-	if (!closing.has_value())
+	if (!closing.HasValue())
 	{
-		return std::unexpected(std::move(closing.error()));
+		return MarmotCompiler::Failure(std::move(closing.Error()));
 	}
 
 	if (declarations.empty())
 	{
-		return std::unexpected(GenerateParserError(std::format("The foreign block for \"{}\" declares no functions.", library.m_lexeme), library));
+		return MarmotCompiler::Failure(GenerateParserError(std::format("The foreign block for \"{}\" declares no functions.", library.m_lexeme), library));
 	}
 
 	for (size_t index = 1uz; index < declarations.size(); index += 1uz)
@@ -1280,27 +1282,27 @@ MarmotResult::StatementResult Parser::ParseForeignBlock(const Token& library)
 	return std::move(declarations.front());
 }
 
-MarmotResult::StatementResult Parser::ParseForeignDeclaration(const Token& foreign_name, const std::optional<std::string>& block_library)
+MarmotResult::StatementResult Parser::ParseForeignDeclaration(const Token& foreign_name, const MarmotCompiler::Optional<std::string>& block_library)
 {
 	return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected foreign function name.")
-		.and_then
+		.AndThen
 		(
 			[this, &foreign_name, &block_library](Token&& function_name) ->MarmotResult::StatementResult
 			{
 				function_name.m_lexeme = Mangle(function_name.m_lexeme);
 
 				return Consume(Token::Name::SINGLE_COLON, "Expected ':' before foreign function type.")
-					.and_then
+					.AndThen
 					(
 						[&foreign_name, &function_name, &block_library, this](Token&&) ->MarmotResult::StatementResult
 						{
 							constexpr bool is_variable = true;
 							return DefineName(function_name, is_variable)
-								.and_then
+								.AndThen
 								(
 									[&foreign_name, &function_name, &block_library, this](Token&& name) ->MarmotResult::StatementResult
 									{
-										std::optional<BindingId> binding = RegisterLocalBinding(name.m_lexeme);
+										MarmotCompiler::Optional<BindingId> binding = RegisterLocalBinding(name.m_lexeme);
 										return InScope
 										(
 											[&]() -> MarmotResult::StatementResult
@@ -1309,33 +1311,33 @@ MarmotResult::StatementResult Parser::ParseForeignDeclaration(const Token& forei
 
 												constexpr bool is_foreign = true;
 												return ParseType(is_foreign)
-													.and_then
+													.AndThen
 													(
 														[&foreign_name, &function_name, &binding, &block_library, this](std::shared_ptr<MarmotType>&& type)->MarmotResult::StatementResult
 														{
 															if (!type->IsType<MarmotType::FunctionType>())
 															{
-																return std::unexpected(GenerateParserError("'foreign' only applies to function types.", function_name));
+																return MarmotCompiler::Failure(GenerateParserError("'foreign' only applies to function types.", function_name));
 															}
 
-															std::optional<std::string> library = block_library;
-															if (!block_library.has_value() && Check(Token::Name::IDENTIFIER_LITERAL, 0) && Peek(0).m_lexeme == "from")
+															MarmotCompiler::Optional<std::string> library = block_library;
+															if (!block_library.HasValue() && Check(Token::Name::IDENTIFIER_LITERAL, 0) && Peek(0).m_lexeme == "from")
 															{
 																Advance();
 																MarmotResult::TokenResult library_name = Consume(Token::Name::TEXT_LITERAL, "Expected the library name after 'from'.");
-																if (!library_name.has_value())
+																if (!library_name.HasValue())
 																{
-																	return std::unexpected(std::move(library_name.error()));
+																	return MarmotCompiler::Failure(std::move(library_name.Error()));
 																}
 																library = library_name->m_lexeme;
 															}
 
 															return Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after foreign function type.")
-																.and_then
+																.AndThen
 																(
 																	[&foreign_name, &function_name, &type, &binding, &library](Token&&) ->MarmotResult::StatementResult
 																	{
-																		if (!library.has_value())
+																		if (!library.HasValue())
 																		{
 																			MarmotType::FunctionType& signature = type->GetType<MarmotType::FunctionType>();
 																			signature.m_primitive = FindPrimitive(foreign_name.m_lexeme);
@@ -1439,12 +1441,12 @@ MarmotResult::StatementResult Parser::ParseDeclaration()
 	);
 }
 
-std::expected<std::vector<Token>, CompilerError> Parser::ParseDerivingTargets(const Token& context_token)
+MarmotResult::TokenListResult Parser::ParseDerivingTargets(const Token& context_token)
 {
 	return Consume(Token::Name::LEFT_PAREN, "Expected '(' after 'deriving'.")
-		.and_then
+		.AndThen
 		(
-			[&context_token, this](Token&&) -> std::expected<std::vector<Token>, CompilerError>
+			[&context_token, this](Token&&) -> MarmotResult::TokenListResult
 			{
 				std::unordered_set<std::string> seen_targets;
 				return ParseDelimitedZeroOrMoreLimited<Token>
@@ -1452,13 +1454,13 @@ std::expected<std::vector<Token>, CompilerError> Parser::ParseDerivingTargets(co
 						[&seen_targets, this]() -> MarmotResult::TokenResult
 						{
 							return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected deriving target.")
-								.and_then
+								.AndThen
 								(
 									[&seen_targets, this](Token&& target) -> MarmotResult::TokenResult
 									{
 										if (!seen_targets.insert(target.m_lexeme).second)
 										{
-											return std::unexpected(GenerateParserError("Duplicate deriving target.", target));
+											return MarmotCompiler::Failure(GenerateParserError("Duplicate deriving target.", target));
 										}
 
 										return target;
@@ -1468,13 +1470,13 @@ std::expected<std::vector<Token>, CompilerError> Parser::ParseDerivingTargets(co
 						[this]() { return Consume(Token::Name::COMMA, "Expected ',' after deriving target."); },
 						[this]() { return Consume(Token::Name::RIGHT_PAREN, "Expected ')' after deriving targets."); }
 					)
-					.and_then
+					.AndThen
 					(
-						[&context_token, this](std::vector<Token>&& targets) -> std::expected<std::vector<Token>, CompilerError>
+						[&context_token, this](std::vector<Token>&& targets) -> MarmotResult::TokenListResult
 						{
 							if (targets.empty())
 							{
-								return std::unexpected(GenerateParserError("Expected at least one deriving target.", context_token));
+								return MarmotCompiler::Failure(GenerateParserError("Expected at least one deriving target.", context_token));
 							}
 
 							return std::move(targets);
@@ -1495,55 +1497,55 @@ void Parser::RegisterSyntheticInstanceMetadata(const std::string& class_name, co
 
 MarmotResult::StatementResult Parser::GenerateDerivedStatement(const DerivedDeclarationGenerator& generator, const OrderingType* ordering)
 {
-	std::expected<std::unique_ptr<MarmotStatement>, DerivedDeclarationError> generated = generator.Generate(ordering);
-	if (!generated.has_value())
+	MarmotCompiler::Expected<std::unique_ptr<MarmotStatement>, DerivedDeclarationError> generated = generator.Generate(ordering);
+	if (!generated.HasValue())
 	{
-		return std::unexpected(GenerateParserError(std::move(generated.error().m_message), generated.error().m_token));
+		return MarmotCompiler::Failure(GenerateParserError(std::move(generated.Error().m_message), generated.Error().m_token));
 	}
-	if (generated.value()->IsStatement<MarmotStatement::Instance>())
+	if (generated.Value()->IsStatement<MarmotStatement::Instance>())
 	{
-		const MarmotStatement::Instance& instance = generated.value()->GetStatement<MarmotStatement::Instance>();
+		const MarmotStatement::Instance& instance = generated.Value()->GetStatement<MarmotStatement::Instance>();
 		std::vector<std::string> methods = instance.m_methods
 			| std::views::transform([](const MarmotStatement::Instance::Method& method) { return method.m_definition.m_name.m_lexeme; })
 			| std::ranges::to<std::vector<std::string>>();
 		RegisterSyntheticInstanceMetadata(instance.m_class_name.m_lexeme, instance.m_type_args, instance.m_constraints, methods);
 	}
-	return std::move(generated.value());
+	return std::move(generated.Value());
 }
 
 template<typename Declaration>
-std::expected<void, CompilerError> Parser::QueueDerivedStatements(const Declaration& declaration, const std::vector<Token>& deriving_targets)
+MarmotResult::VoidResult Parser::QueueDerivedStatements(const Declaration& declaration, const std::vector<Token>& deriving_targets)
 {
 	if (!IsAtGlobalScope())
 	{
-		return std::unexpected(GenerateParserError("Deriving declarations are only supported at global scope.", declaration.m_name));
+		return MarmotCompiler::Failure(GenerateParserError("Deriving declarations are only supported at global scope.", declaration.m_name));
 	}
 	for (const Token& target : deriving_targets)
 	{
-		std::expected<DerivedDeclarationGenerator, DerivedDeclarationError> derivation = DerivedDeclarationGenerator::Prepare(declaration, target);
-		if (!derivation.has_value())
+		MarmotCompiler::Expected<DerivedDeclarationGenerator, DerivedDeclarationError> derivation = DerivedDeclarationGenerator::Prepare(declaration, target);
+		if (!derivation.HasValue())
 		{
-			return std::unexpected(GenerateParserError(std::move(derivation.error().m_message), derivation.error().m_token));
+			return MarmotCompiler::Failure(GenerateParserError(std::move(derivation.Error().m_message), derivation.Error().m_token));
 		}
 		if (Token* name = derivation->NameToReserve())
 		{
 			MarmotResult::TokenResult registered = DefineName(*name, true);
-			if (!registered.has_value())
+			if (!registered.HasValue())
 			{
-				return std::unexpected(std::move(registered.error()));
+				return MarmotCompiler::Failure(std::move(registered.Error()));
 			}
 		}
 		if (target.m_lexeme == ORDERABLE_CLASS_NAME)
 		{
-			m_pending_statements.emplace(DeferredOrderingDerivation{ std::move(derivation.value()), target });
+			m_pending_statements.emplace(DeferredOrderingDerivation{ std::move(derivation.Value()), target });
 			continue;
 		}
-		MarmotResult::StatementResult generated = GenerateDerivedStatement(derivation.value(), nullptr);
-		if (!generated.has_value())
+		MarmotResult::StatementResult generated = GenerateDerivedStatement(derivation.Value(), nullptr);
+		if (!generated.HasValue())
 		{
-			return std::unexpected(std::move(generated.error()));
+			return MarmotCompiler::Failure(std::move(generated.Error()));
 		}
-		m_pending_statements.push(std::move(generated.value()));
+		m_pending_statements.push(std::move(generated.Value()));
 	}
 	return {};
 }

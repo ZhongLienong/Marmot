@@ -1,4 +1,5 @@
 #include "BaseDiagnosticPass.h"
+#include "Support/Optional.h"
 
 #include <utility>
 
@@ -21,7 +22,7 @@ void DiagnosticPass::Finish()
 {
 }
 
-void DiagnosticPass::EmitWarning(CompilerWarningCode code, const Token& token, std::string_view message, std::optional<std::string_view> suggestion)
+void DiagnosticPass::EmitWarning(CompilerWarningCode code, const Token& token, std::string_view message, MarmotCompiler::Optional<std::string_view> suggestion)
 {
 	m_warnings.emplace_back(CompilerWarning::WithToken(CompilerStage::StaticAnalyzer, message, token, m_file_name, *m_source_lines, suggestion, code));
 }

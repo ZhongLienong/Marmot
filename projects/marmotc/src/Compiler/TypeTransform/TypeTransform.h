@@ -1,13 +1,14 @@
 #pragma once
 
 #include "Compiler/AbstractSyntaxTree/Type.h"
+#include "Support/Optional.h"
 
 namespace TypeTransform
 {
 	using TypeRef = std::shared_ptr<MarmotType>;
 	using Parameters = std::unordered_map<std::string, TypeRef>;
 	using Variables = std::unordered_map<int, TypeRef>;
-	using ProjectionResolver = std::function<std::optional<TypeRef>(const MarmotType::AssociatedType&)>;
+	using ProjectionResolver = std::function<MarmotCompiler::Optional<TypeRef>(const MarmotType::AssociatedType&)>;
 
 	// Instantiation consumes nominal declarations' parameters, including phantom
 	// parameters. Newtypes retain their declaration parameters for representation checks.

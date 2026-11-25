@@ -6,6 +6,7 @@
 
 #include "PatternCoverage.h"
 #include "Compiler/Token/Token.h"
+#include "Support/Optional.h"
 
 namespace
 {
@@ -181,10 +182,10 @@ std::unique_ptr<MarmotPattern> PatternCoverage::Narrowed(const MarmotPattern& pa
 			}
 			else if constexpr (std::is_same_v<Node, MarmotPattern::Array>)
 			{
-				std::optional<MarmotPattern::Array::Rest> rest;
-				if (node.m_rest.has_value())
+				MarmotCompiler::Optional<MarmotPattern::Array::Rest> rest;
+				if (node.m_rest.HasValue())
 				{
-					rest.emplace(node.m_rest->m_position, Narrowed(*node.m_rest->m_pattern, choices));
+					rest.Emplace(node.m_rest->m_position, Narrowed(*node.m_rest->m_pattern, choices));
 				}
 				return std::make_unique<MarmotPattern>(MarmotPattern::Array(node.m_left_bracket, copies(node.m_elements), std::move(rest)));
 			}
@@ -210,7 +211,7 @@ std::unique_ptr<MarmotPattern> PatternCoverage::Narrowed(const MarmotPattern& pa
 					fields.emplace_back(field.m_name, Narrowed(*field.m_pattern, choices));
 					fields.back().m_index = field.m_index;
 				}
-				return std::make_unique<MarmotPattern>(MarmotPattern::Record(node.m_name_token, std::string(node.m_name), std::move(fields), std::optional<Token>(node.m_rest)));
+				return std::make_unique<MarmotPattern>(MarmotPattern::Record(node.m_name_token, std::string(node.m_name), std::move(fields), MarmotCompiler::Optional<Token>(node.m_rest)));
 			}
 			else
 			{
@@ -256,14 +257,14 @@ std::vector<PatternCoverage::Witness> PatternCoverage::Unmatched(const std::vect
 		| std::views::transform([](const Row& row) { return row.front(); })
 		| std::views::filter([](const MarmotPattern* pattern) { return !IsWildcard(pattern); })
 		| std::ranges::to<std::vector>();
-	const std::optional<std::vector<Head>> signature = column.empty() ? std::nullopt : Signature(column);
-	if (!signature.has_value())
+	const MarmotCompiler::Optional<std::vector<Head>> signature = column.empty() ? MarmotCompiler::None : Signature(column);
+	if (!signature.HasValue())
 	{
 		return Prefixed("_", Unmatched(Default(rows), width - 1uz));
 	}
 
 	std::vector<Witness> unmatched;
-	for (const Head& head : signature.value())
+	for (const Head& head : signature.Value())
 	{
 		for (const Witness& inner : Unmatched(Specialize(rows, head), head.m_arity + width - 1uz))
 		{
@@ -313,13 +314,13 @@ bool PatternCoverage::Useful(const std::vector<Row>& unexpanded, const Row& cand
 		column.push_back(head);
 	}
 
-	const std::optional<std::vector<Head>> signature = column.empty() ? std::nullopt : Signature(column);
-	if (signature.has_value())
+	const MarmotCompiler::Optional<std::vector<Head>> signature = column.empty() ? MarmotCompiler::None : Signature(column);
+	if (signature.HasValue())
 	{
-		return std::ranges::any_of(signature.value(), [&rows, head, rest](const Head& constructor)
+		return std::ranges::any_of(signature.Value(), [&rows, head, rest](const Head& constructor)
 			{
-				std::optional<Row> arguments = IsWildcard(head) ? Row(constructor.m_arity, nullptr) : ArgumentsFor(*head, constructor);
-				return arguments.has_value() && Useful(Specialize(rows, constructor), Joined(std::move(arguments.value()), rest));
+				MarmotCompiler::Optional<Row> arguments = IsWildcard(head) ? Row(constructor.m_arity, nullptr) : ArgumentsFor(*head, constructor);
+				return arguments.HasValue() && Useful(Specialize(rows, constructor), Joined(std::move(arguments.Value()), rest));
 			});
 	}
 	if (IsWildcard(head))
@@ -328,22 +329,22 @@ bool PatternCoverage::Useful(const std::vector<Row>& unexpanded, const Row& cand
 	}
 
 	const Head own = OwnHead(*head);
-	return Useful(Specialize(rows, own), Joined(ArgumentsFor(*head, own).value(), rest));
+	return Useful(Specialize(rows, own), Joined(ArgumentsFor(*head, own).Value(), rest));
 }
 
 // Every Int, split where an interval the column names starts or stops, so that
 // each piece lies wholly inside or wholly outside every one of them.
-std::optional<std::vector<PatternCoverage::Head>> PatternCoverage::Pieces(std::span<const MarmotPattern* const> column)
+MarmotCompiler::Optional<std::vector<PatternCoverage::Head>> PatternCoverage::Pieces(std::span<const MarmotPattern* const> column)
 {
 	constexpr int64_t low = std::numeric_limits<int64_t>::min();
 	constexpr int64_t high = std::numeric_limits<int64_t>::max();
 	std::vector<int64_t> starts{ low };
 	for (const MarmotPattern* pattern : column)
 	{
-		const std::optional<Interval> other = IntervalOf(*pattern);
-		if (!other.has_value())
+		const MarmotCompiler::Optional<Interval> other = IntervalOf(*pattern);
+		if (!other.HasValue())
 		{
-			return std::nullopt;
+			return MarmotCompiler::None;
 		}
 		if (other->first > low)
 		{
@@ -368,7 +369,7 @@ std::optional<std::vector<PatternCoverage::Head>> PatternCoverage::Pieces(std::s
 
 // Int literals and ranges, which are the patterns an Int column tells apart by
 // value. A literal too large for an Int has none; lowering reports it.
-std::optional<PatternCoverage::Interval> PatternCoverage::IntervalOf(const MarmotPattern& pattern)
+MarmotCompiler::Optional<PatternCoverage::Interval> PatternCoverage::IntervalOf(const MarmotPattern& pattern)
 {
 	if (pattern.IsPattern<MarmotPattern::Range>())
 	{
@@ -378,9 +379,9 @@ std::optional<PatternCoverage::Interval> PatternCoverage::IntervalOf(const Marmo
 	if (pattern.IsPattern<MarmotPattern::Literal>() && pattern.GetPattern<MarmotPattern::Literal>().m_kind == MarmotPattern::LiteralKind::Integer)
 	{
 		return ParseIntegerLiteral(pattern.GetPattern<MarmotPattern::Literal>().m_token.m_lexeme)
-			.transform([](int64_t value) { return Interval{ value, value }; });
+			.Transform([](int64_t value) { return Interval{ value, value }; });
 	}
-	return std::nullopt;
+	return MarmotCompiler::None;
 }
 
 PatternCoverage::Row PatternCoverage::Joined(Row&& first, std::span<const MarmotPattern* const> rest)
@@ -432,11 +433,11 @@ std::vector<PatternCoverage::Row> PatternCoverage::Specialize(const std::vector<
 	std::vector<Row> specialized;
 	for (const Row& row : rows)
 	{
-		std::optional<Row> expanded = IsWildcard(row.front()) ? Row(head.m_arity, nullptr) : ArgumentsFor(*row.front(), head);
-		if (expanded.has_value())
+		MarmotCompiler::Optional<Row> expanded = IsWildcard(row.front()) ? Row(head.m_arity, nullptr) : ArgumentsFor(*row.front(), head);
+		if (expanded.HasValue())
 		{
 			expanded->insert(expanded->end(), row.begin() + 1, row.end());
-			specialized.emplace_back(std::move(expanded.value()));
+			specialized.emplace_back(std::move(expanded.Value()));
 		}
 	}
 	return specialized;
@@ -455,11 +456,11 @@ std::vector<PatternCoverage::Row> PatternCoverage::Default(const std::vector<Row
 // From the longest prefix plus the longest suffix any rest pattern has, no
 // pattern's prefix and suffix meet, so every longer length is matched alike and
 // stands as one open head; it also starts past every length written without a rest.
-std::optional<std::vector<PatternCoverage::Head>> PatternCoverage::Signature(std::span<const MarmotPattern* const> column)
+MarmotCompiler::Optional<std::vector<PatternCoverage::Head>> PatternCoverage::Signature(std::span<const MarmotPattern* const> column)
 {
 	return std::visit
 	(
-		[column]<typename T>(const T& node) -> std::optional<std::vector<Head>>
+		[column]<typename T>(const T& node) -> MarmotCompiler::Optional<std::vector<Head>>
 		{
 			using Node = std::decay_t<T>;
 			if constexpr (std::is_same_v<Node, MarmotPattern::Constructor>)
@@ -492,9 +493,9 @@ std::optional<std::vector<PatternCoverage::Head>> PatternCoverage::Signature(std
 				const std::vector<const MarmotPattern::Array*> arrays = column
 					| std::views::transform([](const MarmotPattern* pattern) { return &pattern->GetPattern<MarmotPattern::Array>(); })
 					| std::ranges::to<std::vector>();
-				if (std::ranges::none_of(arrays, [](const MarmotPattern::Array* array) { return array->m_rest.has_value(); }))
+				if (std::ranges::none_of(arrays, [](const MarmotPattern::Array* array) { return array->m_rest.HasValue(); }))
 				{
-					return std::nullopt;
+					return MarmotCompiler::None;
 				}
 
 				size_t before = 0uz;
@@ -502,7 +503,7 @@ std::optional<std::vector<PatternCoverage::Head>> PatternCoverage::Signature(std
 				size_t past_closed = 0uz;
 				for (const MarmotPattern::Array* array : arrays)
 				{
-					if (array->m_rest.has_value())
+					if (array->m_rest.HasValue())
 					{
 						before = std::max(before, array->m_rest->m_position);
 						after = std::max(after, array->m_elements.size() - array->m_rest->m_position);
@@ -539,11 +540,11 @@ std::optional<std::vector<PatternCoverage::Head>> PatternCoverage::Signature(std
 				{
 					return std::vector<Head>{ Head("()", Shape::Literal, 0uz) };
 				}
-				return std::nullopt;
+				return MarmotCompiler::None;
 			}
 			else
 			{
-				return std::nullopt;
+				return MarmotCompiler::None;
 			}
 		},
 		**column.front()
@@ -553,7 +554,7 @@ std::optional<std::vector<PatternCoverage::Head>> PatternCoverage::Signature(std
 // The patterns for a head's arguments when `pattern` matches values that start
 // with it. An array with a rest matches every length it has room for, with
 // wildcards where the rest is.
-std::optional<PatternCoverage::Row> PatternCoverage::ArgumentsFor(const MarmotPattern& pattern, const Head& head)
+MarmotCompiler::Optional<PatternCoverage::Row> PatternCoverage::ArgumentsFor(const MarmotPattern& pattern, const Head& head)
 {
 	const auto pointers = [](std::span<const std::unique_ptr<MarmotPattern>> patterns)
 		{
@@ -564,18 +565,18 @@ std::optional<PatternCoverage::Row> PatternCoverage::ArgumentsFor(const MarmotPa
 
 	return std::visit
 	(
-		[&pattern, &head, &pointers]<typename T>(const T& node) -> std::optional<Row>
+		[&pattern, &head, &pointers]<typename T>(const T& node) -> MarmotCompiler::Optional<Row>
 		{
 			using Node = std::decay_t<T>;
 			if constexpr (std::is_same_v<Node, MarmotPattern::Constructor>)
 			{
-				return node.m_name == head.m_key ? std::optional<Row>(pointers(node.m_args)) : std::nullopt;
+				return node.m_name == head.m_key ? MarmotCompiler::Optional<Row>(pointers(node.m_args)) : MarmotCompiler::None;
 			}
 			else if constexpr (std::is_same_v<Node, MarmotPattern::Record>)
 			{
 				if (node.m_name != head.m_key)
 				{
-					return std::nullopt;
+					return MarmotCompiler::None;
 				}
 				Row arguments(head.m_arity, nullptr);
 				for (const MarmotPattern::Record::Field& field : node.m_fields)
@@ -590,13 +591,13 @@ std::optional<PatternCoverage::Row> PatternCoverage::ArgumentsFor(const MarmotPa
 			}
 			else if constexpr (std::is_same_v<Node, MarmotPattern::Array>)
 			{
-				if (!node.m_rest.has_value())
+				if (!node.m_rest.HasValue())
 				{
-					return head.m_shape == Shape::ClosedArray && node.m_elements.size() == head.m_arity ? std::optional<Row>(pointers(node.m_elements)) : std::nullopt;
+					return head.m_shape == Shape::ClosedArray && node.m_elements.size() == head.m_arity ? MarmotCompiler::Optional<Row>(pointers(node.m_elements)) : MarmotCompiler::None;
 				}
 				if (node.m_elements.size() > head.m_arity)
 				{
-					return std::nullopt;
+					return MarmotCompiler::None;
 				}
 
 				const std::span<const std::unique_ptr<MarmotPattern>> elements(node.m_elements);
@@ -610,15 +611,15 @@ std::optional<PatternCoverage::Row> PatternCoverage::ArgumentsFor(const MarmotPa
 			{
 				if (head.m_shape == Shape::Interval)
 				{
-					const std::optional<Interval> interval = IntervalOf(pattern);
-					const bool contains = interval.has_value() && interval->first <= head.m_low && head.m_high <= interval->second;
-					return contains ? std::optional<Row>(Row{}) : std::nullopt;
+					const MarmotCompiler::Optional<Interval> interval = IntervalOf(pattern);
+					const bool contains = interval.HasValue() && interval->first <= head.m_low && head.m_high <= interval->second;
+					return contains ? MarmotCompiler::Optional<Row>(Row{}) : MarmotCompiler::None;
 				}
 				if constexpr (std::is_same_v<Node, MarmotPattern::Literal>)
 				{
-					return LiteralKey(node) == head.m_key ? std::optional<Row>(Row{}) : std::nullopt;
+					return LiteralKey(node) == head.m_key ? MarmotCompiler::Optional<Row>(Row{}) : MarmotCompiler::None;
 				}
-				return std::nullopt;
+				return MarmotCompiler::None;
 			}
 			else
 			{
@@ -659,11 +660,11 @@ std::string PatternCoverage::LiteralKey(const MarmotPattern::Literal& literal)
 		// lexeme stands for it.
 		const bool is_negative = lexeme.starts_with('-');
 		return ParseUnsignedLiteral(is_negative ? lexeme.substr(1uz) : lexeme)
-			.transform([is_negative](uint64_t magnitude) { return std::format("{}{}", is_negative && magnitude != 0u ? "-" : "", magnitude); })
-			.value_or(std::string(lexeme));
+			.Transform([is_negative](uint64_t magnitude) { return std::format("{}{}", is_negative && magnitude != 0u ? "-" : "", magnitude); })
+			.ValueOr(std::string(lexeme));
 	}
 	case MarmotPattern::LiteralKind::Float:
-		return std::format("{}", literal.m_float_value.value());
+		return std::format("{}", literal.m_float_value.Value());
 	case MarmotPattern::LiteralKind::Bool:
 	case MarmotPattern::LiteralKind::Text:
 		return std::string(lexeme);

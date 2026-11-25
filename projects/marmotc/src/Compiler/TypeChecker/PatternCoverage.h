@@ -1,11 +1,11 @@
 #pragma once
 
-#include <optional>
 #include <span>
 #include <string>
 #include <vector>
 
 #include "Compiler/AbstractSyntaxTree/AbstractSyntaxTree.h"
+#include "Support/Optional.h"
 
 // Finds values that no pattern of a match takes, by Maranget's usefulness check
 // over the matrix of patterns, so coverage is decided at every depth rather than
@@ -98,15 +98,15 @@ private:
 
 	static std::vector<Row> Default(const std::vector<Row>& rows);
 
-	static std::optional<std::vector<Head>> Signature(std::span<const MarmotPattern* const> column);
+	static MarmotCompiler::Optional<std::vector<Head>> Signature(std::span<const MarmotPattern* const> column);
 
-	static std::optional<Row> ArgumentsFor(const MarmotPattern& pattern, const Head& head);
+	static MarmotCompiler::Optional<Row> ArgumentsFor(const MarmotPattern& pattern, const Head& head);
 
 	static Head OwnHead(const MarmotPattern& pattern);
 
-	static std::optional<Interval> IntervalOf(const MarmotPattern& pattern);
+	static MarmotCompiler::Optional<Interval> IntervalOf(const MarmotPattern& pattern);
 
-	static std::optional<std::vector<Head>> Pieces(std::span<const MarmotPattern* const> column);
+	static MarmotCompiler::Optional<std::vector<Head>> Pieces(std::span<const MarmotPattern* const> column);
 
 	static std::string LiteralKey(const MarmotPattern::Literal& literal);
 

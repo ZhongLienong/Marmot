@@ -1,8 +1,8 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "Utility/Formatter/Formatter.h"
+#include "Support/Expected.h"
 
-#include <expected>
 #include <string>
 #include <string_view>
 
@@ -10,13 +10,13 @@ namespace
 {
 	[[nodiscard]] std::string FormatOrFail(std::string_view source_code, std::string_view file_name)
 	{
-		const std::expected<std::string, CompilerError> format_result =
+		const MarmotCompiler::Expected<std::string, CompilerError> format_result =
 			MarmotFormatter::FormatSource(source_code, file_name);
-		if (!format_result.has_value())
+		if (!format_result.HasValue())
 		{
-			FAIL(std::string(format_result.error().Rendered()));
+			FAIL(std::string(format_result.Error().Rendered()));
 		}
-		return format_result.value();
+		return format_result.Value();
 	}
 
 	void RequireIdempotent(std::string_view source_code, std::string_view file_name)

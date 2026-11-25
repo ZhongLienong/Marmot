@@ -16,12 +16,12 @@ private:
 	std::vector<std::string> m_source_lines;
 	CompilationInputs m_inputs;
 
-	MarmotResult::CompilationResult CompileWithTimings(CompilationTimings& timings);
+	MarmotResult::CompiledProgramReportResult CompileWithTimings(CompilationTimings& timings);
 
 public:
 	Compiler(std::string&& source_code, std::string&& file_name, CompilationInputs inputs = {});
 
-	MarmotResult::CompilationResult CompileWithReport();
+	MarmotResult::CompiledProgramReportResult CompileWithReport();
 	EditorAnalysis Analyze();
-	MarmotResult::CompilerResult Compile();
+	MarmotResult::ExecutableDiagnosticsResult Compile();
 };

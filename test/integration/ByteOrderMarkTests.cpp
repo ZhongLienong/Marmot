@@ -6,8 +6,8 @@
 #include "support/CompileHelpers.h"
 #include "support/DiagnosticMatchers.h"
 #include "support/TempProject.h"
+#include "Support/Expected.h"
 
-#include <expected>
 #include <fstream>
 #include <string>
 
@@ -30,9 +30,9 @@ namespace
 
 TEST_CASE("A byte order mark is not part of the program", "[lexer][source]")
 {
-	const std::expected<MarmotTest::ExecutedSnippet, CompilerError> executed = MarmotTest::ExecuteSnippet(
+	const MarmotCompiler::Expected<MarmotTest::ExecutedSnippet, CompilerError> executed = MarmotTest::ExecuteSnippet(
 		WithByteOrderMark("module Main\ndef main = fn() -> Int => 0;\n"));
 
-	REQUIRE(executed.has_value());
+	REQUIRE(executed.HasValue());
 	CHECK(executed->m_exit_code == 0);
 }

@@ -7,6 +7,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "Compiler/ModuleManager/ModuleSourceLoader.h"
+#include "Support/Expected.h"
 
 TEST_CASE("Source prefetch overlaps reads within the shared job budget", "[module][discovery]")
 {
@@ -34,7 +35,7 @@ TEST_CASE("Source prefetch overlaps reads within the shared job budget", "[modul
 			active.fetch_sub(1u);
 			if (!overlapped)
 			{
-				return std::unexpected(CompilerError::Simple(CompilerStage::Compiler, "Independent reads did not overlap."));
+				return MarmotCompiler::Failure(CompilerError::Simple(CompilerStage::Compiler, "Independent reads did not overlap."));
 			}
 			return ImportedSource(TokenStream{}, { file_path });
 		}
@@ -44,7 +45,7 @@ TEST_CASE("Source prefetch overlaps reads within the shared job budget", "[modul
 	for (const std::string& file_path : { "First", "Second", "Third" })
 	{
 		MarmotResult::Result<ImportedSource> source = loader.Take(file_path, "Main", 2);
-		REQUIRE(source.has_value());
+		REQUIRE(source.HasValue());
 		REQUIRE(source->m_source_lines == std::vector<std::string>{ file_path });
 	}
 	REQUIRE(peak.load() == 2u);
@@ -61,9 +62,9 @@ TEST_CASE("One discovery job reads on the calling thread", "[module][discovery]"
 		return ImportedSource(TokenStream{}, { file_path });
 	});
 	loader.Prefetch({ "First", "Second" });
-	REQUIRE(loader.Take("First", "Main", 2).has_value());
+	REQUIRE(loader.Take("First", "Main", 2).HasValue());
 	REQUIRE(reader == caller);
-	REQUIRE(loader.Take("Second", "Main", 2).has_value());
+	REQUIRE(loader.Take("Second", "Main", 2).HasValue());
 	REQUIRE(reader == caller);
 }
 
@@ -71,13 +72,13 @@ TEST_CASE("Prefetched open errors name the importer that consumes the file", "[m
 {
 	ModuleSourceLoader loader(2u, [](const std::string&) -> ModuleSourceLoader::LoadResult
 	{
-		return std::unexpected(ModuleSourceLoader::OpenFailure::File);
+		return MarmotCompiler::Failure(ModuleSourceLoader::OpenFailure::File);
 	});
 	loader.Prefetch({ "Directory.mmt", "Other.mmt" });
 	MarmotResult::Result<ImportedSource> source = loader.Take("Directory.mmt", "Nested.mmt", 7);
-	REQUIRE(!source.has_value());
-	REQUIRE(source.error().m_code == CompilerErrorCode::ModuleImportFileOpenFailed);
-	REQUIRE(source.error().m_location.has_value());
-	REQUIRE(source.error().m_location->m_file_name == "Nested.mmt");
-	REQUIRE(source.error().m_location->m_line == 7);
+	REQUIRE(!source.HasValue());
+	REQUIRE(source.Error().m_code == CompilerErrorCode::ModuleImportFileOpenFailed);
+	REQUIRE(source.Error().m_location.HasValue());
+	REQUIRE(source.Error().m_location->m_file_name == "Nested.mmt");
+	REQUIRE(source.Error().m_location->m_line == 7);
 }

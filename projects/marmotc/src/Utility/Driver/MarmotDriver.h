@@ -1,8 +1,6 @@
 #pragma once
 
-#include <expected>
 #include <filesystem>
-#include <optional>
 #include <string>
 #include <vector>
 
@@ -10,6 +8,7 @@
 #include "Compiler/CompilationInputs/CompilationInputs.h"
 #include "Compiler/Result/CompilationResult.h"
 #include "Utility/BuildPlan/BuildPlan.h"
+#include "Support/Expected.h"
 
 namespace MarmotDriver
 {
@@ -23,15 +22,15 @@ namespace MarmotDriver
 		[[nodiscard]] std::string Rendered() const;
 	};
 
-	using CompileFileWithReportResult = std::expected<MarmotResult::CompiledProgram, DriverError>;
+	using CompileFileWithReportResult = MarmotCompiler::Expected<MarmotResult::CompiledProgram, DriverError>;
 
 	[[nodiscard]] bool ShouldEmitMachineReadableWarnings();
 	// What marmotc compiles with when it is given a file and no build plan:
 	// `<Name>` imports through MARMOT_PATH, and no native packages.
 	[[nodiscard]] CompilationInputs EnvironmentCompilationInputs();
 	// Compiles with EnvironmentCompilationInputs().
-	[[nodiscard]] MarmotResult::CompilationResult CompileSourceWithReport(std::string source_code, std::string file_name);
-	[[nodiscard]] MarmotResult::CompilationResult CompileSourceWithReport(std::string source_code, std::string file_name, CompilationInputs inputs);
+	[[nodiscard]] MarmotResult::CompiledProgramReportResult CompileSourceWithReport(std::string source_code, std::string file_name);
+	[[nodiscard]] MarmotResult::CompiledProgramReportResult CompileSourceWithReport(std::string source_code, std::string file_name, CompilationInputs inputs);
 	// Compiles with EnvironmentCompilationInputs().
 	[[nodiscard]] CompileFileWithReportResult CompileFileWithReport(const std::filesystem::path& file_path);
 	// Compiles with exactly `inputs` (a build plan's).

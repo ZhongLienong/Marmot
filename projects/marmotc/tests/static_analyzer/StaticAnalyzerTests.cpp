@@ -2,8 +2,8 @@
 
 #include "support/CompileHelpers.h"
 #include "support/DiagnosticMatchers.h"
+#include "Support/Expected.h"
 
-#include <expected>
 #include <string>
 
 namespace
@@ -31,10 +31,10 @@ def Compute = fn() -> Int => {
 };
 )";
 
-	std::expected<MarmotTest::AnalyzedSnippet, CompilerError> analyze_result = MarmotTest::AnalyzeSnippet(source_code, "AnalyzerUnused.mmt");
-	if (!analyze_result.has_value())
+	MarmotCompiler::Expected<MarmotTest::AnalyzedSnippet, CompilerError> analyze_result = MarmotTest::AnalyzeSnippet(source_code, "AnalyzerUnused.mmt");
+	if (!analyze_result.HasValue())
 	{
-		FAIL(std::string(analyze_result.error().Rendered()));
+		FAIL(std::string(analyze_result.Error().Rendered()));
 	}
 
 	RequireWarningMatches
@@ -65,10 +65,10 @@ def Compute = fn(value : Int) -> Int => {
 };
 )";
 
-	std::expected<MarmotTest::AnalyzedSnippet, CompilerError> analyze_result = MarmotTest::AnalyzeSnippet(source_code, "AnalyzerShadowing.mmt");
-	if (!analyze_result.has_value())
+	MarmotCompiler::Expected<MarmotTest::AnalyzedSnippet, CompilerError> analyze_result = MarmotTest::AnalyzeSnippet(source_code, "AnalyzerShadowing.mmt");
+	if (!analyze_result.HasValue())
 	{
-		FAIL(std::string(analyze_result.error().Rendered()));
+		FAIL(std::string(analyze_result.Error().Rendered()));
 	}
 
 	RequireWarningMatches
@@ -100,10 +100,10 @@ def MakeCounter = fn() -> fn() -> Int => {
 def Add = fn(a: Int) -> fn(Int) -> Int => fn(b: Int) -> Int => a + b;
 )";
 
-	std::expected<MarmotTest::AnalyzedSnippet, CompilerError> analyze_result = MarmotTest::AnalyzeSnippet(source_code, "AnalyzerCapture.mmt");
-	if (!analyze_result.has_value())
+	MarmotCompiler::Expected<MarmotTest::AnalyzedSnippet, CompilerError> analyze_result = MarmotTest::AnalyzeSnippet(source_code, "AnalyzerCapture.mmt");
+	if (!analyze_result.HasValue())
 	{
-		FAIL(std::string(analyze_result.error().Rendered()));
+		FAIL(std::string(analyze_result.Error().Rendered()));
 	}
 
 	CHECK(analyze_result->m_warnings.empty());
@@ -125,17 +125,17 @@ def Compute = fn(value: Int) -> Int => {
 	first + second
 };
 )";
-	std::expected<MarmotTest::AnalyzedSnippet, CompilerError> analyzed = MarmotTest::AnalyzeSnippet(source, "AnalyzerScopeOwnership.mmt");
-	if (!analyzed.has_value())
+	MarmotCompiler::Expected<MarmotTest::AnalyzedSnippet, CompilerError> analyzed = MarmotTest::AnalyzeSnippet(source, "AnalyzerScopeOwnership.mmt");
+	if (!analyzed.HasValue())
 	{
-		FAIL(analyzed.error().Rendered());
+		FAIL(analyzed.Error().Rendered());
 	}
 
 	std::vector<int> unused_lines;
 	std::vector<int> shadow_lines;
 	for (const CompilerWarning& warning : analyzed->m_warnings)
 	{
-		REQUIRE(warning.m_location.has_value());
+		REQUIRE(warning.m_location.HasValue());
 		if (warning.m_code == CompilerWarningCode::UnusedLocal)
 		{
 			CHECK(warning.m_message == "Binding 'unused' is never read.");
@@ -160,10 +160,10 @@ def shifted = 1 << 63;
 def main = fn() -> Int => too_big + shifted;
 )";
 
-	std::expected<MarmotTest::AnalyzedSnippet, CompilerError> analyze_result = MarmotTest::AnalyzeSnippet(source_code, "AnalyzerOverflow.mmt");
-	if (!analyze_result.has_value())
+	MarmotCompiler::Expected<MarmotTest::AnalyzedSnippet, CompilerError> analyze_result = MarmotTest::AnalyzeSnippet(source_code, "AnalyzerOverflow.mmt");
+	if (!analyze_result.HasValue())
 	{
-		FAIL(std::string(analyze_result.error().Rendered()));
+		FAIL(std::string(analyze_result.Error().Rendered()));
 	}
 
 	RequireWarningMatches
@@ -190,10 +190,10 @@ def Compute = fn(x : Int) -> Int => {
 };
 )";
 
-	std::expected<MarmotTest::AnalyzedSnippet, CompilerError> analyze_result = MarmotTest::AnalyzeSnippet(source_code, "AnalyzerOverflowSafe.mmt");
-	if (!analyze_result.has_value())
+	MarmotCompiler::Expected<MarmotTest::AnalyzedSnippet, CompilerError> analyze_result = MarmotTest::AnalyzeSnippet(source_code, "AnalyzerOverflowSafe.mmt");
+	if (!analyze_result.HasValue())
 	{
-		FAIL(std::string(analyze_result.error().Rendered()));
+		FAIL(std::string(analyze_result.Error().Rendered()));
 	}
 
 	CHECK(MarmotTest::FindWarning(analyze_result->m_warnings, CompilerWarningCode::IntegerOverflow) == nullptr);

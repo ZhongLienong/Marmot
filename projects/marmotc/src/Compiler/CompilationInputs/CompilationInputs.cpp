@@ -1,4 +1,5 @@
 #include "CompilationInputs.h"
+#include "Support/Optional.h"
 
 #include <algorithm>
 #include <utility>
@@ -102,13 +103,13 @@ bool CompilationInputs::EmitsAst() const
 	return m_emit_ast;
 }
 
-CompilationInputs CompilationInputs::WithJobs(std::optional<size_t> jobs) &&
+CompilationInputs CompilationInputs::WithJobs(MarmotCompiler::Optional<size_t> jobs) &&
 {
 	m_jobs = jobs;
 	return std::move(*this);
 }
 
-const std::optional<size_t>& CompilationInputs::Jobs() const
+const MarmotCompiler::Optional<size_t>& CompilationInputs::Jobs() const
 {
 	return m_jobs;
 }

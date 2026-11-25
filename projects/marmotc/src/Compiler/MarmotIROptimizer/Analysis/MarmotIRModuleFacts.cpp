@@ -1,5 +1,6 @@
 #include "MarmotIRModuleFacts.h"
 #include "Compiler/MarmotIROptimizer/Analysis/MarmotIRAnalysis.h"
+#include "Support/Optional.h"
 
 #include <algorithm>
 #include <ranges>
@@ -20,7 +21,7 @@ MarmotIRModuleFacts::MarmotIRModuleFacts(const MarmotIRModule& module)
 
 	for (const MarmotIRFunction& maker : module.m_functions)
 	{
-		const std::vector<std::optional<MarmotIRSite>> sites = MarmotIRAnalysis::DefinitionSites(maker);
+		const std::vector<MarmotCompiler::Optional<MarmotIRSite>> sites = MarmotIRAnalysis::DefinitionSites(maker);
 		for (const MarmotIRBlock& block : maker.m_blocks)
 		{
 			for (const MarmotIRInstruction& instruction : block.m_instructions)
@@ -52,7 +53,7 @@ MarmotIRModuleFacts::MarmotIRModuleFacts(const MarmotIRModule& module)
 					const MarmotIRInstruction* closure = MarmotIRAnalysis::Definition(maker, sites, instruction.m_operands[0u]);
 					m_binds_only_known_closures = m_binds_only_known_closures && closure != nullptr && closure->m_op == MarmotIROp::MakeClosure;
 				}
-				else if (instruction.m_op == MarmotIROp::GlobalDefine && module.m_top_level.has_value() && &maker == &module.Function(module.m_top_level.value()))
+				else if (instruction.m_op == MarmotIROp::GlobalDefine && module.m_top_level.HasValue() && &maker == &module.Function(module.m_top_level.Value()))
 				{
 					const MarmotIRInstruction* stored = MarmotIRAnalysis::Definition(maker, sites, instruction.m_operands[0u]);
 					if (stored != nullptr && stored->m_op == MarmotIROp::MakeClosure && stored->m_operands.empty())
@@ -77,7 +78,7 @@ MarmotIRModuleFacts::MarmotIRModuleFacts(const MarmotIRModule& module)
 	}
 }
 
-std::optional<MarmotIRFunctionId> MarmotIRModuleFacts::GlobalFunction(MarmotIRGlobalSlot slot) const
+MarmotCompiler::Optional<MarmotIRFunctionId> MarmotIRModuleFacts::GlobalFunction(MarmotIRGlobalSlot slot) const
 {
 	return m_global_functions[slot.m_value];
 }

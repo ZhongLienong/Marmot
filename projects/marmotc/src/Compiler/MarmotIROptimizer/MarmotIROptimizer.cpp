@@ -4,6 +4,7 @@
 #include <format>
 #include <utility>
 #include "Utility/Diagnostics/Diagnostics.h"
+#include "Support/Expected.h"
 
 #if MARMOT_ENABLE_OPTIMIZER_STATS
 #include <iterator>
@@ -14,14 +15,14 @@ namespace
 {
 	constexpr bool s_verify_each_pass = MARMOT_DEBUG_INFO;
 
-	std::expected<void, MarmotIROptimizationFailure> Verify(const MarmotIRModule& module, std::string_view producer)
+	MarmotCompiler::Expected<void, MarmotIROptimizationFailure> Verify(const MarmotIRModule& module, std::string_view producer)
 	{
 		std::vector<MarmotIRViolation> violations = MarmotIRVerifier(module).Verify();
 		if (violations.empty())
 		{
 			return {};
 		}
-		return std::unexpected(MarmotIROptimizationFailure(std::string(producer), std::move(violations)));
+		return MarmotCompiler::Failure(MarmotIROptimizationFailure(std::string(producer), std::move(violations)));
 	}
 
 #if MARMOT_ENABLE_OPTIMIZER_STATS
@@ -79,12 +80,12 @@ MarmotIROptimizer::MarmotIROptimizer(std::vector<MarmotIRPass> passes)
 	m_groups.emplace_back(std::move(passes), 1u);
 }
 
-std::expected<void, MarmotIROptimizationFailure> MarmotIROptimizer::Optimize(MarmotIRModule& module)
+MarmotCompiler::Expected<void, MarmotIROptimizationFailure> MarmotIROptimizer::Optimize(MarmotIRModule& module)
 {
 	if (s_verify_each_pass)
 	{
-		std::expected<void, MarmotIROptimizationFailure> verified = Verify(module, "Lowering");
-		if (!verified.has_value())
+		MarmotCompiler::Expected<void, MarmotIROptimizationFailure> verified = Verify(module, "Lowering");
+		if (!verified.HasValue())
 		{
 			return verified;
 		}
@@ -115,7 +116,7 @@ std::expected<void, MarmotIROptimizationFailure> MarmotIROptimizer::Optimize(Mar
 				std::vector<MarmotIRViolation> violations = MarmotIRVerifier(module).Verify();
 				if (!violations.empty())
 				{
-					return std::unexpected(MarmotIROptimizationFailure(std::format("The MarmotIR pass {}", pass.m_name), std::move(violations)));
+					return MarmotCompiler::Failure(MarmotIROptimizationFailure(std::format("The MarmotIR pass {}", pass.m_name), std::move(violations)));
 				}
 			}
 			if (!changed)

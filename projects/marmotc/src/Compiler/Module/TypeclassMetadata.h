@@ -1,9 +1,9 @@
 #pragma once
 
 #include "Compiler/AbstractSyntaxTree/Type.h"
+#include "Support/Optional.h"
 
 #include <memory>
-#include <optional>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -50,6 +50,6 @@ private:
 	std::unordered_map<std::string, std::unordered_map<std::string, std::string>> m_instance_sources;
 
 public:
-	std::optional<std::string> Import(const std::string& module_name, const TypeclassMetadataMap& metadata);
+	MarmotCompiler::Optional<std::string> Import(const std::string& module_name, const TypeclassMetadataMap& metadata);
 	TypeclassMetadataMap TakeMetadata() &&;
 };

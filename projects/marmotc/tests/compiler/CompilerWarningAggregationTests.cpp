@@ -22,8 +22,8 @@ namespace
 	std::string RenderedFailure(const std::filesystem::path& main_file_path, size_t jobs)
 	{
 		const MarmotDriver::CompileFileWithReportResult compiled = MarmotDriver::CompileFileWithReport(main_file_path, MarmotDriver::EnvironmentCompilationInputs().WithJobs(jobs));
-		REQUIRE_FALSE(compiled.has_value());
-		return MarmotTest::StripAnsiCodes(compiled.error().Rendered());
+		REQUIRE_FALSE(compiled.HasValue());
+		return MarmotTest::StripAnsiCodes(compiled.Error().Rendered());
 	}
 }
 
@@ -70,16 +70,16 @@ def main = fn() -> Int => Alpha::Value() + Zulu::Value();
 	MarmotTest::OutputCapture capture;
 	MarmotDriver::CompileFileWithReportResult compile_result = MarmotDriver::CompileFileWithReport(main_file_path);
 	const MarmotTest::CapturedOutput output = capture.Stop();
-	if (!compile_result.has_value())
+	if (!compile_result.HasValue())
 	{
-		FAIL(MarmotTest::StripAnsiCodes(compile_result.error().Rendered()));
+		FAIL(MarmotTest::StripAnsiCodes(compile_result.Error().Rendered()));
 	}
 
 	const MarmotResult::CompilerReport& report = compile_result->Report();
 	REQUIRE(report.m_warnings.Size() == 2u);
 	REQUIRE(report.m_errors.Empty());
-	REQUIRE(report.m_warnings.m_items[0u].m_location.has_value());
-	REQUIRE(report.m_warnings.m_items[1u].m_location.has_value());
+	REQUIRE(report.m_warnings.m_items[0u].m_location.HasValue());
+	REQUIRE(report.m_warnings.m_items[1u].m_location.HasValue());
 	CHECK(std::filesystem::path(report.m_warnings.m_items[0u].m_location->m_file_name).filename().string() == "Alpha.mmt");
 	CHECK(std::filesystem::path(report.m_warnings.m_items[1u].m_location->m_file_name).filename().string() == "Zulu.mmt");
 
@@ -108,9 +108,9 @@ def main = fn() -> Int => {
 };
 )";
 
-	MarmotResult::CompilationResult compile_result =
+	MarmotResult::CompiledProgramReportResult compile_result =
 		MarmotTest::CompileSnippetWithReport(source_code, "WarningWithCodegenFailure.mmt");
-	REQUIRE_FALSE(compile_result.has_value());
+	REQUIRE_FALSE(compile_result.HasValue());
 
 	const MarmotResult::CompilerReport& report = MarmotTest::CompilationReport(compile_result);
 	REQUIRE_FALSE(report.m_warnings.Empty());
@@ -153,7 +153,7 @@ def main = fn() -> Int => {
 	const std::filesystem::path main_file_path = std::filesystem::weakly_canonical(project.Path("Main.mmt"));
 
 	const MarmotDriver::CompileFileWithReportResult compiled = MarmotDriver::CompileFileWithReport(main_file_path);
-	REQUIRE(compiled.has_value());
+	REQUIRE(compiled.HasValue());
 
 	const std::string rendered_output = MarmotTest::StripAnsiCodes(compiled->Report().RenderedWarnings());
 	const size_t summary_position = rendered_output.find("[warning] 1 warning(s) in Main.mmt");

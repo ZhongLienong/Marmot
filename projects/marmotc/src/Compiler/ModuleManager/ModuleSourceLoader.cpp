@@ -3,6 +3,8 @@
 #include "Compiler/CompilationInputs/CompilationInputs.h"
 #include "Compiler/Lexer/Lexer.h"
 #include "Compiler/Source/Source.h"
+#include "Support/Expected.h"
+#include "Support/Optional.h"
 
 #include <algorithm>
 #include <chrono>
@@ -55,7 +57,7 @@ ModuleSourceLoader::LoadResult ModuleSourceLoader::Read(const std::string& file_
 	std::ifstream file(file_path);
 	if (std::filesystem::is_directory(file_path) || !file.is_open())
 	{
-		return std::unexpected(OpenFailure::File);
+		return MarmotCompiler::Failure(OpenFailure::File);
 	}
 	std::ostringstream buffer;
 	buffer << file.rdbuf();
@@ -73,11 +75,11 @@ ModuleSourceLoader::LoadResult ModuleSourceLoader::Lex(std::string source, const
 		source_lines.push_back(std::move(line));
 	}
 	MarmotResult::LexerResult lexed = Lexer(std::move(source), file_path).Lex();
-	if (!lexed.has_value())
+	if (!lexed.HasValue())
 	{
-		return std::unexpected(std::move(lexed.error()));
+		return MarmotCompiler::Failure(std::move(lexed.Error()));
 	}
-	return ImportedSource(std::move(lexed).value(), std::move(source_lines));
+	return ImportedSource(std::move(lexed).Value(), std::move(source_lines));
 }
 
 void ModuleSourceLoader::Prefetch(const std::vector<std::string>& file_paths)
@@ -127,12 +129,12 @@ void ModuleSourceLoader::Prefetch(const std::vector<std::string>& file_paths)
 	}
 }
 
-std::optional<ModuleSourceLoader::LoadTask> ModuleSourceLoader::TakeReady()
+MarmotCompiler::Optional<ModuleSourceLoader::LoadTask> ModuleSourceLoader::TakeReady()
 {
 	std::lock_guard<std::mutex> lock(m_mutex);
 	if (m_ready.empty())
 	{
-		return std::nullopt;
+		return MarmotCompiler::None;
 	}
 	LoadTask task = std::move(m_ready.front());
 	m_ready.pop_front();
@@ -143,13 +145,13 @@ ModuleSourceLoader::LoadResult ModuleSourceLoader::Await(std::future<LoadResult>
 {
 	while (result.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
 	{
-		std::optional<LoadTask> task = TakeReady();
-		if (!task.has_value())
+		MarmotCompiler::Optional<LoadTask> task = TakeReady();
+		if (!task.HasValue())
 		{
 			result.wait();
 			break;
 		}
-		task.value()();
+		task.Value()();
 	}
 	return result.get();
 }
@@ -159,25 +161,25 @@ MarmotResult::Result<ImportedSource> ModuleSourceLoader::Take(const std::string&
 	LoadResult loaded = m_worker_limit == 0u
 		? m_reader(file_path)
 		: Await(std::move(m_pending.extract(file_path).mapped()));
-	if (loaded.has_value())
+	if (loaded.HasValue())
 	{
-		return std::move(loaded).value();
+		return std::move(loaded).Value();
 	}
-	if (std::holds_alternative<OpenFailure>(loaded.error()))
+	if (std::holds_alternative<OpenFailure>(loaded.Error()))
 	{
 		// The first importer in traversal order owns this diagnostic, even
 		// when another importer prefetched the same file first.
-		return std::unexpected(MarmotError::GenerateModuleErrorWithContext(
+		return MarmotCompiler::Failure(MarmotError::GenerateModuleErrorWithContext(
 			CompilerErrorCode::ModuleImportFileOpenFailed, "Could not open import file: " + file_path, line, importer));
 	}
-	return std::unexpected(std::move(std::get<CompilerError>(loaded.error())));
+	return MarmotCompiler::Failure(std::move(std::get<CompilerError>(loaded.Error())));
 }
 
 void ModuleSourceLoader::WorkerLoop()
 {
 	while (true)
 	{
-		std::optional<LoadTask> task;
+		MarmotCompiler::Optional<LoadTask> task;
 		{
 			std::unique_lock<std::mutex> lock(m_mutex);
 			m_ready_cv.wait(lock, [this]() { return m_stop || !m_ready.empty(); });
@@ -185,9 +187,9 @@ void ModuleSourceLoader::WorkerLoop()
 			{
 				return;
 			}
-			task.emplace(std::move(m_ready.front()));
+			task.Emplace(std::move(m_ready.front()));
 			m_ready.pop_front();
 		}
-		task.value()();
+		task.Value()();
 	}
 }

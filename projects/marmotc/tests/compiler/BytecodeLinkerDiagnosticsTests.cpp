@@ -37,7 +37,7 @@ TEST_CASE("Bytecode linker reports unresolved imports with importer source prove
 	modules.emplace_back(std::move(importer));
 
 	MarmotResult::BytecodeLinkerResult link_result = BytecodeLinker(std::move(modules), "Importer").Link();
-	REQUIRE_FALSE(link_result.has_value());
+	REQUIRE_FALSE(link_result.HasValue());
 
 	MarmotTest::ErrorExpectation expectation;
 	expectation.m_stage = CompilerStage::BytecodeLinker;
@@ -45,7 +45,7 @@ TEST_CASE("Bytecode linker reports unresolved imports with importer source prove
 	expectation.m_line = 4;
 	expectation.m_message_substrings = { "Unresolved import: missingValue from module MissingModule." };
 	expectation.m_rendered_substrings = { "Bytecode Linker Error", "Importer.mmt:4", "MissingModule::missingValue" };
-	RequireErrorMatches(link_result.error(), expectation);
+	RequireErrorMatches(link_result.Error(), expectation);
 }
 
 TEST_CASE("Bytecode linker reports duplicate exports with source-aware conflict details", "[compiler][linker][diagnostics]")
@@ -87,7 +87,7 @@ TEST_CASE("Bytecode linker reports duplicate exports with source-aware conflict 
 	modules.emplace_back(std::move(second_module));
 
 	MarmotResult::BytecodeLinkerResult link_result = BytecodeLinker(std::move(modules), "Shared").Link();
-	REQUIRE_FALSE(link_result.has_value());
+	REQUIRE_FALSE(link_result.HasValue());
 
 	MarmotTest::ErrorExpectation expectation;
 	expectation.m_stage = CompilerStage::BytecodeLinker;
@@ -95,5 +95,5 @@ TEST_CASE("Bytecode linker reports duplicate exports with source-aware conflict 
 	expectation.m_line = 5;
 	expectation.m_message_substrings = { "Duplicate symbol export: run from module Shared.", "SharedA.mmt:2" };
 	expectation.m_rendered_substrings = { "Bytecode Linker Error", "SharedB.mmt:5", "def run = fn() -> Int => 2;" };
-	RequireErrorMatches(link_result.error(), expectation);
+	RequireErrorMatches(link_result.Error(), expectation);
 }

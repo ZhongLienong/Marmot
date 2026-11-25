@@ -1,4 +1,5 @@
 #include "Compiler/Json/JsonReader.h"
+#include "Support/Expected.h"
 
 #include <algorithm>
 #include <format>
@@ -38,11 +39,11 @@ namespace
 		}
 	}
 
-	std::expected<JsonValue, std::string> Convert(yyjson_val* value, std::string_view text, int depth, size_t& keys)
+	MarmotCompiler::Expected<JsonValue, std::string> Convert(yyjson_val* value, std::string_view text, int depth, size_t& keys)
 	{
 		if (depth > MAX_DEPTH)
 		{
-			return std::unexpected(std::string("JSON nested too deeply"));
+			return MarmotCompiler::Failure(std::string("JSON nested too deeply"));
 		}
 
 		switch (yyjson_get_type(value))
@@ -61,10 +62,10 @@ namespace
 			yyjson_arr_iter iterator = yyjson_arr_iter_with(value);
 			while (yyjson_val* item = yyjson_arr_iter_next(&iterator))
 			{
-				std::expected<JsonValue, std::string> converted = Convert(item, text, depth + 1, keys);
+				MarmotCompiler::Expected<JsonValue, std::string> converted = Convert(item, text, depth + 1, keys);
 				if (!converted)
 				{
-					return std::unexpected(std::move(converted.error()));
+					return MarmotCompiler::Failure(std::move(converted.Error()));
 				}
 				array.push_back(std::move(*converted));
 			}
@@ -81,12 +82,12 @@ namespace
 				++keys;
 				if (!seen.insert(name).second)
 				{
-					return std::unexpected(ErrorAt(text, KeyPosition(text, keys), std::format("duplicate member \"{}\"", name)));
+					return MarmotCompiler::Failure(ErrorAt(text, KeyPosition(text, keys), std::format("duplicate member \"{}\"", name)));
 				}
-				std::expected<JsonValue, std::string> converted = Convert(yyjson_obj_iter_get_val(key), text, depth + 1, keys);
+				MarmotCompiler::Expected<JsonValue, std::string> converted = Convert(yyjson_obj_iter_get_val(key), text, depth + 1, keys);
 				if (!converted)
 				{
-					return std::unexpected(std::move(converted.error()));
+					return MarmotCompiler::Failure(std::move(converted.Error()));
 				}
 				object.emplace_back(name, std::move(*converted));
 			}
@@ -142,13 +143,13 @@ namespace CompilerJson
 		return "object";
 	}
 
-	std::expected<JsonValue, std::string> Parse(std::string_view text)
+	MarmotCompiler::Expected<JsonValue, std::string> Parse(std::string_view text)
 	{
 		yyjson_read_err error{};
 		const Document document(yyjson_read_opts(const_cast<char*>(text.data()), text.size(), YYJSON_READ_NOFLAG, nullptr, &error), yyjson_doc_free);
 		if (!document)
 		{
-			return std::unexpected(ErrorAt(text, error.pos, error.msg));
+			return MarmotCompiler::Failure(ErrorAt(text, error.pos, error.msg));
 		}
 
 		size_t keys = 0;

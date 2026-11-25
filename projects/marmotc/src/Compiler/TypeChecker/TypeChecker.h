@@ -2,7 +2,6 @@
 
 #include <array>
 #include <functional>
-#include <optional>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -10,6 +9,7 @@
 #include "Compiler/Module/TypeclassMetadata.h"
 #include "Compiler/Result/Result.h"
 #include "Compiler/TypeTransform/TypeTransform.h"
+#include "Support/Optional.h"
 
 class PatternCoverage;
 
@@ -238,7 +238,7 @@ private:
 	MarmotResult::TypeResult CheckRefAccess(const CheckingContext& context, const std::unique_ptr<MarmotExpression>& cell, const std::unique_ptr<MarmotExpression>* value, const Token& token, std::string_view error_message);
 
 	void BindParameters(const CheckingContext& context, const FunctionParameters& parameters, const std::vector<std::shared_ptr<MarmotType>>& types);
-	void BindValue(const CheckingContext& context, const Token& name, const std::optional<BindingId>& binding, std::shared_ptr<MarmotType> type);
+	void BindValue(const CheckingContext& context, const Token& name, const MarmotCompiler::Optional<BindingId>& binding, std::shared_ptr<MarmotType> type);
 	std::shared_ptr<MarmotType>* FindBindingType(const CheckingContext& context, const BindingId& binding);
 	const std::shared_ptr<MarmotType>* FindValueType(const CheckingContext& context, const MarmotExpression::NameAccess& name) const;
 
@@ -258,16 +258,16 @@ private:
 
 	MarmotResult::TypeResult CheckPattern(const CheckingContext& context, MarmotPattern& pattern, const std::shared_ptr<MarmotType>& expected_type);
 
-	std::optional<CompilerError> CheckCaseReachable(const PatternCoverage& coverage, const MarmotExpression::Case& match_case);
-	std::optional<CompilerError> CheckCaseGuard(const CheckingContext& context, MarmotExpression::Case& case_expr);
+	MarmotCompiler::Optional<CompilerError> CheckCaseReachable(const PatternCoverage& coverage, const MarmotExpression::Case& match_case);
+	MarmotCompiler::Optional<CompilerError> CheckCaseGuard(const CheckingContext& context, MarmotExpression::Case& case_expr);
 
-	std::optional<MarmotPrimitive> CalledPrimitive(const CheckingContext& context, const MarmotExpression::Call& call) const;
+	MarmotCompiler::Optional<MarmotPrimitive> CalledPrimitive(const CheckingContext& context, const MarmotExpression::Call& call) const;
 
 	MarmotResult::TypeResult CheckSpawnCall(const CheckingContext& context, MarmotExpression::Call& call);
 
-	std::optional<CompilerError> CheckSpawnArgument(const CheckingContext& context, MarmotExpression::Call& call, const MarmotType::FunctionType& function_type);
+	MarmotCompiler::Optional<CompilerError> CheckSpawnArgument(const CheckingContext& context, MarmotExpression::Call& call, const MarmotType::FunctionType& function_type);
 
-	std::optional<CompilerError> CheckPrimitiveDeclaration(const MarmotStatement::ForeignDefinition& foreign) const;
+	MarmotCompiler::Optional<CompilerError> CheckPrimitiveDeclaration(const MarmotStatement::ForeignDefinition& foreign) const;
 
 
 	std::shared_ptr<MarmotType>* FindNameType(const CheckingContext& context, const std::string& name);
@@ -282,12 +282,12 @@ private:
 
 	std::unordered_set<int> CollectEnclosingTypeVariableIds(const CheckingContext& context);
 
-	std::optional<CompilerError> CheckGenericParametersStayGeneric(const CheckingContext& context, const std::vector<std::pair<int, std::string>>& generic_params, const std::vector<Token>& declared_params, const Token& definition_token);
+	MarmotCompiler::Optional<CompilerError> CheckGenericParametersStayGeneric(const CheckingContext& context, const std::vector<std::pair<int, std::string>>& generic_params, const std::vector<Token>& declared_params, const Token& definition_token);
 
 	std::shared_ptr<MarmotType> InstantiateWrittenType(const CheckingContext& context, const std::shared_ptr<MarmotType>& written_type) const;
 
 	// The name of the generic parameter a resolved type stands for, when it is one.
-	std::optional<std::string> RigidParameterName(const CheckingContext& context, const std::shared_ptr<MarmotType>& resolved_type) const;
+	MarmotCompiler::Optional<std::string> RigidParameterName(const CheckingContext& context, const std::shared_ptr<MarmotType>& resolved_type) const;
 
 	MarmotResult::TypeResult TypeCheckGenericLambdaDefinition(const CheckingContext& context, MarmotStatement::VariableDefinition& def, MarmotExpression::Function& function);
 
@@ -321,7 +321,7 @@ private:
 
 	std::string DescribeConstraint(const CheckingContext& context, const MarmotType::ClassConstraint& constraint) const;
 
-	CompilerError MakeConstraintFailureError(const CheckingContext& context, const Token& token, const MarmotType::ClassConstraint& constraint, std::optional<std::string_view> suggestion = std::nullopt) const;
+	CompilerError MakeConstraintFailureError(const CheckingContext& context, const Token& token, const MarmotType::ClassConstraint& constraint, MarmotCompiler::Optional<std::string_view> suggestion = MarmotCompiler::None) const;
 
 	CompilerError MakeUnificationError(const Token& token, const std::shared_ptr<MarmotType>& left, const std::shared_ptr<MarmotType>& right, UnifyDiagnosticMode diagnostic_mode) const;
 
@@ -329,30 +329,30 @@ private:
 
 	CompilerError MakeTupleArityError(const Token& token, size_t left_count, size_t right_count, UnifyDiagnosticMode diagnostic_mode) const;
 
-	std::optional<std::vector<std::pair<std::string, std::shared_ptr<MarmotType>>>> ResolveGenericTypeArguments(const std::shared_ptr<MarmotType>& prototype, const std::shared_ptr<MarmotType>& concrete_type) const;
+	MarmotCompiler::Optional<std::vector<std::pair<std::string, std::shared_ptr<MarmotType>>>> ResolveGenericTypeArguments(const std::shared_ptr<MarmotType>& prototype, const std::shared_ptr<MarmotType>& concrete_type) const;
 
 	std::shared_ptr<MarmotType> ResolveAssociatedType(const CheckingContext& context, const MarmotType::AssociatedType& associated_type);
 
 	std::shared_ptr<MarmotType> ReduceProjectionByEqualityConstraint(const CheckingContext& context, const std::shared_ptr<MarmotType>& type) const;
 
-	std::optional<ResolvedInstanceMatch> FindMatchingInstance(const std::string& class_name, const std::vector<std::shared_ptr<MarmotType>>& type_args) const;
+	MarmotCompiler::Optional<ResolvedInstanceMatch> FindMatchingInstance(const std::string& class_name, const std::vector<std::shared_ptr<MarmotType>>& type_args) const;
 
 	std::vector<ResolvedInstanceMatch> FindMatchingInstances(const std::string& class_name, const std::vector<std::shared_ptr<MarmotType>>& type_args) const;
 
-	std::optional<CompilerError> CheckConstraintHolds(const CheckingContext& context, const Token& token, const MarmotType::ClassConstraint& resolved_constraint, size_t depth, std::optional<std::string_view> suggestion = std::nullopt);
+	MarmotCompiler::Optional<CompilerError> CheckConstraintHolds(const CheckingContext& context, const Token& token, const MarmotType::ClassConstraint& resolved_constraint, size_t depth, MarmotCompiler::Optional<std::string_view> suggestion = MarmotCompiler::None);
 
 	void RegisterIdentityConversion(const std::shared_ptr<MarmotType>& from_type, const std::shared_ptr<MarmotType>& to_type);
 
 	MarmotResult::TypeResult ResolveIndexableElementType(const CheckingContext& context, const Token& op, const std::shared_ptr<MarmotType>& container_type, const std::shared_ptr<MarmotType>& index_type);
 
-	std::optional<CompilerError> DischargeEqualityConstraint(const CheckingContext& context, const Token& token, const MarmotType::ClassConstraint& constraint, const std::shared_ptr<MarmotType>& resolved_lhs, const std::shared_ptr<MarmotType>& resolved_rhs);
+	MarmotCompiler::Optional<CompilerError> DischargeEqualityConstraint(const CheckingContext& context, const Token& token, const MarmotType::ClassConstraint& constraint, const std::shared_ptr<MarmotType>& resolved_lhs, const std::shared_ptr<MarmotType>& resolved_rhs);
 
 	bool IsSatisfiedByActiveConstraint(const CheckingContext& context, const MarmotType::ClassConstraint& resolved_constraint);
 
 	MarmotResult::TypeResult ValidateFunctionConstraints(const CheckingContext& context, const Token& token, const MarmotType::FunctionType& function_type);
 	// Checks the constraints of each instance pending since `from` whose types
 	// are decided, and keeps the rest for an enclosing call.
-	std::optional<CompilerError> CheckDecidedPendingInstances(const CheckingContext& context, size_t from);
+	MarmotCompiler::Optional<CompilerError> CheckDecidedPendingInstances(const CheckingContext& context, size_t from);
 	// A generic used as one value: an anonymous generic lambda, or a generic
 	// function named anywhere but as a callee. Its types come from the type
 	// expected of it or from what is in scope, as a lambda's do.
@@ -363,7 +363,7 @@ private:
 
 	std::shared_ptr<MarmotType> NarrowClassMethodType(const CheckingContext& context, const std::string& class_name, const ClassInfo& class_info, const std::shared_ptr<MarmotType>& declared_method_type, const std::vector<std::shared_ptr<MarmotType>>& known_arg_types, size_t arity);
 
-	std::optional<CompilerError> TryMakeGenericParameterMismatchError(const Token& token, const std::shared_ptr<MarmotType>& left, const std::shared_ptr<MarmotType>& right) const;
+	MarmotCompiler::Optional<CompilerError> TryMakeGenericParameterMismatchError(const Token& token, const std::shared_ptr<MarmotType>& left, const std::shared_ptr<MarmotType>& right) const;
 
 	MarmotResult::TypeResult Unify(const CheckingContext& context, const Token& token, const std::shared_ptr<MarmotType>& left, const std::shared_ptr<MarmotType>& right, UnifyDiagnosticMode diagnostic_mode = UnifyDiagnosticMode::Symmetric);
 
@@ -391,7 +391,7 @@ private:
 	MarmotResult::TypeResult RegisterInstance(const CheckingContext& context, MarmotStatement::Instance& instance_stmt);
 
 	using BinaryOperandTypes = std::array<std::shared_ptr<MarmotType>, 2u>;
-	std::expected<BinaryOperandTypes, CompilerError> CheckBinaryOperands(const CheckingContext& context, Token::Name op, const std::unique_ptr<MarmotExpression>& left, const std::unique_ptr<MarmotExpression>& right);
+	MarmotResult::Result<BinaryOperandTypes> CheckBinaryOperands(const CheckingContext& context, Token::Name op, const std::unique_ptr<MarmotExpression>& left, const std::unique_ptr<MarmotExpression>& right);
 
 	MarmotResult::TypeResult operator()(const CheckingContext& context, MarmotStatement::TypeAlias& type_alias);
 
@@ -399,7 +399,7 @@ private:
 
 	MarmotResult::TypeResult operator()(const CheckingContext& context, MarmotExpression::Binary& binary);
 
-	std::optional<CompilerError> RequireOperandClass(const CheckingContext& context, const Token& op, std::string_view class_name, const std::shared_ptr<MarmotType>& resolved_operand);
+	MarmotCompiler::Optional<CompilerError> RequireOperandClass(const CheckingContext& context, const Token& op, std::string_view class_name, const std::shared_ptr<MarmotType>& resolved_operand);
 
 	MarmotResult::TypeResult CheckBinaryOperator(const CheckingContext& context, MarmotExpression::Binary& binary, std::shared_ptr<MarmotType>& left_type, std::shared_ptr<MarmotType>& right_type);
 
@@ -435,7 +435,7 @@ private:
 
 	MarmotResult::TypeResult operator()(const CheckingContext& context, MarmotExpression::Construct& construct);
 
-	std::optional<CompilerError> PlaceNamedFields(MarmotExpression::Construct& construct, const MarmotType::StructType& struct_type);
+	MarmotCompiler::Optional<CompilerError> PlaceNamedFields(MarmotExpression::Construct& construct, const MarmotType::StructType& struct_type);
 
 	MarmotResult::TypeResult operator()(const CheckingContext& context, MarmotExpression::RecordUpdate& record_update);
 
@@ -467,9 +467,9 @@ private:
 
 	bool HasActiveConstraint(const CheckingContext& context, const std::string& class_name, const std::shared_ptr<MarmotType>& type);
 
-	std::optional<CompilerError> EnsureTransferable(const CheckingContext& context, const Token& token, const std::shared_ptr<MarmotType>& type);
+	MarmotCompiler::Optional<CompilerError> EnsureTransferable(const CheckingContext& context, const Token& token, const std::shared_ptr<MarmotType>& type);
 
 	void InferCaptureTransferability(const CheckingContext& context, MarmotExpression::Function& function, const BindingId& self);
 
-	std::optional<CompilerError> EnsureTransferable(const CheckingContext& context, const Token& token, const std::shared_ptr<MarmotType>& type, std::unordered_set<std::shared_ptr<MarmotType>>& visited);
+	MarmotCompiler::Optional<CompilerError> EnsureTransferable(const CheckingContext& context, const Token& token, const std::shared_ptr<MarmotType>& type, std::unordered_set<std::shared_ptr<MarmotType>>& visited);
 };

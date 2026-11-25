@@ -1,9 +1,9 @@
 #pragma once
 
 #include "Compiler/MarmotIR/MarmotIR.h"
+#include "Support/Optional.h"
 
 #include <cstdint>
-#include <optional>
 
 // Where a function's blocks landed in the function they were copied into: at
 // `m_first`, one after another in their old order.
@@ -22,5 +22,5 @@ namespace MarmotIRBodyCopy
 	// entry's copy keeps parameters, which a jump into it passes. With a
 	// line, every copied instruction takes it, as code copied from another
 	// module's source must: its own lines are of another file.
-	MarmotIRCopiedBody Copy(const MarmotIRFunction& source, MarmotIRFunction& target, uint32_t at, std::optional<int> line);
+	MarmotIRCopiedBody Copy(const MarmotIRFunction& source, MarmotIRFunction& target, uint32_t at, MarmotCompiler::Optional<int> line);
 }

@@ -50,8 +50,8 @@ TEST_CASE("Lexer recognizes the reserved vocabulary without reserving contextual
 		Token::Name::IDENTIFIER_LITERAL, Token::Name::IDENTIFIER_LITERAL,
 		Token::Name::IDENTIFIER_LITERAL, Token::Name::IDENTIFIER_LITERAL, Token::Name::IDENTIFIER_LITERAL
 	};
-	const std::expected<MarmotTest::LexedSnippet, CompilerError> lexed = MarmotTest::LexSnippet(source_code);
-	REQUIRE(lexed.has_value());
+	const MarmotResult::Result<MarmotTest::LexedSnippet> lexed = MarmotTest::LexSnippet(source_code);
+	REQUIRE(lexed.HasValue());
 	CHECK(MarmotTest::CollectTokenNames(lexed->m_tokens) == expected_names);
 }
 
@@ -62,8 +62,8 @@ TEST_CASE("Synthetic fixed tokens agree with source spellings and preserve their
 		"Float Int Byte Word Text Bool Unit Array Never Range Worker Channel "
 		"else false for in if true def fn as import foreign case then with match "
 		"module export public private use class instance where type alias deriving";
-	const std::expected<MarmotTest::LexedSnippet, CompilerError> lexed = MarmotTest::LexSnippet(source_code);
-	REQUIRE(lexed.has_value());
+	const MarmotResult::Result<MarmotTest::LexedSnippet> lexed = MarmotTest::LexSnippet(source_code);
+	REQUIRE(lexed.HasValue());
 	const Token anchor("Example", Token::Name::IDENTIFIER_LITERAL, 17, "Generated.mmt", 8, 7u);
 	for (int index = 0; index < lexed->m_tokens.Size(); index += 1)
 	{
@@ -92,10 +92,10 @@ TEST_CASE("Lexer tokenizes literal variants and decodes string escapes", "[lexer
 		R"(def values = [42, 0x2A, 0b1010, 3.5, "line\n\t\"\\q"];
 )";
 
-	std::expected<MarmotTest::LexedSnippet, CompilerError> lex_result = MarmotTest::LexSnippet(source_code, "LiteralForms.mmt");
-	if (!lex_result.has_value())
+	MarmotResult::Result<MarmotTest::LexedSnippet> lex_result = MarmotTest::LexSnippet(source_code, "LiteralForms.mmt");
+	if (!lex_result.HasValue())
 	{
-		FAIL(std::string(lex_result.error().Rendered()));
+		FAIL(std::string(lex_result.Error().Rendered()));
 	}
 
 	const TokenStream& tokens = lex_result->m_tokens;
@@ -128,17 +128,17 @@ TEST_CASE("Lexer tokenizes literal variants and decodes string escapes", "[lexer
 
 TEST_CASE("Text escapes preserve bytes and reject malformed sequences", "[lexer]")
 {
-	const std::expected<MarmotTest::LexedSnippet, CompilerError> escaped =
+	const MarmotResult::Result<MarmotTest::LexedSnippet> escaped =
 		MarmotTest::LexSnippet(R"("\r\0\x41\u{A2}\u{20AC}\u{1F600}\u{10FFFF}")");
-	REQUIRE(escaped.has_value());
+	REQUIRE(escaped.HasValue());
 	CHECK(escaped->m_tokens[0].m_lexeme == std::string("\r\0" "A\xC2\xA2\xE2\x82\xAC\xF0\x9F\x98\x80\xF4\x8F\xBF\xBF", 16));
 
 	for (const std::string_view source : { R"("\q")", R"("\x0")", R"("\u{}")", R"("\u{123")", R"("\u{D800}")", R"("\u{110000}")" })
 	{
-		const std::expected<MarmotTest::LexedSnippet, CompilerError> invalid = MarmotTest::LexSnippet(std::string(source));
-		REQUIRE_FALSE(invalid.has_value());
-		REQUIRE(invalid.error().m_location.has_value());
-		CHECK(invalid.error().m_location->m_column == 1);
+		const MarmotResult::Result<MarmotTest::LexedSnippet> invalid = MarmotTest::LexSnippet(std::string(source));
+		REQUIRE_FALSE(invalid.HasValue());
+		REQUIRE(invalid.Error().m_location.HasValue());
+		CHECK(invalid.Error().m_location->m_column == 1);
 	}
 }
 
@@ -153,10 +153,10 @@ still in the comment */
 def other = 2;
 )";
 
-	std::expected<MarmotTest::LexedSnippet, CompilerError> lex_result = MarmotTest::LexSnippet(source_code, "Comments.mmt");
-	if (!lex_result.has_value())
+	MarmotResult::Result<MarmotTest::LexedSnippet> lex_result = MarmotTest::LexSnippet(source_code, "Comments.mmt");
+	if (!lex_result.HasValue())
 	{
-		FAIL(std::string(lex_result.error().Rendered()));
+		FAIL(std::string(lex_result.Error().Rendered()));
 	}
 
 	const TokenStream& tokens = lex_result->m_tokens;
@@ -195,12 +195,12 @@ def value = /* inline */ 1;
 		std::string(source_code),
 		"PreserveComments.mmt",
 		Lexer::Options{ .m_preserve_comments = true }).Lex();
-	if (!lex_result.has_value())
+	if (!lex_result.HasValue())
 	{
-		FAIL(std::string(lex_result.error().Rendered()));
+		FAIL(std::string(lex_result.Error().Rendered()));
 	}
 
-	const TokenStream& tokens = lex_result.value();
+	const TokenStream& tokens = lex_result.Value();
 	REQUIRE(MarmotTest::CollectTokenNames(tokens, false, true) == std::vector<Token::Name>
 	{
 		Token::Name::MODULE,
@@ -231,10 +231,10 @@ TEST_CASE("Lexer records exact token columns and source spans", "[lexer]")
 		R"(def alpha = alpha + alpha;
 )";
 
-	std::expected<MarmotTest::LexedSnippet, CompilerError> lex_result = MarmotTest::LexSnippet(source_code, "TokenSpans.mmt");
-	if (!lex_result.has_value())
+	MarmotResult::Result<MarmotTest::LexedSnippet> lex_result = MarmotTest::LexSnippet(source_code, "TokenSpans.mmt");
+	if (!lex_result.HasValue())
 	{
-		FAIL(std::string(lex_result.error().Rendered()));
+		FAIL(std::string(lex_result.Error().Rendered()));
 	}
 
 	const TokenStream& tokens = lex_result->m_tokens;
@@ -261,10 +261,10 @@ stream |> sink;
 joined = left ++ right;
 )";
 
-	std::expected<MarmotTest::LexedSnippet, CompilerError> lex_result = MarmotTest::LexSnippet(source_code, "Operators.mmt");
-	if (!lex_result.has_value())
+	MarmotResult::Result<MarmotTest::LexedSnippet> lex_result = MarmotTest::LexSnippet(source_code, "Operators.mmt");
+	if (!lex_result.HasValue())
 	{
-		FAIL(std::string(lex_result.error().Rendered()));
+		FAIL(std::string(lex_result.Error().Rendered()));
 	}
 
 	const std::vector<Token::Name> expected_names
@@ -314,28 +314,28 @@ joined = left ++ right;
 
 TEST_CASE("Lexer errors and tokens after a multi-line string point at their own columns", "[lexer]")
 {
-	const std::expected<MarmotTest::LexedSnippet, CompilerError> invalid = MarmotTest::LexSnippet("def s = 1 $ 2;\ndef t = 1 ` 2;\n", "InvalidCharacter.mmt");
-	REQUIRE_FALSE(invalid.has_value());
-	REQUIRE(invalid.error().m_location.has_value());
-	CHECK(invalid.error().m_location->m_line == 1);
-	CHECK(invalid.error().m_location->m_column == 10);
+	const MarmotResult::Result<MarmotTest::LexedSnippet> invalid = MarmotTest::LexSnippet("def s = 1 $ 2;\ndef t = 1 ` 2;\n", "InvalidCharacter.mmt");
+	REQUIRE_FALSE(invalid.HasValue());
+	REQUIRE(invalid.Error().m_location.HasValue());
+	CHECK(invalid.Error().m_location->m_line == 1);
+	CHECK(invalid.Error().m_location->m_column == 10);
 
-	const std::expected<MarmotTest::LexedSnippet, CompilerError> unterminated = MarmotTest::LexSnippet("def a = 1;\ndef s = \"abc;\n", "UnterminatedString.mmt");
-	REQUIRE_FALSE(unterminated.has_value());
-	REQUIRE(unterminated.error().m_location.has_value());
-	CHECK(unterminated.error().m_location->m_line == 2);
-	CHECK(unterminated.error().m_location->m_column == 8);
+	const MarmotResult::Result<MarmotTest::LexedSnippet> unterminated = MarmotTest::LexSnippet("def a = 1;\ndef s = \"abc;\n", "UnterminatedString.mmt");
+	REQUIRE_FALSE(unterminated.HasValue());
+	REQUIRE(unterminated.Error().m_location.HasValue());
+	CHECK(unterminated.Error().m_location->m_line == 2);
+	CHECK(unterminated.Error().m_location->m_column == 8);
 
-	const std::expected<MarmotTest::LexedSnippet, CompilerError> unterminated_comment = MarmotTest::LexSnippet("def a = 1;\n  /* never closed\ndef b = 2;\n", "UnterminatedComment.mmt");
-	REQUIRE_FALSE(unterminated_comment.has_value());
-	REQUIRE(unterminated_comment.error().m_location.has_value());
-	CHECK(unterminated_comment.error().m_location->m_line == 2);
-	CHECK(unterminated_comment.error().m_location->m_column == 2);
+	const MarmotResult::Result<MarmotTest::LexedSnippet> unterminated_comment = MarmotTest::LexSnippet("def a = 1;\n  /* never closed\ndef b = 2;\n", "UnterminatedComment.mmt");
+	REQUIRE_FALSE(unterminated_comment.HasValue());
+	REQUIRE(unterminated_comment.Error().m_location.HasValue());
+	CHECK(unterminated_comment.Error().m_location->m_line == 2);
+	CHECK(unterminated_comment.Error().m_location->m_column == 2);
 
-	const std::expected<MarmotTest::LexedSnippet, CompilerError> multi_line = MarmotTest::LexSnippet("def s = \"abcdef\nb\"; def t = 1;\n", "MultiLineString.mmt");
-	if (!multi_line.has_value())
+	const MarmotResult::Result<MarmotTest::LexedSnippet> multi_line = MarmotTest::LexSnippet("def s = \"abcdef\nb\"; def t = 1;\n", "MultiLineString.mmt");
+	if (!multi_line.HasValue())
 	{
-		FAIL(std::string(multi_line.error().Rendered()));
+		FAIL(std::string(multi_line.Error().Rendered()));
 	}
 	const Token* after_string = FindTokenByLexeme(multi_line->m_tokens, "t");
 	REQUIRE(after_string != nullptr);

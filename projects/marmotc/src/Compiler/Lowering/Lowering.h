@@ -7,12 +7,11 @@
 #include "Compiler/Lowering/InstanceResolver.h"
 #include "Compiler/MarmotIR/MarmotIR.h"
 #include "Compiler/Result/Result.h"
+#include "Support/Optional.h"
 
 #include <deque>
-#include <expected>
 #include <map>
 #include <memory>
-#include <optional>
 #include <set>
 #include <string>
 #include <unordered_map>
@@ -25,11 +24,11 @@ struct LoweredExport
 {
 	std::string m_name;
 	BytecodeModule::SymbolType m_kind;
-	std::optional<MarmotIRGlobalSlot> m_slot;
-	std::optional<MarmotIRFunctionId> m_function;
+	MarmotCompiler::Optional<MarmotIRGlobalSlot> m_slot;
+	MarmotCompiler::Optional<MarmotIRFunctionId> m_function;
 	Token m_token;
 
-	LoweredExport(std::string name, BytecodeModule::SymbolType kind, std::optional<MarmotIRGlobalSlot> slot, std::optional<MarmotIRFunctionId> function, Token token);
+	LoweredExport(std::string name, BytecodeModule::SymbolType kind, MarmotCompiler::Optional<MarmotIRGlobalSlot> slot, MarmotCompiler::Optional<MarmotIRFunctionId> function, Token token);
 };
 
 // Where an imported global is first named, for the linker's diagnostics.
@@ -72,9 +71,9 @@ class Lowering
 {
 private:
 	using TypeRef = std::shared_ptr<MarmotType>;
-	using Lowered = std::expected<MarmotIRValueId, CompilerError>;
-	using Emitted = std::expected<void, CompilerError>;
-	using LoweredValues = std::expected<std::vector<MarmotIRValueId>, CompilerError>;
+	using Lowered = MarmotResult::Result<MarmotIRValueId>;
+	using Emitted = MarmotResult::VoidResult;
+	using LoweredValues = MarmotResult::Result<std::vector<MarmotIRValueId>>;
 
 	// What a function's body is lowered against. A specialization substitutes
 	// its type arguments, resolves the class methods its constraints provide,
@@ -84,9 +83,9 @@ private:
 	{
 		GenericTypes::TypeEnvironment m_types;
 		MethodResolutionMap m_methods;
-		std::optional<std::string> m_source_module;
+		MarmotCompiler::Optional<std::string> m_source_module;
 
-		Specialization(GenericTypes::TypeEnvironment types, MethodResolutionMap methods, std::optional<std::string> source_module);
+		Specialization(GenericTypes::TypeEnvironment types, MethodResolutionMap methods, MarmotCompiler::Optional<std::string> source_module);
 	};
 
 	class FunctionLowering;
@@ -96,7 +95,7 @@ private:
 	struct TopLevelName
 	{
 		MarmotIRGlobalSlot m_slot;
-		std::optional<MarmotIRFunctionId> m_function;
+		MarmotCompiler::Optional<MarmotIRFunctionId> m_function;
 	};
 
 	MarmotProgramTree& m_program;
@@ -139,7 +138,7 @@ private:
 	Emitted ReserveFunction(const std::string& name, const TypeRef& closure_type);
 	Emitted ReserveForeign(const MarmotStatement::ForeignDefinition& foreign);
 	// A foreign function's value is the name the VM looks it up by.
-	std::expected<std::string, CompilerError> ForeignName(const MarmotStatement::ForeignDefinition& foreign);
+	MarmotResult::Result<std::string> ForeignName(const MarmotStatement::ForeignDefinition& foreign);
 	void RegisterGeneric(const std::string& name, const FunctionParameters& params, const std::vector<TypeRef>& param_types, const std::vector<Token>& generic_params, const std::vector<MarmotType::ClassConstraint>& constraints, const TypeRef& return_type, std::unique_ptr<MarmotExpression>& body);
 	bool IsGenericMethod(const MarmotStatement::Instance& instance, const MarmotStatement::FunctionDefinition& method) const;
 	std::vector<LoweredExport> CollectExports() const;

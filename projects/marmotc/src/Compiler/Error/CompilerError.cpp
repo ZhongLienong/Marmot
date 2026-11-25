@@ -2,6 +2,7 @@
 #include "Compiler/Json/Json.h"
 #include "Compiler/Result/Result.h"
 #include "Support/Terminal/Terminal.h"
+#include "Support/Optional.h"
 #include <algorithm>
 #include <filesystem>
 #include <ranges>
@@ -181,18 +182,18 @@ namespace
 		{
 			const CompilerRelatedInformation& item = related_information[index];
 			MarmotJson::Document object;
-			const std::optional<std::string> normalized_file =
-				item.m_location.m_file_name.empty() ? std::nullopt : std::optional<std::string>(NormalizeDiagnosticPath(item.m_location.m_file_name));
-			const std::optional<std::string_view> file =
-				normalized_file.has_value() ? std::optional<std::string_view>(*normalized_file) : std::nullopt;
-			std::optional<int> line = item.m_location.m_line > 0 ? std::optional<int>(item.m_location.m_line) : std::nullopt;
-			std::optional<int> end_line = item.m_location.m_end_line.has_value()
+			const MarmotCompiler::Optional<std::string> normalized_file =
+				item.m_location.m_file_name.empty() ? MarmotCompiler::None : MarmotCompiler::Optional<std::string>(NormalizeDiagnosticPath(item.m_location.m_file_name));
+			const MarmotCompiler::Optional<std::string_view> file =
+				normalized_file.HasValue() ? MarmotCompiler::Optional<std::string_view>(*normalized_file) : MarmotCompiler::None;
+			MarmotCompiler::Optional<int> line = item.m_location.m_line > 0 ? MarmotCompiler::Optional<int>(item.m_location.m_line) : MarmotCompiler::None;
+			MarmotCompiler::Optional<int> end_line = item.m_location.m_end_line.HasValue()
 				? item.m_location.m_end_line
 				: line;
-			std::optional<int> end_column = item.m_location.m_end_column;
-			if (!end_column.has_value() && item.m_location.m_column.has_value())
+			MarmotCompiler::Optional<int> end_column = item.m_location.m_end_column;
+			if (!end_column.HasValue() && item.m_location.m_column.HasValue())
 			{
-				end_column = *item.m_location.m_column + static_cast<int>(std::max(item.m_location.m_caret_length.value_or(size_t(1u)), size_t(1u)));
+				end_column = *item.m_location.m_column + static_cast<int>(std::max(item.m_location.m_caret_length.ValueOr(size_t(1u)), size_t(1u)));
 			}
 
 			object.AddStringField("message", item.m_message);
@@ -212,24 +213,24 @@ namespace
 		DiagnosticSeverity severity,
 		CompilerStage stage,
 		std::string_view code_name,
-		const std::optional<CompilerErrorLocation>& location,
+		const MarmotCompiler::Optional<CompilerErrorLocation>& location,
 		std::string_view message,
-		const std::optional<std::string>& suggestion,
+		const MarmotCompiler::Optional<std::string>& suggestion,
 		const std::vector<CompilerRelatedInformation>& related_information)
 	{
 		MarmotJson::Document serialized;
 
-		std::optional<std::string_view> file = std::nullopt;
-		std::optional<std::string> normalized_file_storage = std::nullopt;
-		std::optional<int> line = std::nullopt;
-		std::optional<int> column = std::nullopt;
-		std::optional<size_t> caret_length = std::nullopt;
-		std::optional<int> end_line = std::nullopt;
-		std::optional<int> end_column = std::nullopt;
-		if (location.has_value())
+		MarmotCompiler::Optional<std::string_view> file = MarmotCompiler::None;
+		MarmotCompiler::Optional<std::string> normalized_file_storage = MarmotCompiler::None;
+		MarmotCompiler::Optional<int> line = MarmotCompiler::None;
+		MarmotCompiler::Optional<int> column = MarmotCompiler::None;
+		MarmotCompiler::Optional<size_t> caret_length = MarmotCompiler::None;
+		MarmotCompiler::Optional<int> end_line = MarmotCompiler::None;
+		MarmotCompiler::Optional<int> end_column = MarmotCompiler::None;
+		if (location.HasValue())
 		{
 			normalized_file_storage = NormalizeDiagnosticPath(location->m_file_name);
-			file = normalized_file_storage->empty() ? std::nullopt : std::optional<std::string_view>(*normalized_file_storage);
+			file = normalized_file_storage->empty() ? MarmotCompiler::None : MarmotCompiler::Optional<std::string_view>(*normalized_file_storage);
 			if (location->m_line > 0)
 			{
 				line = location->m_line;
@@ -237,16 +238,16 @@ namespace
 
 			column = location->m_column;
 			caret_length = location->m_caret_length;
-			end_line = location->m_end_line.has_value() ? location->m_end_line : line;
+			end_line = location->m_end_line.HasValue() ? location->m_end_line : line;
 			end_column = location->m_end_column;
-			if (!end_column.has_value() && column.has_value())
+			if (!end_column.HasValue() && column.HasValue())
 			{
-				end_column = *column + static_cast<int>(std::max(caret_length.value_or(size_t(1u)), size_t(1u)));
+				end_column = *column + static_cast<int>(std::max(caret_length.ValueOr(size_t(1u)), size_t(1u)));
 			}
 		}
 
-		const std::optional<std::string_view> serialized_suggestion =
-			suggestion.has_value() ? std::optional<std::string_view>(*suggestion) : std::optional<std::string_view>(std::nullopt);
+		const MarmotCompiler::Optional<std::string_view> serialized_suggestion =
+			suggestion.HasValue() ? MarmotCompiler::Optional<std::string_view>(*suggestion) : MarmotCompiler::Optional<std::string_view>(MarmotCompiler::None);
 
 		serialized.AddStringField("source", "marmot");
 		serialized.AddStringField("severity", severity == DiagnosticSeverity::Error ? "error" : "warning");
@@ -282,8 +283,8 @@ namespace
 	std::string RenderCompilerDiagnostic(
 		CompilerStage stage,
 		std::string_view message,
-		const std::optional<CompilerErrorLocation>& location,
-		const std::optional<std::string>& suggestion,
+		const MarmotCompiler::Optional<CompilerErrorLocation>& location,
+		const MarmotCompiler::Optional<std::string>& suggestion,
 		DiagnosticSeverity severity)
 	{
 		std::ostringstream oss;
@@ -291,7 +292,7 @@ namespace
 		oss << MarmotTerminal::Code(DiagnosticAccentColor(severity));
 		oss << StageLabel(stage, severity);
 		oss << MarmotTerminal::Code(MarmotTerminal::Color::RESET);
-		if (location.has_value())
+		if (location.HasValue())
 		{
 			oss << " at ";
 			oss << MarmotTerminal::Code(MarmotTerminal::Color::BRIGHT_CYAN);
@@ -304,7 +305,7 @@ namespace
 		}
 		oss << "\n";
 
-		if (location.has_value() && location->m_source_line.has_value() && location->m_line > 0)
+		if (location.HasValue() && location->m_source_line.HasValue() && location->m_line > 0)
 		{
 			const CompilerErrorLocation& resolved_location = *location;
 			std::string_view source_line = *resolved_location.m_source_line;
@@ -330,11 +331,11 @@ namespace
 			oss << "|";
 			oss << MarmotTerminal::Code(DiagnosticAccentColor(severity));
 
-			if (resolved_location.m_column.has_value())
+			if (resolved_location.m_column.HasValue())
 			{
 				oss << " " << CaretIndent(source_line, *resolved_location.m_column);
 
-				const size_t caret_length = resolved_location.m_caret_length.value_or(1u);
+				const size_t caret_length = resolved_location.m_caret_length.ValueOr(1u);
 				for (size_t i = 0u; i < caret_length; i += 1u)
 				{
 					oss << "^";
@@ -361,7 +362,7 @@ namespace
 			oss << "  " << message << "\n";
 		}
 
-		if (suggestion.has_value())
+		if (suggestion.HasValue())
 		{
 			oss << MarmotTerminal::Code(MarmotTerminal::Color::YELLOW);
 			oss << "  | ";
@@ -485,7 +486,7 @@ CompilerError CompilerError::WithFile(CompilerStage stage, std::string_view mess
 	return error;
 }
 
-CompilerError CompilerError::WithContext(CompilerStage stage, std::string_view message, int line, std::string_view file_name, std::optional<int> column, std::optional<size_t> caret_length, std::optional<std::string_view> suggestion, std::optional<std::string_view> source_line, CompilerErrorCode code)
+CompilerError CompilerError::WithContext(CompilerStage stage, std::string_view message, int line, std::string_view file_name, MarmotCompiler::Optional<int> column, MarmotCompiler::Optional<size_t> caret_length, MarmotCompiler::Optional<std::string_view> suggestion, MarmotCompiler::Optional<std::string_view> source_line, CompilerErrorCode code)
 {
 	CompilerError error;
 	error.m_stage = stage;
@@ -501,17 +502,17 @@ CompilerError CompilerError::WithContext(CompilerStage stage, std::string_view m
 	{
 		location.m_end_line = line;
 	}
-	if (column.has_value())
+	if (column.HasValue())
 	{
-		location.m_end_column = *column + static_cast<int>(std::max(caret_length.value_or(size_t(1u)), size_t(1u)));
+		location.m_end_column = *column + static_cast<int>(std::max(caret_length.ValueOr(size_t(1u)), size_t(1u)));
 	}
-	if (source_line.has_value())
+	if (source_line.HasValue())
 	{
 		location.m_source_line = std::string(*source_line);
 	}
 	error.m_location = std::move(location);
 
-	if (suggestion.has_value())
+	if (suggestion.HasValue())
 	{
 		error.m_suggestion = std::string(*suggestion);
 	}
@@ -559,7 +560,7 @@ CompilerWarning CompilerWarning::Simple(CompilerStage stage, std::string_view me
 	return warning;
 }
 
-CompilerWarning CompilerWarning::WithContext(CompilerStage stage, std::string_view message, int line, std::string_view file_name, std::optional<int> column, std::optional<size_t> caret_length, std::optional<std::string_view> suggestion, std::optional<std::string_view> source_line, CompilerWarningCode code)
+CompilerWarning CompilerWarning::WithContext(CompilerStage stage, std::string_view message, int line, std::string_view file_name, MarmotCompiler::Optional<int> column, MarmotCompiler::Optional<size_t> caret_length, MarmotCompiler::Optional<std::string_view> suggestion, MarmotCompiler::Optional<std::string_view> source_line, CompilerWarningCode code)
 {
 	CompilerWarning warning;
 	warning.m_stage = stage;
@@ -575,17 +576,17 @@ CompilerWarning CompilerWarning::WithContext(CompilerStage stage, std::string_vi
 	{
 		location.m_end_line = line;
 	}
-	if (column.has_value())
+	if (column.HasValue())
 	{
-		location.m_end_column = *column + static_cast<int>(std::max(caret_length.value_or(size_t(1u)), size_t(1u)));
+		location.m_end_column = *column + static_cast<int>(std::max(caret_length.ValueOr(size_t(1u)), size_t(1u)));
 	}
-	if (source_line.has_value())
+	if (source_line.HasValue())
 	{
 		location.m_source_line = std::string(*source_line);
 	}
 	warning.m_location = std::move(location);
 
-	if (suggestion.has_value())
+	if (suggestion.HasValue())
 	{
 		warning.m_suggestion = std::string(*suggestion);
 	}
@@ -599,9 +600,9 @@ std::string_view CompilerWarning::Rendered() const
 	return m_rendered.empty() ? std::string_view(m_message) : std::string_view(m_rendered);
 }
 
-CompilerError MarmotError::GenerateRichError(CompilerStage stage, std::string_view message, int line, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<int> column, std::optional<size_t> caret_length, std::optional<std::string_view> suggestion, CompilerErrorCode code)
+CompilerError MarmotError::GenerateRichError(CompilerStage stage, std::string_view message, int line, std::string_view file_name, const std::vector<std::string>& source_lines, MarmotCompiler::Optional<int> column, MarmotCompiler::Optional<size_t> caret_length, MarmotCompiler::Optional<std::string_view> suggestion, CompilerErrorCode code)
 {
-	std::optional<std::string_view> source_line = std::nullopt;
+	MarmotCompiler::Optional<std::string_view> source_line = MarmotCompiler::None;
 	if (line > 0 && static_cast<size_t>(line) <= source_lines.size())
 	{
 		source_line = source_lines[line - 1];
@@ -610,31 +611,31 @@ CompilerError MarmotError::GenerateRichError(CompilerStage stage, std::string_vi
 	return CompilerError::WithContext(stage, message, line, file_name, column, caret_length, suggestion, source_line, code);
 }
 
-CompilerError MarmotError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode code, std::string_view message, int line, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion)
+CompilerError MarmotError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode code, std::string_view message, int line, std::string_view file_name, const std::vector<std::string>& source_lines, MarmotCompiler::Optional<std::string_view> suggestion)
 {
 	// Use unified implementation without column info (no caret)
-	return GenerateRichError(CompilerStage::CodeGenerator, message, line, file_name, source_lines, std::nullopt, std::nullopt, suggestion, code);
+	return GenerateRichError(CompilerStage::CodeGenerator, message, line, file_name, source_lines, MarmotCompiler::None, MarmotCompiler::None, suggestion, code);
 }
 
-CompilerError MarmotError::GenerateLoweringErrorWithContext(CompilerErrorCode code, std::string_view message, int line, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion)
+CompilerError MarmotError::GenerateLoweringErrorWithContext(CompilerErrorCode code, std::string_view message, int line, std::string_view file_name, const std::vector<std::string>& source_lines, MarmotCompiler::Optional<std::string_view> suggestion)
 {
-	return GenerateRichError(CompilerStage::Lowering, message, line, file_name, source_lines, std::nullopt, std::nullopt, suggestion, code);
+	return GenerateRichError(CompilerStage::Lowering, message, line, file_name, source_lines, MarmotCompiler::None, MarmotCompiler::None, suggestion, code);
 }
 
-CompilerError MarmotError::GenerateLexerErrorWithContext(std::string_view message, int line, int column, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion)
+CompilerError MarmotError::GenerateLexerErrorWithContext(std::string_view message, int line, int column, std::string_view file_name, const std::vector<std::string>& source_lines, MarmotCompiler::Optional<std::string_view> suggestion)
 {
 	// Use unified implementation with column and single caret
 	return GenerateRichError(CompilerStage::Lexer, message, line, file_name, source_lines, column, 1, suggestion);
 }
 
-CompilerError MarmotError::GenerateModuleErrorWithContext(std::string_view message, int line, std::string_view file_name, std::optional<std::string_view> suggestion)
+CompilerError MarmotError::GenerateModuleErrorWithContext(std::string_view message, int line, std::string_view file_name, MarmotCompiler::Optional<std::string_view> suggestion)
 {
 	return GenerateModuleErrorWithContext(CompilerErrorCode::None, message, line, file_name, suggestion);
 }
 
-CompilerError MarmotError::GenerateModuleErrorWithContext(CompilerErrorCode code, std::string_view message, int line, std::string_view file_name, std::optional<std::string_view> suggestion)
+CompilerError MarmotError::GenerateModuleErrorWithContext(CompilerErrorCode code, std::string_view message, int line, std::string_view file_name, MarmotCompiler::Optional<std::string_view> suggestion)
 {
-	return CompilerError::WithContext(CompilerStage::Module, message, line, file_name, std::nullopt, std::nullopt, suggestion, std::nullopt, code);
+	return CompilerError::WithContext(CompilerStage::Module, message, line, file_name, MarmotCompiler::None, MarmotCompiler::None, suggestion, MarmotCompiler::None, code);
 }
 
 std::string MarmotResult::CompilerReport::MachineReadableJson() const

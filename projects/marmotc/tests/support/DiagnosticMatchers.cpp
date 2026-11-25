@@ -1,4 +1,5 @@
 #include "support/DiagnosticMatchers.h"
+#include "Support/Optional.h"
 
 #include <format>
 #include <ranges>
@@ -8,9 +9,9 @@ namespace
 	template<typename Diagnostic, typename StageType, typename CodeType>
 	bool MatchesDiagnostic(
 		const Diagnostic& diagnostic,
-		const std::optional<StageType>& expected_stage,
-		const std::optional<CodeType>& expected_code,
-		const std::optional<int>& expected_line,
+		const MarmotCompiler::Optional<StageType>& expected_stage,
+		const MarmotCompiler::Optional<CodeType>& expected_code,
+		const MarmotCompiler::Optional<int>& expected_line,
 		const std::vector<std::string>& message_substrings,
 		const std::vector<std::string>& rendered_substrings,
 		std::string* mismatch)
@@ -23,29 +24,29 @@ namespace
 			}
 		};
 
-		if (expected_stage.has_value() && diagnostic.m_stage != expected_stage.value())
+		if (expected_stage.HasValue() && diagnostic.m_stage != expected_stage.Value())
 		{
-			set_mismatch(std::format("Unexpected stage: expected {}, got {}", static_cast<int>(expected_stage.value()), static_cast<int>(diagnostic.m_stage)));
+			set_mismatch(std::format("Unexpected stage: expected {}, got {}", static_cast<int>(expected_stage.Value()), static_cast<int>(diagnostic.m_stage)));
 			return false;
 		}
 
-		if (expected_code.has_value() && diagnostic.m_code != expected_code.value())
+		if (expected_code.HasValue() && diagnostic.m_code != expected_code.Value())
 		{
-			set_mismatch(std::format("Unexpected diagnostic code: expected {}, got {}", static_cast<int>(expected_code.value()), static_cast<int>(diagnostic.m_code)));
+			set_mismatch(std::format("Unexpected diagnostic code: expected {}, got {}", static_cast<int>(expected_code.Value()), static_cast<int>(diagnostic.m_code)));
 			return false;
 		}
 
-		if (expected_line.has_value())
+		if (expected_line.HasValue())
 		{
-			if (!diagnostic.m_location.has_value())
+			if (!diagnostic.m_location.HasValue())
 			{
 				set_mismatch("Diagnostic did not include a source location.");
 				return false;
 			}
 
-			if (diagnostic.m_location->m_line != expected_line.value())
+			if (diagnostic.m_location->m_line != expected_line.Value())
 			{
-				set_mismatch(std::format("Unexpected line: expected {}, got {}", expected_line.value(), diagnostic.m_location->m_line));
+				set_mismatch(std::format("Unexpected line: expected {}, got {}", expected_line.Value(), diagnostic.m_location->m_line));
 				return false;
 			}
 		}

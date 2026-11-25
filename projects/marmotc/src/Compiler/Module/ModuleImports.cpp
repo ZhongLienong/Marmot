@@ -1,5 +1,7 @@
 #include "ModuleImports.h"
 #include "Compiler/Names/SpecialNames.h"
+#include "Support/Expected.h"
+#include "Support/Optional.h"
 
 #include <algorithm>
 #include <utility>
@@ -30,7 +32,7 @@ ModuleImportConflict::ModuleImportConflict(std::filesystem::path dependency, std
 {
 }
 
-std::expected<ModuleImports, ModuleImportConflict> ModuleImports::Collect(std::span<const std::shared_ptr<const ModuleInterface>> dependencies)
+MarmotCompiler::Expected<ModuleImports, ModuleImportConflict> ModuleImports::Collect(std::span<const std::shared_ptr<const ModuleInterface>> dependencies)
 {
 	ModuleImports imports;
 	TypeclassImports typeclass_imports;
@@ -51,9 +53,9 @@ std::expected<ModuleImports, ModuleImportConflict> ModuleImports::Collect(std::s
 		const std::string& module_name = dependency->m_module_name;
 		imports.m_symbols[module_name] = dependency->m_symbols;
 		imports.m_types_by_module[module_name] = dependency->m_type_signatures;
-		if (const std::optional<std::string> conflict = typeclass_imports.Import(module_name, dependency->m_typeclass_metadata))
+		if (const MarmotCompiler::Optional<std::string> conflict = typeclass_imports.Import(module_name, dependency->m_typeclass_metadata))
 		{
-			return std::unexpected(ModuleImportConflict(dependency->m_file_path, *conflict));
+			return MarmotCompiler::Failure(ModuleImportConflict(dependency->m_file_path, *conflict));
 		}
 
 		// A facade does not change the declaring module of a nominal type or its constructors.

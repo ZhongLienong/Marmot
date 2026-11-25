@@ -114,14 +114,14 @@ namespace
 				node.m_return_type = map(original.m_return_type);
 				node.m_constraints = MarmotType::MapConstraints(original.m_constraints, map);
 				// These identities belong to the declaration.
-				node.m_primitive.reset();
-				node.m_intrinsic.reset();
+				node.m_primitive.Reset();
+				node.m_intrinsic.Reset();
 			}
 			else if constexpr (std::is_same_v<Node, MarmotType::AssociatedType>)
 			{
 				node.m_type_args = map_all(original.m_type_args);
 				TypeRef projection = changed ? std::make_shared<MarmotType>(std::move(node)) : type;
-				TypeRef result = m_resolve ? m_resolve(projection->GetType<MarmotType::AssociatedType>()).value_or(projection) : projection;
+				TypeRef result = m_resolve ? m_resolve(projection->GetType<MarmotType::AssociatedType>()).ValueOr(projection) : projection;
 				if (m_operation == Operation::Inference)
 				{
 					m_cache[type.get()] = result;

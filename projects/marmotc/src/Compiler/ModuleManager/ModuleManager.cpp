@@ -3,9 +3,10 @@
 #include "ModuleSourceLoader.h"
 #include "Compiler/Token/Token.h"
 #include "Compiler/ImportResolver/ImportResolver.h"
+#include "Support/Expected.h"
+#include "Support/Optional.h"
 
 #include <filesystem>
-#include <expected>
 #include <format>
 #include <algorithm>
 #include <ranges>
@@ -51,12 +52,12 @@ ModuleManager::ModuleManager(TokenStream&& main_file_tokens, std::string_view ma
 MarmotResult::ModuleManagerResult ModuleManager::GenerateBuildGraph()
 {
 	BuildGraph build_graph;
-	ModuleSourceLoader source_loader(m_inputs.Jobs().value_or(std::max(1u, std::thread::hardware_concurrency())), m_inputs);
+	ModuleSourceLoader source_loader(m_inputs.Jobs().ValueOr(std::max(1u, std::thread::hardware_concurrency())), m_inputs);
 	DiscoveryState discovery;
 	MarmotResult::VoidResult result = GenerateBuildGraphImpl(build_graph, source_loader, discovery);
-	if (!result.has_value())
+	if (!result.HasValue())
 	{
-		return std::unexpected(std::move(result.error()));
+		return MarmotCompiler::Failure(std::move(result.Error()));
 	}
 
 	return build_graph;
@@ -69,19 +70,19 @@ MarmotResult::VoidResult ModuleManager::GenerateBuildGraphImpl(BuildGraph& build
 		std::vector<StatementSpan> spans = ScanModuleStatements(m_main_token_stream);
 
 		MarmotResult::Result<std::tuple<std::string, std::vector<ModuleExport>>> module_result = ExtractModuleDeclaration(m_main_token_stream, spans);
-		if (!module_result.has_value())
+		if (!module_result.HasValue())
 		{
-			return std::unexpected(std::move(module_result.error()));
+			return MarmotCompiler::Failure(std::move(module_result.Error()));
 		}
 
-		auto [module_name, exports] = std::move(module_result.value());
+		auto [module_name, exports] = std::move(module_result.Value());
 
 		if (build_graph.m_module_name_to_file.contains(module_name))
 		{
 			const std::string& existing_file = build_graph.m_module_name_to_file.at(module_name);
 			if (existing_file != m_main_file_name)
 			{
-				return std::unexpected(MarmotError::GenerateModuleErrorWithContext
+				return MarmotCompiler::Failure(MarmotError::GenerateModuleErrorWithContext
 				(
 					CompilerErrorCode::ModuleDeclarationDuplicate,
 					std::format
@@ -109,18 +110,18 @@ MarmotResult::VoidResult ModuleManager::GenerateBuildGraphImpl(BuildGraph& build
 		build_graph.m_module_declarations.emplace(m_main_file_name, std::move(module_decl));
 
 		MarmotResult::Result<std::vector<std::pair<std::string, Token>>> import_result = ExtractImports(m_main_token_stream, spans);
-		if (!import_result.has_value())
+		if (!import_result.HasValue())
 		{
-			return std::unexpected(std::move(import_result.error()));
+			return MarmotCompiler::Failure(std::move(import_result.Error()));
 		}
 
-		std::vector<std::pair<std::string, Token>> import_paths = std::move(import_result.value());
+		std::vector<std::pair<std::string, Token>> import_paths = std::move(import_result.Value());
 		MarmotResult::Result<std::vector<UseImport>> use_import_result = ExtractUseStatements(m_main_token_stream, spans);
-		if (!use_import_result.has_value())
+		if (!use_import_result.HasValue())
 		{
-			return std::unexpected(std::move(use_import_result.error()));
+			return MarmotCompiler::Failure(std::move(use_import_result.Error()));
 		}
-		std::vector<UseImport> use_imports = std::move(use_import_result.value());
+		std::vector<UseImport> use_imports = std::move(use_import_result.Value());
 
 		std::ranges::sort(spans, [](const StatementSpan& a, const StatementSpan& b) { return a.m_start > b.m_start; });
 
@@ -138,16 +139,16 @@ MarmotResult::VoidResult ModuleManager::GenerateBuildGraphImpl(BuildGraph& build
 
 		ImportResolver resolver(m_main_file_name, m_inputs.SearchPaths());
 
-		std::vector<std::optional<std::string>> resolved_imports;
+		std::vector<MarmotCompiler::Optional<std::string>> resolved_imports;
 		std::vector<std::string> loading;
 		resolved_imports.reserve(import_paths.size());
 		for (const auto& [import_specifier, import_token] : import_paths)
 		{
 			resolved_imports.push_back(resolver.Resolve(import_specifier));
-			const std::optional<std::string>& resolved = resolved_imports.back();
-			if (resolved.has_value() && !build_graph.m_nodes.contains(resolved.value()))
+			const MarmotCompiler::Optional<std::string>& resolved = resolved_imports.back();
+			if (resolved.HasValue() && !build_graph.m_nodes.contains(resolved.Value()))
 			{
-				loading.push_back(resolved.value());
+				loading.push_back(resolved.Value());
 			}
 		}
 		source_loader.Prefetch(loading);
@@ -159,13 +160,13 @@ MarmotResult::VoidResult ModuleManager::GenerateBuildGraphImpl(BuildGraph& build
 		for (size_t index = 0u; index < import_paths.size(); index += 1u)
 		{
 			const auto& [import_specifier, import_token] = import_paths[index];
-			const std::optional<std::string>& resolved_opt = resolved_imports[index];
-			if (!resolved_opt.has_value())
+			const MarmotCompiler::Optional<std::string>& resolved_opt = resolved_imports[index];
+			if (!resolved_opt.HasValue())
 			{
-				return std::unexpected(CompilerError::WithToken(CompilerStage::Module, "Could not resolve import: "s + import_specifier, import_token, m_main_file_name, main_node.m_source_lines, std::nullopt, CompilerErrorCode::ModuleImportResolutionFailed));
+				return MarmotCompiler::Failure(CompilerError::WithToken(CompilerStage::Module, "Could not resolve import: "s + import_specifier, import_token, m_main_file_name, main_node.m_source_lines, MarmotCompiler::None, CompilerErrorCode::ModuleImportResolutionFailed));
 			}
 
-			const std::string& include_absolute_path_str = resolved_opt.value();
+			const std::string& include_absolute_path_str = resolved_opt.Value();
 
 			if (dependencies.emplace(include_absolute_path_str).second)
 			{
@@ -184,16 +185,16 @@ MarmotResult::VoidResult ModuleManager::GenerateBuildGraphImpl(BuildGraph& build
 			}
 
 			MarmotResult::Result<ImportedSource> source = source_loader.Take(include_absolute_path_str, m_main_file_name, import_token.m_line);
-			if (!source.has_value())
+			if (!source.HasValue())
 			{
-				return std::unexpected(std::move(source.error()));
+				return MarmotCompiler::Failure(std::move(source.Error()));
 			}
 
 			ModuleManager module_manager(std::move(source->m_tokens), include_absolute_path_str, std::move(source->m_source_lines), m_inputs);
 			MarmotResult::VoidResult nested_build_graph_result = module_manager.GenerateBuildGraphImpl(build_graph, source_loader, discovery);
-			if (!nested_build_graph_result.has_value())
+			if (!nested_build_graph_result.HasValue())
 			{
-				return std::unexpected(std::move(nested_build_graph_result.error()));
+				return MarmotCompiler::Failure(std::move(nested_build_graph_result.Error()));
 			}
 		}
 		discovery.m_active_modules.pop_back();
@@ -204,7 +205,7 @@ MarmotResult::VoidResult ModuleManager::GenerateBuildGraphImpl(BuildGraph& build
 	const std::unordered_map<std::string, CompilerError>::const_iterator cycle = discovery.m_cycles.find(m_main_file_name);
 	if (cycle != discovery.m_cycles.cend())
 	{
-		return std::unexpected(cycle->second);
+		return MarmotCompiler::Failure(cycle->second);
 	}
 
 	return {};
@@ -408,7 +409,7 @@ MarmotResult::VoidResult ModuleManager::ValidateModuleDeclarationPolicy(const To
 
 	if (module_spans.empty())
 	{
-		return std::unexpected
+		return MarmotCompiler::Failure
 		(
 			MarmotError::GenerateModuleErrorWithContext
 			(
@@ -422,7 +423,7 @@ MarmotResult::VoidResult ModuleManager::ValidateModuleDeclarationPolicy(const To
 
 	if (module_spans.size() > 1u)
 	{
-		return std::unexpected
+		return MarmotCompiler::Failure
 		(
 			MarmotError::GenerateModuleErrorWithContext
 			(
@@ -443,7 +444,7 @@ MarmotResult::VoidResult ModuleManager::ValidateModuleDeclarationPolicy(const To
 
 	if (first_token != module_spans.front()->m_start)
 	{
-		return std::unexpected
+		return MarmotCompiler::Failure
 		(
 			MarmotError::GenerateModuleErrorWithContext
 			(
@@ -465,7 +466,7 @@ MarmotResult::Result<std::string> ModuleManager::ExtractModuleName(const TokenSt
 
 	if (current >= module_span.m_end)
 	{
-		return std::unexpected
+		return MarmotCompiler::Failure
 		(
 			MarmotError::GenerateModuleErrorWithContext
 			(
@@ -493,7 +494,7 @@ MarmotResult::Result<std::string> ModuleManager::ExtractModuleName(const TokenSt
 
 			if (Token::IsKeyword(token.m_token_name))
 			{
-				return std::unexpected
+				return MarmotCompiler::Failure
 				(
 					MarmotError::GenerateModuleErrorWithContext
 					(
@@ -504,7 +505,7 @@ MarmotResult::Result<std::string> ModuleManager::ExtractModuleName(const TokenSt
 				);
 			}
 
-			return std::unexpected
+			return MarmotCompiler::Failure
 			(
 				MarmotError::GenerateModuleErrorWithContext
 				(
@@ -517,7 +518,7 @@ MarmotResult::Result<std::string> ModuleManager::ExtractModuleName(const TokenSt
 
 		if (token.m_token_name != Token::Name::SINGLE_DOT)
 		{
-			return std::unexpected
+			return MarmotCompiler::Failure
 			(
 				MarmotError::GenerateModuleErrorWithContext
 				(
@@ -536,7 +537,7 @@ MarmotResult::Result<std::string> ModuleManager::ExtractModuleName(const TokenSt
 
 	if (expect_identifier)
 	{
-		return std::unexpected
+		return MarmotCompiler::Failure
 		(
 			MarmotError::GenerateModuleErrorWithContext
 			(
@@ -554,9 +555,9 @@ MarmotResult::Result<std::tuple<std::string, std::vector<ModuleExport>>> ModuleM
 {
 	std::vector<ModuleExport> all_exports;
 	MarmotResult::VoidResult validation_result = ValidateModuleDeclarationPolicy(tokens, spans);
-	if (!validation_result.has_value())
+	if (!validation_result.HasValue())
 	{
-		return std::unexpected(std::move(validation_result.error()));
+		return MarmotCompiler::Failure(std::move(validation_result.Error()));
 	}
 
 	const StatementSpan* module_span = nullptr;
@@ -571,7 +572,7 @@ MarmotResult::Result<std::tuple<std::string, std::vector<ModuleExport>>> ModuleM
 
 	if (module_span == nullptr)
 	{
-		return std::unexpected
+		return MarmotCompiler::Failure
 		(
 			MarmotError::GenerateModuleErrorWithContext
 			(
@@ -584,12 +585,12 @@ MarmotResult::Result<std::tuple<std::string, std::vector<ModuleExport>>> ModuleM
 	}
 
 	MarmotResult::Result<std::string> module_name_result = ExtractModuleName(tokens, *module_span);
-	if (!module_name_result.has_value())
+	if (!module_name_result.HasValue())
 	{
-		return std::unexpected(std::move(module_name_result.error()));
+		return MarmotCompiler::Failure(std::move(module_name_result.Error()));
 	}
 
-	std::string module_name = std::move(module_name_result.value());
+	std::string module_name = std::move(module_name_result.Value());
 
 	for (const StatementSpan& span : spans)
 	{
@@ -600,7 +601,7 @@ MarmotResult::Result<std::tuple<std::string, std::vector<ModuleExport>>> ModuleM
 
 			if (tokens[current].m_token_name == Token::Name::EXPORT)
 			{
-				return std::unexpected(CompilerError::WithToken(CompilerStage::Module, "An export list needs a visibility.", tokens[current], m_main_file_name, m_main_source_lines, "Write 'public export { ... }' to export to every module, or 'private export { ... }' to export within this module's namespace."));
+				return MarmotCompiler::Failure(CompilerError::WithToken(CompilerStage::Module, "An export list needs a visibility.", tokens[current], m_main_file_name, m_main_source_lines, "Write 'public export { ... }' to export to every module, or 'private export { ... }' to export within this module's namespace."));
 			}
 
 			if (tokens[current].m_token_name == Token::Name::PUBLIC)
@@ -673,7 +674,7 @@ MarmotResult::Result<std::vector<std::pair<std::string, Token>>> ModuleManager::
 			if (current >= span.m_end || tokens[current].m_token_name != Token::Name::LEFT_BRACE)
 			{
 				const Token& error_token = current < tokens.Size() ? tokens[current] : import_token;
-				return std::unexpected(make_import_error("Expected '{' after 'import'.", error_token));
+				return MarmotCompiler::Failure(make_import_error("Expected '{' after 'import'.", error_token));
 			}
 
 			current += 1;
@@ -704,7 +705,7 @@ MarmotResult::Result<std::vector<std::pair<std::string, Token>>> ModuleManager::
 						{
 							if (tokens[current].m_token_name != Token::Name::IDENTIFIER_LITERAL)
 							{
-								return std::unexpected(make_import_error("Expected identifier in system import.", tokens[current]));
+								return MarmotCompiler::Failure(make_import_error("Expected identifier in system import.", tokens[current]));
 							}
 
 							module_name += tokens[current].m_lexeme;
@@ -716,7 +717,7 @@ MarmotResult::Result<std::vector<std::pair<std::string, Token>>> ModuleManager::
 
 						if (tokens[current].m_token_name != Token::Name::SINGLE_DOT)
 						{
-							return std::unexpected(make_import_error("Expected '.' or '>' in system import.", tokens[current]));
+							return MarmotCompiler::Failure(make_import_error("Expected '.' or '>' in system import.", tokens[current]));
 						}
 
 						module_name.push_back('.');
@@ -727,24 +728,24 @@ MarmotResult::Result<std::vector<std::pair<std::string, Token>>> ModuleManager::
 
 					if (current >= span.m_end || tokens[current].m_token_name != Token::Name::RIGHT_ANGLE)
 					{
-						return std::unexpected(make_import_error("Expected '>' to close system import.", left_angle_token));
+						return MarmotCompiler::Failure(make_import_error("Expected '>' to close system import.", left_angle_token));
 					}
 
 					if (expect_identifier)
 					{
-						return std::unexpected(make_import_error("Expected identifier in system import.", tokens[current]));
+						return MarmotCompiler::Failure(make_import_error("Expected identifier in system import.", tokens[current]));
 					}
 
 					if (tokens[current].m_line == left_angle_token.m_line)
 					{
-						import_entry_token.m_source_length = static_cast<size_t>(tokens[current].m_column.value() + 1 - left_angle_token.m_column.value());
+						import_entry_token.m_source_length = static_cast<size_t>(tokens[current].m_column.Value() + 1 - left_angle_token.m_column.Value());
 					}
 					current += 1;
 					import_specifier = "<"s + module_name + ">"s;
 				}
 				else
 				{
-					return std::unexpected(make_import_error("Expected path import or system import in import list.", tokens[current]));
+					return MarmotCompiler::Failure(make_import_error("Expected path import or system import in import list.", tokens[current]));
 				}
 
 				parsed_any_import = true;
@@ -760,19 +761,19 @@ MarmotResult::Result<std::vector<std::pair<std::string, Token>>> ModuleManager::
 
 				if (current < span.m_end && tokens[current].m_token_name != Token::Name::RIGHT_BRACE)
 				{
-					return std::unexpected(make_import_error("Expected ',' or '}' in import list.", tokens[current]));
+					return MarmotCompiler::Failure(make_import_error("Expected ',' or '}' in import list.", tokens[current]));
 				}
 			}
 
 			if (!parsed_any_import)
 			{
 				const Token& error_token = current < tokens.Size() ? tokens[current] : import_token;
-				return std::unexpected(make_import_error("Expected at least one import in import list.", error_token));
+				return MarmotCompiler::Failure(make_import_error("Expected at least one import in import list.", error_token));
 			}
 
 			if (current >= span.m_end || tokens[current].m_token_name != Token::Name::RIGHT_BRACE)
 			{
-				return std::unexpected(make_import_error("Expected '}' to close import list.", import_token));
+				return MarmotCompiler::Failure(make_import_error("Expected '}' to close import list.", import_token));
 			}
 		}
 	}
@@ -793,7 +794,7 @@ MarmotResult::Result<std::vector<UseImport>> ModuleManager::ExtractUseStatements
 
 			if (current >= tokens.Size() || tokens[current].m_token_name != Token::Name::IDENTIFIER_LITERAL)
 			{
-				return std::unexpected
+				return MarmotCompiler::Failure
 				(
 					MarmotError::GenerateModuleErrorWithContext
 					(
@@ -818,7 +819,7 @@ MarmotResult::Result<std::vector<UseImport>> ModuleManager::ExtractUseStatements
 
 				if (current >= span.m_end)
 				{
-					return std::unexpected
+					return MarmotCompiler::Failure
 					(
 						MarmotError::GenerateModuleErrorWithContext
 						(
@@ -837,7 +838,7 @@ MarmotResult::Result<std::vector<UseImport>> ModuleManager::ExtractUseStatements
 
 					if (current < span.m_end && tokens[current].m_token_name == Token::Name::RIGHT_BRACE)
 					{
-						return std::unexpected
+						return MarmotCompiler::Failure
 						(
 							MarmotError::GenerateModuleErrorWithContext
 							(
@@ -852,7 +853,7 @@ MarmotResult::Result<std::vector<UseImport>> ModuleManager::ExtractUseStatements
 					{
 						if (tokens[current].m_token_name != Token::Name::IDENTIFIER_LITERAL)
 						{
-							return std::unexpected
+							return MarmotCompiler::Failure
 							(
 								MarmotError::GenerateModuleErrorWithContext
 								(
@@ -874,7 +875,7 @@ MarmotResult::Result<std::vector<UseImport>> ModuleManager::ExtractUseStatements
 						}
 						else if (current < span.m_end && tokens[current].m_token_name != Token::Name::RIGHT_BRACE)
 						{
-							return std::unexpected
+							return MarmotCompiler::Failure
 							(
 								MarmotError::GenerateModuleErrorWithContext
 								(
@@ -888,7 +889,7 @@ MarmotResult::Result<std::vector<UseImport>> ModuleManager::ExtractUseStatements
 
 					if (current >= span.m_end || tokens[current].m_token_name != Token::Name::RIGHT_BRACE)
 					{
-						return std::unexpected
+						return MarmotCompiler::Failure
 						(
 							MarmotError::GenerateModuleErrorWithContext
 							(
@@ -907,7 +908,7 @@ MarmotResult::Result<std::vector<UseImport>> ModuleManager::ExtractUseStatements
 
 				if (tokens[current].m_token_name != Token::Name::IDENTIFIER_LITERAL)
 				{
-					return std::unexpected
+					return MarmotCompiler::Failure
 					(
 						MarmotError::GenerateModuleErrorWithContext
 						(
@@ -927,7 +928,7 @@ MarmotResult::Result<std::vector<UseImport>> ModuleManager::ExtractUseStatements
 			{
 				if (segments.size() < 2u)
 				{
-					return std::unexpected
+					return MarmotCompiler::Failure
 					(
 						MarmotError::GenerateModuleErrorWithContext
 						(
@@ -951,7 +952,7 @@ MarmotResult::Result<std::vector<UseImport>> ModuleManager::ExtractUseStatements
 
 			if (current < span.m_end)
 			{
-				return std::unexpected
+				return MarmotCompiler::Failure
 				(
 					MarmotError::GenerateModuleErrorWithContext
 					(

@@ -1,12 +1,12 @@
 #pragma once
 
 #include "Compiler/AbstractSyntaxTree/Type.h"
+#include "Support/Optional.h"
 
 #include <algorithm>
 #include <compare>
 #include <cstdint>
 #include <memory>
-#include <optional>
 #include <string>
 #include <string_view>
 #include <variant>
@@ -99,8 +99,8 @@ struct MarmotIROpInfo
 {
 	std::string_view m_name;
 	MarmotIRArity m_arity;
-	std::optional<MarmotIRScalar> m_operand;
-	std::optional<MarmotIRScalar> m_result;
+	MarmotCompiler::Optional<MarmotIRScalar> m_operand;
+	MarmotCompiler::Optional<MarmotIRScalar> m_result;
 	MarmotIREffect m_effect;
 };
 
@@ -206,7 +206,7 @@ struct MarmotIRSuccessor
 struct MarmotIRInstruction
 {
 	MarmotIROp m_op;
-	std::optional<MarmotIRValueId> m_result;
+	MarmotCompiler::Optional<MarmotIRValueId> m_result;
 	std::shared_ptr<MarmotType> m_type;
 	std::vector<MarmotIRValueId> m_operands;
 	MarmotIRImmediate m_immediate;
@@ -214,7 +214,7 @@ struct MarmotIRInstruction
 	MarmotIREffect m_effect;
 	int m_line;
 
-	MarmotIRInstruction(MarmotIROp op, std::optional<MarmotIRValueId> result, std::shared_ptr<MarmotType> type, std::vector<MarmotIRValueId> operands, MarmotIRImmediate immediate, std::vector<MarmotIRSuccessor> successors, int line);
+	MarmotIRInstruction(MarmotIROp op, MarmotCompiler::Optional<MarmotIRValueId> result, std::shared_ptr<MarmotType> type, std::vector<MarmotIRValueId> operands, MarmotIRImmediate immediate, std::vector<MarmotIRSuccessor> successors, int line);
 };
 
 // Every value an instruction reads: its operands, then its successors'
@@ -287,7 +287,7 @@ struct MarmotIRModule
 	std::string m_name;
 	std::vector<MarmotIRGlobal> m_globals;
 	std::vector<MarmotIRFunction> m_functions;
-	std::optional<MarmotIRFunctionId> m_top_level;
+	MarmotCompiler::Optional<MarmotIRFunctionId> m_top_level;
 
 	explicit MarmotIRModule(std::string name);
 

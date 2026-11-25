@@ -53,19 +53,19 @@ def choose = fn(input: Text) -> Text => {
 	for (const std::string& source : sources)
 	{
 		INFO(source);
-		std::expected<MarmotTest::ParsedSnippet, CompilerError> parsed = MarmotTest::ParseSnippet(source);
-		REQUIRE(parsed.has_value());
+		MarmotResult::Result<MarmotTest::ParsedSnippet> parsed = MarmotTest::ParseSnippet(source);
+		REQUIRE(parsed.HasValue());
 		RenameReferences().Apply(parsed->m_program);
 		MarmotResult::TypeCheckerResult checked = TypeChecker(std::move(parsed->m_program), parsed->m_source.FileName(), parsed->m_source.SourceLines()).TypeCheck();
-		if (!checked.has_value())
+		if (!checked.HasValue())
 		{
-			FAIL(checked.error().Rendered());
+			FAIL(checked.Error().Rendered());
 		}
-		CHECK(StaticAnalyzerManager({}).Analyze(checked.value(), parsed->m_source.FileName(), parsed->m_source.SourceLines()).empty());
-		MarmotResult::DiagnosticsResult<LoweredModule> lowered = Lowering(checked.value(), parsed->m_source.FileName(), parsed->m_source.SourceLines(), "BindingIdentity", {}, {}).Lower();
-		if (!lowered.has_value())
+		CHECK(StaticAnalyzerManager({}).Analyze(checked.Value(), parsed->m_source.FileName(), parsed->m_source.SourceLines()).empty());
+		MarmotResult::DiagnosticsResult<LoweredModule> lowered = Lowering(checked.Value(), parsed->m_source.FileName(), parsed->m_source.SourceLines(), "BindingIdentity", {}, {}).Lower();
+		if (!lowered.HasValue())
 		{
-			FAIL(lowered.error().Rendered());
+			FAIL(lowered.Error().Rendered());
 		}
 		CHECK(MarmotIRVerifier(lowered->m_module).Verify().empty());
 	}

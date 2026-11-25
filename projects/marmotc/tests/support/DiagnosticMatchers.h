@@ -1,8 +1,8 @@
 #pragma once
 
 #include "Compiler/Result/Result.h"
+#include "Support/Optional.h"
 
-#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -11,18 +11,18 @@ namespace MarmotTest
 {
 	struct WarningExpectation
 	{
-		std::optional<CompilerStage> m_stage = std::nullopt;
-		std::optional<CompilerWarningCode> m_code = std::nullopt;
-		std::optional<int> m_line = std::nullopt;
+		MarmotCompiler::Optional<CompilerStage> m_stage = MarmotCompiler::None;
+		MarmotCompiler::Optional<CompilerWarningCode> m_code = MarmotCompiler::None;
+		MarmotCompiler::Optional<int> m_line = MarmotCompiler::None;
 		std::vector<std::string> m_message_substrings;
 		std::vector<std::string> m_rendered_substrings;
 	};
 
 	struct ErrorExpectation
 	{
-		std::optional<CompilerStage> m_stage = std::nullopt;
-		std::optional<CompilerErrorCode> m_code = std::nullopt;
-		std::optional<int> m_line = std::nullopt;
+		MarmotCompiler::Optional<CompilerStage> m_stage = MarmotCompiler::None;
+		MarmotCompiler::Optional<CompilerErrorCode> m_code = MarmotCompiler::None;
+		MarmotCompiler::Optional<int> m_line = MarmotCompiler::None;
 		std::vector<std::string> m_message_substrings;
 		std::vector<std::string> m_rendered_substrings;
 	};

@@ -5,7 +5,6 @@
 #include "support/DiagnosticMatchers.h"
 
 #include <array>
-#include <expected>
 #include <string>
 #include <string_view>
 
@@ -52,10 +51,10 @@ TEST_CASE("TypeChecker rejects out-of-range Float literals in expressions and pa
 		const std::string pattern = "module FloatRange\ndef value = match 1.0 with case 0.0 => false case -" + literal + " => true case _ => false;\n";
 		for (const std::string* source : { &expression, &pattern })
 		{
-			const std::expected<MarmotTest::TypedSnippet, CompilerError> checked = MarmotTest::TypeCheckSnippet(*source);
-			REQUIRE_FALSE(checked.has_value());
-			CHECK(checked.error().m_stage == CompilerStage::TypeChecker);
-			CHECK(checked.error().m_message == "Float literal is out of range.");
+			const MarmotResult::Result<MarmotTest::TypedSnippet> checked = MarmotTest::TypeCheckSnippet(*source);
+			REQUIRE_FALSE(checked.HasValue());
+			CHECK(checked.Error().m_stage == CompilerStage::TypeChecker);
+			CHECK(checked.Error().m_message == "Float literal is out of range.");
 		}
 	}
 }
@@ -71,10 +70,10 @@ instance Echo<Int> {
 };
 def result = Echo::Call_Echo(7);
 )";
-	const std::expected<MarmotTest::TypedSnippet, CompilerError> checked = MarmotTest::TypeCheckSnippet(source);
-	if (!checked.has_value())
+	const MarmotResult::Result<MarmotTest::TypedSnippet> checked = MarmotTest::TypeCheckSnippet(source);
+	if (!checked.HasValue())
 	{
-		FAIL(checked.error().Rendered());
+		FAIL(checked.Error().Rendered());
 	}
 }
 
@@ -88,8 +87,8 @@ instance Echo<Int> {
     def Call_Echo = fn(value: Int) -> Int => value;
 };
 )";
-	const std::expected<MarmotTest::ParsedSnippet, CompilerError> parsed = MarmotTest::ParseSnippet(source, "MethodTokens.mmt");
-	REQUIRE(parsed.has_value());
+	const MarmotResult::Result<MarmotTest::ParsedSnippet> parsed = MarmotTest::ParseSnippet(source, "MethodTokens.mmt");
+	REQUIRE(parsed.HasValue());
 	REQUIRE(parsed->m_program.size() == 2u);
 	const MarmotStatement::Instance& instance = parsed->m_program[1]->GetStatement<MarmotStatement::Instance>();
 	REQUIRE(instance.m_methods.size() == 1u);
@@ -116,9 +115,9 @@ instance Echo<Int> {
     def Call_Echo = fn(value: Int) -> Int => value;
 };
 )";
-		const std::expected<MarmotTest::TypedSnippet, CompilerError> checked = MarmotTest::TypeCheckSnippet(source);
-		REQUIRE_FALSE(checked.has_value());
-		CHECK(checked.error().m_message == "Instance declaration error: method 'Call_Echo' not defined in typeclass");
+		const MarmotResult::Result<MarmotTest::TypedSnippet> checked = MarmotTest::TypeCheckSnippet(source);
+		REQUIRE_FALSE(checked.HasValue());
+		CHECK(checked.Error().m_message == "Instance declaration error: method 'Call_Echo' not defined in typeclass");
 	}
 	SECTION("Signature diagnostics keep the complete method name")
 	{
@@ -130,9 +129,9 @@ instance Echo<Int> {
     def Call_Echo = fn(value: Int) -> Int => value;
 };
 )";
-		const std::expected<MarmotTest::TypedSnippet, CompilerError> checked = MarmotTest::TypeCheckSnippet(source);
-		REQUIRE_FALSE(checked.has_value());
-		CHECK(checked.error().m_message == "Instance declaration error: method 'Call_Echo' return type does not match class declaration\nExpected Text, but got Int");
+		const MarmotResult::Result<MarmotTest::TypedSnippet> checked = MarmotTest::TypeCheckSnippet(source);
+		REQUIRE_FALSE(checked.HasValue());
+		CHECK(checked.Error().m_message == "Instance declaration error: method 'Call_Echo' return type does not match class declaration\nExpected Text, but got Int");
 	}
 }
 
@@ -144,10 +143,10 @@ def doubler : fn(Int) -> Int = fn(x) => { x * 2 };
 def result = doubler(21);
 )";
 
-	std::expected<MarmotTest::TypedSnippet, CompilerError> typecheck_result = MarmotTest::TypeCheckSnippet(source_code, "TypeInference.mmt");
-	if (!typecheck_result.has_value())
+	MarmotResult::Result<MarmotTest::TypedSnippet> typecheck_result = MarmotTest::TypeCheckSnippet(source_code, "TypeInference.mmt");
+	if (!typecheck_result.HasValue())
 	{
-		FAIL(std::string(typecheck_result.error().Rendered()));
+		FAIL(std::string(typecheck_result.Error().Rendered()));
 	}
 
 	const MarmotStatement::VariableDefinition* doubler_definition = FindVariableDefinition(typecheck_result->m_program, "doubler");
@@ -179,18 +178,18 @@ alias IntPair = Pair<Int, Int>;
 def pair : IntPair = Pair(1, 2);
 )";
 
-	std::expected<MarmotTest::TypedSnippet, CompilerError> typecheck_result = MarmotTest::TypeCheckSnippet(source_code, "AliasTypes.mmt");
-	if (!typecheck_result.has_value())
+	MarmotResult::Result<MarmotTest::TypedSnippet> typecheck_result = MarmotTest::TypeCheckSnippet(source_code, "AliasTypes.mmt");
+	if (!typecheck_result.HasValue())
 	{
-		FAIL(std::string(typecheck_result.error().Rendered()));
+		FAIL(std::string(typecheck_result.Error().Rendered()));
 	}
 
 	const MarmotStatement::VariableDefinition* pair_definition = FindVariableDefinition(typecheck_result->m_program, "pair");
 	REQUIRE(pair_definition != nullptr);
-	REQUIRE(pair_definition->m_annotated_type.has_value());
-	REQUIRE(pair_definition->m_annotated_type.value()->IsType<MarmotType::StructType>());
+	REQUIRE(pair_definition->m_annotated_type.HasValue());
+	REQUIRE(pair_definition->m_annotated_type.Value()->IsType<MarmotType::StructType>());
 
-	const MarmotType::StructType& pair_type = pair_definition->m_annotated_type.value()->GetType<MarmotType::StructType>();
+	const MarmotType::StructType& pair_type = pair_definition->m_annotated_type.Value()->GetType<MarmotType::StructType>();
 	REQUIRE(pair_type.m_name == "Pair");
 	REQUIRE(pair_type.m_member_types.size() == 2u);
 	REQUIRE(pair_type.m_member_types[0u]->IsType<MarmotType::IntegerType>());
@@ -222,15 +221,15 @@ def Display = fn<T>(value: T) -> Text where Show<T> => {
 def rendered = Display(Hidden(1));
 )";
 
-	std::expected<MarmotTest::TypedSnippet, CompilerError> typecheck_result = MarmotTest::TypeCheckSnippet(source_code, "ConstraintFailure.mmt");
-	REQUIRE_FALSE(typecheck_result.has_value());
+	MarmotResult::Result<MarmotTest::TypedSnippet> typecheck_result = MarmotTest::TypeCheckSnippet(source_code, "ConstraintFailure.mmt");
+	REQUIRE_FALSE(typecheck_result.HasValue());
 
 	MarmotTest::ErrorExpectation expectation;
 	expectation.m_stage = CompilerStage::TypeChecker;
 	expectation.m_code = CompilerErrorCode::TypeUnsatisfiedConstraint;
 	expectation.m_message_substrings = { "Type Hidden does not satisfy constraint Show<Hidden>", "no matching instance found" };
 	expectation.m_rendered_substrings = { "Type Checker Error", "ConstraintFailure.mmt:13", "Display(Hidden(1))" };
-	RequireErrorMatches(typecheck_result.error(), expectation);
+	RequireErrorMatches(typecheck_result.Error(), expectation);
 }
 
 TEST_CASE("TypeChecker exposes failures through shared diagnostics transport", "[typechecker][diagnostics]")
@@ -240,8 +239,8 @@ TEST_CASE("TypeChecker exposes failures through shared diagnostics transport", "
 def number : Int = "oops";
 )";
 
-	std::expected<MarmotTest::ParsedSnippet, CompilerError> parse_result = MarmotTest::ParseSnippet(source_code, "SharedDiagnostics.mmt");
-	REQUIRE(parse_result.has_value());
+	MarmotResult::Result<MarmotTest::ParsedSnippet> parse_result = MarmotTest::ParseSnippet(source_code, "SharedDiagnostics.mmt");
+	REQUIRE(parse_result.HasValue());
 
 	MarmotResult::TypeCheckerResult typecheck_result = TypeChecker
 	(
@@ -250,8 +249,8 @@ def number : Int = "oops";
 		parse_result->m_source.SourceLines()
 	).TypeCheck();
 
-	REQUIRE_FALSE(typecheck_result.has_value());
-	REQUIRE(typecheck_result.error().Size() == 1u);
+	REQUIRE_FALSE(typecheck_result.HasValue());
+	REQUIRE(typecheck_result.Error().Size() == 1u);
 
 	MarmotTest::ErrorExpectation expectation;
 	expectation.m_stage = CompilerStage::TypeChecker;
@@ -259,7 +258,7 @@ def number : Int = "oops";
 	expectation.m_line = 2;
 	expectation.m_message_substrings = { "Expected type 'Int' but got 'Text'" };
 	expectation.m_rendered_substrings = { "Type Checker Error", "SharedDiagnostics.mmt:2" };
-	RequireErrorMatches(typecheck_result.error().First(), expectation);
+	RequireErrorMatches(typecheck_result.Error().First(), expectation);
 }
 
 TEST_CASE("TypeChecker preserves multiple top-level failures as separate diagnostics", "[typechecker][diagnostics]")
@@ -270,10 +269,10 @@ def number : Int = "oops";
 def flag : Bool = 123;
 )";
 
-	std::expected<MarmotTest::TypedSnippet, MarmotResult::CompilerDiagnostics> typecheck_result =
+	MarmotResult::DiagnosticsResult<MarmotTest::TypedSnippet> typecheck_result =
 		MarmotTest::TypeCheckSnippetWithDiagnostics(source_code, "MultipleDiagnostics.mmt");
-	REQUIRE_FALSE(typecheck_result.has_value());
-	REQUIRE(typecheck_result.error().Size() == 2u);
+	REQUIRE_FALSE(typecheck_result.HasValue());
+	REQUIRE(typecheck_result.Error().Size() == 2u);
 
 	MarmotTest::ErrorExpectation first_expectation;
 	first_expectation.m_stage = CompilerStage::TypeChecker;
@@ -281,7 +280,7 @@ def flag : Bool = 123;
 	first_expectation.m_line = 2;
 	first_expectation.m_message_substrings = { "Expected type 'Int' but got 'Text'" };
 	first_expectation.m_rendered_substrings = { "Type Checker Error", "MultipleDiagnostics.mmt:2" };
-	RequireErrorMatches(typecheck_result.error().m_items[0u], first_expectation);
+	RequireErrorMatches(typecheck_result.Error().m_items[0u], first_expectation);
 
 	MarmotTest::ErrorExpectation second_expectation;
 	second_expectation.m_stage = CompilerStage::TypeChecker;
@@ -289,7 +288,7 @@ def flag : Bool = 123;
 	second_expectation.m_line = 3;
 	second_expectation.m_message_substrings = { "Expected type 'Bool' but got 'Int'" };
 	second_expectation.m_rendered_substrings = { "Type Checker Error", "MultipleDiagnostics.mmt:3" };
-	RequireErrorMatches(typecheck_result.error().m_items[1u], second_expectation);
+	RequireErrorMatches(typecheck_result.Error().m_items[1u], second_expectation);
 }
 
 TEST_CASE("Compiler tags undefined names with a stable diagnostic code", "[typechecker][diagnostics]")
@@ -299,8 +298,8 @@ TEST_CASE("Compiler tags undefined names with a stable diagnostic code", "[typec
 def value = missing;
 )";
 
-	std::expected<MarmotTest::TypedSnippet, CompilerError> typecheck_result = MarmotTest::TypeCheckSnippet(source_code, "UndefinedName.mmt");
-	REQUIRE_FALSE(typecheck_result.has_value());
+	MarmotResult::Result<MarmotTest::TypedSnippet> typecheck_result = MarmotTest::TypeCheckSnippet(source_code, "UndefinedName.mmt");
+	REQUIRE_FALSE(typecheck_result.HasValue());
 
 	MarmotTest::ErrorExpectation expectation;
 	expectation.m_stage = CompilerStage::Parser;
@@ -308,7 +307,7 @@ def value = missing;
 	expectation.m_line = 2;
 	expectation.m_message_substrings = { "Undefined name" };
 	expectation.m_rendered_substrings = { "Parser Error", "UndefinedName.mmt:2" };
-	RequireErrorMatches(typecheck_result.error(), expectation);
+	RequireErrorMatches(typecheck_result.Error(), expectation);
 }
 
 TEST_CASE("TypeChecker tags non-callable values with a stable diagnostic code", "[typechecker][diagnostics]")
@@ -319,8 +318,8 @@ def value = 1;
 def result = value();
 )";
 
-	std::expected<MarmotTest::TypedSnippet, CompilerError> typecheck_result = MarmotTest::TypeCheckSnippet(source_code, "NotCallable.mmt");
-	REQUIRE_FALSE(typecheck_result.has_value());
+	MarmotResult::Result<MarmotTest::TypedSnippet> typecheck_result = MarmotTest::TypeCheckSnippet(source_code, "NotCallable.mmt");
+	REQUIRE_FALSE(typecheck_result.HasValue());
 
 	MarmotTest::ErrorExpectation expectation;
 	expectation.m_stage = CompilerStage::TypeChecker;
@@ -328,7 +327,7 @@ def result = value();
 	expectation.m_line = 3;
 	expectation.m_message_substrings = { "not a callable" };
 	expectation.m_rendered_substrings = { "Type Checker Error", "NotCallable.mmt:3" };
-	RequireErrorMatches(typecheck_result.error(), expectation);
+	RequireErrorMatches(typecheck_result.Error(), expectation);
 }
 
 TEST_CASE("TypeChecker tags incorrect arity with a stable diagnostic code", "[typechecker][diagnostics]")
@@ -339,8 +338,8 @@ def id = fn(value: Int) -> Int => value;
 def result = id();
 )";
 
-	std::expected<MarmotTest::TypedSnippet, CompilerError> typecheck_result = MarmotTest::TypeCheckSnippet(source_code, "IncorrectArity.mmt");
-	REQUIRE_FALSE(typecheck_result.has_value());
+	MarmotResult::Result<MarmotTest::TypedSnippet> typecheck_result = MarmotTest::TypeCheckSnippet(source_code, "IncorrectArity.mmt");
+	REQUIRE_FALSE(typecheck_result.HasValue());
 
 	MarmotTest::ErrorExpectation expectation;
 	expectation.m_stage = CompilerStage::TypeChecker;
@@ -348,7 +347,7 @@ def result = id();
 	expectation.m_line = 3;
 	expectation.m_message_substrings = { "incorrect arity" };
 	expectation.m_rendered_substrings = { "Type Checker Error", "IncorrectArity.mmt:3" };
-	RequireErrorMatches(typecheck_result.error(), expectation);
+	RequireErrorMatches(typecheck_result.Error(), expectation);
 }
 
 TEST_CASE("TypeChecker tags non-exhaustive matches with a stable diagnostic code", "[typechecker][diagnostics]")
@@ -362,8 +361,8 @@ def result = match value with
 ;
 )";
 
-	std::expected<MarmotTest::TypedSnippet, CompilerError> typecheck_result = MarmotTest::TypeCheckSnippet(source_code, "NonExhaustiveMatch.mmt");
-	REQUIRE_FALSE(typecheck_result.has_value());
+	MarmotResult::Result<MarmotTest::TypedSnippet> typecheck_result = MarmotTest::TypeCheckSnippet(source_code, "NonExhaustiveMatch.mmt");
+	REQUIRE_FALSE(typecheck_result.HasValue());
 
 	MarmotTest::ErrorExpectation expectation;
 	expectation.m_stage = CompilerStage::TypeChecker;
@@ -371,5 +370,5 @@ def result = match value with
 	expectation.m_line = 4;
 	expectation.m_message_substrings = { "non-exhaustive match", "None" };
 	expectation.m_rendered_substrings = { "Type Checker Error", "NonExhaustiveMatch.mmt:4" };
-	RequireErrorMatches(typecheck_result.error(), expectation);
+	RequireErrorMatches(typecheck_result.Error(), expectation);
 }

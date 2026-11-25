@@ -1,10 +1,10 @@
 #pragma once
 
 #include "Compiler/AbstractSyntaxTree/AbstractSyntaxTree.h"
+#include "Support/Expected.h"
+#include "Support/Optional.h"
 
-#include <expected>
 #include <memory>
-#include <optional>
 #include <string>
 #include <string_view>
 #include <variant>
@@ -33,24 +33,24 @@ private:
 	};
 
 	using Declaration = std::variant<const MarmotStatement::Struct*, const MarmotStatement::Union*>;
-	using StatementResult = std::expected<std::unique_ptr<MarmotStatement>, DerivedDeclarationError>;
+	using StatementResult = MarmotCompiler::Expected<std::unique_ptr<MarmotStatement>, DerivedDeclarationError>;
 
 	Declaration m_declaration;
 	Operation m_operation;
 	Token m_target;
-	std::optional<Token> m_global_name;
+	MarmotCompiler::Optional<Token> m_global_name;
 
-	DerivedDeclarationGenerator(Declaration declaration, Operation operation, Token target, std::optional<Token> global_name);
+	DerivedDeclarationGenerator(Declaration declaration, Operation operation, Token target, MarmotCompiler::Optional<Token> global_name);
 
-	static std::optional<Operation> ResolveOperation(std::string_view name);
+	static MarmotCompiler::Optional<Operation> ResolveOperation(std::string_view name);
 	static bool IsContainer(Operation operation);
 
 	StatementResult Generate(const MarmotStatement::Struct& declaration, const OrderingType* ordering) const;
 	StatementResult Generate(const MarmotStatement::Union& declaration, const OrderingType* ordering) const;
 
 public:
-	static std::expected<DerivedDeclarationGenerator, DerivedDeclarationError> Prepare(const MarmotStatement::Struct& declaration, const Token& target);
-	static std::expected<DerivedDeclarationGenerator, DerivedDeclarationError> Prepare(const MarmotStatement::Union& declaration, const Token& target);
+	static MarmotCompiler::Expected<DerivedDeclarationGenerator, DerivedDeclarationError> Prepare(const MarmotStatement::Struct& declaration, const Token& target);
+	static MarmotCompiler::Expected<DerivedDeclarationGenerator, DerivedDeclarationError> Prepare(const MarmotStatement::Union& declaration, const Token& target);
 
 	// Registration precedes body validation, so name collisions keep their
 	// diagnostic priority. The parser may qualify the name as it registers it.

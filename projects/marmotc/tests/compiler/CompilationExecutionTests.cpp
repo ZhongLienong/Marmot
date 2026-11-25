@@ -11,6 +11,7 @@
 #include <catch2/matchers/catch_matchers.hpp>
 
 #include "Compiler/CompilationSchedule/CompilationExecution.h"
+#include "Support/Expected.h"
 
 namespace
 {
@@ -28,7 +29,7 @@ namespace
 
 	MarmotResult::CompiledModuleReportResult Failure(const std::string& message)
 	{
-		return std::unexpected(MarmotResult::CompilerReport(CompilerError::Simple(CompilerStage::Compiler, message)));
+		return MarmotCompiler::Failure(MarmotResult::CompilerReport(CompilerError::Simple(CompilerStage::Compiler, message)));
 	}
 }
 
@@ -51,8 +52,8 @@ TEST_CASE("One compilation worker runs dependency work on the caller", "[compile
 	CHECK(on_caller);
 	CHECK(started == std::vector<std::string>{ "Shared", "Main" });
 	REQUIRE(results.size() == 2u);
-	CHECK(results.at("Shared").has_value());
-	CHECK(results.at("Main").has_value());
+	CHECK(results.at("Shared").HasValue());
+	CHECK(results.at("Main").HasValue());
 }
 
 TEST_CASE("An empty compilation schedule finishes without starting work", "[compiler][execution]")
@@ -106,7 +107,7 @@ TEST_CASE("Compilation workers overlap within the job budget", "[compiler][execu
 	for (const auto& [name, result] : results)
 	{
 		CAPTURE(name);
-		CHECK(result.has_value());
+		CHECK(result.HasValue());
 	}
 	CHECK(peak.load() == 2u);
 	CHECK(started.load() == 6u);
@@ -141,9 +142,9 @@ TEST_CASE("An importer overlaps its dependency backend even when that backend fa
 		}
 	);
 	REQUIRE(results.size() == 2u);
-	REQUIRE_FALSE(results.at("Dependency").has_value());
-	CHECK(results.at("Dependency").error().Rendered().find("Backend failure after publication.") != std::string::npos);
-	CHECK(results.at("Importer").has_value());
+	REQUIRE_FALSE(results.at("Dependency").HasValue());
+	CHECK(results.at("Dependency").Error().Rendered().find("Backend failure after publication.") != std::string::npos);
+	CHECK(results.at("Importer").HasValue());
 }
 
 TEST_CASE("An unpublished failure blocks its importers while independent work finishes", "[compiler][execution]")
@@ -170,9 +171,9 @@ TEST_CASE("An unpublished failure blocks its importers while independent work fi
 		}
 	);
 	REQUIRE(results.size() == 3u);
-	CHECK_FALSE(results.at("Broken").has_value());
-	CHECK(results.at("Independent").has_value());
-	CHECK(results.at("IndependentImporter").has_value());
+	CHECK_FALSE(results.at("Broken").HasValue());
+	CHECK(results.at("Independent").HasValue());
+	CHECK(results.at("IndependentImporter").HasValue());
 	CHECK_FALSE(results.contains("Blocked"));
 	CHECK_FALSE(results.contains("Main"));
 }
@@ -217,7 +218,7 @@ TEST_CASE("Concurrent diamond publications release the importer once", "[compile
 	for (const auto& [name, result] : results)
 	{
 		CAPTURE(name);
-		CHECK(result.has_value());
+		CHECK(result.HasValue());
 	}
 	CHECK(importer_runs.load() == 1u);
 }

@@ -1,15 +1,15 @@
 #pragma once
 
 #include "Scalar.h"
+#include "Support/Optional.h"
 
 #include <cmath>
 #include <limits>
-#include <optional>
 
 namespace MarmotFloatConversion
 {
 	template<typename Integer>
-	std::optional<Integer> ToInteger(MarmotFloat value) noexcept
+	MarmotCompiler::Optional<Integer> ToInteger(MarmotFloat value) noexcept
 	{
 		constexpr int digits = std::numeric_limits<Integer>::digits;
 		// The exclusive upper limit is exact even when max() rounds up as a Float.
@@ -20,6 +20,6 @@ namespace MarmotFloatConversion
 		{
 			return static_cast<Integer>(truncated);
 		}
-		return std::nullopt;
+		return MarmotCompiler::None;
 	}
 }

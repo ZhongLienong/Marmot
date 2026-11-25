@@ -1,5 +1,6 @@
 #include "Compiler/MarmotIROptimizer/Analysis/MarmotIRAnalysis.h"
 #include "Compiler/MarmotIROptimizer/MarmotIRPasses.h"
+#include "Support/Optional.h"
 
 #include <ranges>
 #include <span>
@@ -25,7 +26,7 @@ namespace
 			&& std::ranges::all_of(body, [](const MarmotIRInstruction& instruction) { return instruction.m_effect.m_kind == MarmotIREffectKind::Pure; });
 	}
 
-	std::optional<MarmotIRKnown> Compare(MarmotIROp op, const MarmotIRKnown& left, const MarmotIRKnown& right)
+	MarmotCompiler::Optional<MarmotIRKnown> Compare(MarmotIROp op, const MarmotIRKnown& left, const MarmotIRKnown& right)
 	{
 		switch (op)
 		{
@@ -36,13 +37,13 @@ namespace
 		case MarmotIROp::NeBool:
 			return left != right;
 		default:
-			return std::nullopt;
+			return MarmotCompiler::None;
 		}
 	}
 
 	// Which successor the block's branch takes when it is entered with these
 	// arguments, when the unions they were made as decide it.
-	std::optional<size_t> DecidedSuccessor(const MarmotIRFunction& function, const std::vector<std::optional<MarmotIRSite>>& sites, const MarmotIRBlock& block, const std::vector<MarmotIRValueId>& arguments)
+	MarmotCompiler::Optional<size_t> DecidedSuccessor(const MarmotIRFunction& function, const std::vector<MarmotCompiler::Optional<MarmotIRSite>>& sites, const MarmotIRBlock& block, const std::vector<MarmotIRValueId>& arguments)
 	{
 		const auto passed = [&](MarmotIRValueId value)
 		{
@@ -50,14 +51,14 @@ namespace
 			return parameter == block.m_parameters.end() ? value : arguments[static_cast<size_t>(std::distance(block.m_parameters.begin(), parameter))];
 		};
 		std::unordered_map<uint32_t, MarmotIRKnown> known;
-		const auto known_of = [&known](MarmotIRValueId value) -> std::optional<MarmotIRKnown>
+		const auto known_of = [&known](MarmotIRValueId value) -> MarmotCompiler::Optional<MarmotIRKnown>
 		{
 			const std::unordered_map<uint32_t, MarmotIRKnown>::const_iterator found = known.find(value.m_index);
-			return found == known.end() ? std::nullopt : std::optional(found->second);
+			return found == known.end() ? MarmotCompiler::None : MarmotCompiler::Optional(found->second);
 		};
 		for (const MarmotIRInstruction& instruction : block.m_instructions | std::views::take(block.m_instructions.size() - 1u))
 		{
-			std::optional<MarmotIRKnown> value;
+			MarmotCompiler::Optional<MarmotIRKnown> value;
 			switch (instruction.m_op)
 			{
 			case MarmotIROp::Const:
@@ -80,23 +81,23 @@ namespace
 				break;
 			}
 			case MarmotIROp::NotBool:
-				value = known_of(instruction.m_operands.front()).transform([](const MarmotIRKnown& operand) { return MarmotIRKnown(!std::get<bool>(operand)); });
+				value = known_of(instruction.m_operands.front()).Transform([](const MarmotIRKnown& operand) { return MarmotIRKnown(!std::get<bool>(operand)); });
 				break;
 			default:
 				if (instruction.m_operands.size() == 2u)
 				{
-					const std::optional<MarmotIRKnown> left = known_of(instruction.m_operands[0u]);
-					const std::optional<MarmotIRKnown> right = known_of(instruction.m_operands[1u]);
-					value = left.has_value() && right.has_value() ? Compare(instruction.m_op, left.value(), right.value()) : std::nullopt;
+					const MarmotCompiler::Optional<MarmotIRKnown> left = known_of(instruction.m_operands[0u]);
+					const MarmotCompiler::Optional<MarmotIRKnown> right = known_of(instruction.m_operands[1u]);
+					value = left.HasValue() && right.HasValue() ? Compare(instruction.m_op, left.Value(), right.Value()) : MarmotCompiler::None;
 				}
 				break;
 			}
-			if (value.has_value())
+			if (value.HasValue())
 			{
-				known.emplace(instruction.m_result->m_index, value.value());
+				known.emplace(instruction.m_result->m_index, value.Value());
 			}
 		}
-		return known_of(block.m_instructions.back().m_operands.front()).transform([](const MarmotIRKnown& condition) { return std::get<bool>(condition) ? 0uz : 1uz; });
+		return known_of(block.m_instructions.back().m_operands.front()).Transform([](const MarmotIRKnown& condition) { return std::get<bool>(condition) ? 0uz : 1uz; });
 	}
 
 	// The blocks reached from `from` without passing through `avoided`.
@@ -184,26 +185,26 @@ namespace
 			MarmotIRBlock& inspection = m_function.m_blocks[m_inspection];
 			const size_t decided = static_cast<size_t>(std::ranges::find_if(inspection.m_instructions.back().m_successors, [this](const MarmotIRSuccessor& successor) { return successor.m_block.m_index == m_target; }) - inspection.m_instructions.back().m_successors.begin());
 
-			std::vector<std::optional<MarmotIRValueId>> copied(m_function.m_values.size());
+			std::vector<MarmotCompiler::Optional<MarmotIRValueId>> copied(m_function.m_values.size());
 			for (size_t index = 0u; index < inspection.m_parameters.size(); index += 1u)
 			{
 				copied[inspection.m_parameters[index].m_index] = passed[index];
 			}
-			const auto copy_of = [&copied](MarmotIRValueId value) { return copied[value.m_index].value_or(value); };
+			const auto copy_of = [&copied](MarmotIRValueId value) { return copied[value.m_index].ValueOr(value); };
 			std::vector<MarmotIRInstruction> copies;
 			for (const MarmotIRInstruction& instruction : inspection.m_instructions | std::views::take(inspection.m_instructions.size() - 1u))
 			{
 				MarmotIRInstruction copy = instruction;
 				std::ranges::for_each(copy.m_operands, [&copy_of](MarmotIRValueId& operand) { operand = copy_of(operand); });
-				const MarmotIRValue& original = m_function.Value(instruction.m_result.value());
+				const MarmotIRValue& original = m_function.Value(instruction.m_result.Value());
 				copy.m_result = MarmotIRAnalysis::AddValue(m_function, original.m_type, original.m_name);
-				copied.push_back(std::nullopt);
+				copied.push_back(MarmotCompiler::None);
 				copied[instruction.m_result->m_index] = copy.m_result;
 				copies.push_back(std::move(copy));
 			}
 
 			const std::vector<MarmotIRValueId> carried = CarriedValues();
-			std::vector<std::optional<MarmotIRValueId>> renamed(m_function.m_values.size());
+			std::vector<MarmotCompiler::Optional<MarmotIRValueId>> renamed(m_function.m_values.size());
 			for (const MarmotIRValueId value : carried)
 			{
 				const MarmotIRValue& original = m_function.Value(value);
@@ -231,7 +232,7 @@ namespace
 				{
 					ForEachMarmotIRUse(instruction, [&renamed](MarmotIRValueId& value)
 					{
-						value = value.m_index < renamed.size() ? renamed[value.m_index].value_or(value) : value;
+						value = value.m_index < renamed.size() ? renamed[value.m_index].ValueOr(value) : value;
 					});
 				}
 			}
@@ -269,7 +270,7 @@ namespace
 			}
 			const MarmotIRBlock& inspection = m_function.m_blocks[m_inspection];
 			std::vector<MarmotIRValueId> defined = inspection.m_parameters;
-			std::ranges::copy(inspection.m_instructions | std::views::take(inspection.m_instructions.size() - 1u) | std::views::transform([](const MarmotIRInstruction& instruction) { return instruction.m_result.value(); }), std::back_inserter(defined));
+			std::ranges::copy(inspection.m_instructions | std::views::take(inspection.m_instructions.size() - 1u) | std::views::transform([](const MarmotIRInstruction& instruction) { return instruction.m_result.Value(); }), std::back_inserter(defined));
 			return defined | std::views::filter([&read](MarmotIRValueId value) { return read[value.m_index]; }) | std::ranges::to<std::vector>();
 		}
 	};
@@ -278,7 +279,7 @@ namespace
 	{
 		MarmotIRAnalysis::RemoveUnreachableBlocks(function);
 		const MarmotIRControlFlow control_flow(function);
-		const std::vector<std::optional<MarmotIRSite>> sites = MarmotIRAnalysis::DefinitionSites(function);
+		const std::vector<MarmotCompiler::Optional<MarmotIRSite>> sites = MarmotIRAnalysis::DefinitionSites(function);
 		for (uint32_t inspection = 1u; inspection < function.m_blocks.size(); inspection += 1u)
 		{
 			const MarmotIRBlock& block = function.m_blocks[inspection];
@@ -295,12 +296,12 @@ namespace
 					{
 						continue;
 					}
-					const std::optional<size_t> decided = DecidedSuccessor(function, sites, block, successors[successor].m_arguments);
-					if (!decided.has_value())
+					const MarmotCompiler::Optional<size_t> decided = DecidedSuccessor(function, sites, block, successors[successor].m_arguments);
+					if (!decided.HasValue())
 					{
 						continue;
 					}
-					Threading threading(function, control_flow, MarmotIREdge{ predecessor, successor }, inspection, block.m_instructions.back().m_successors[decided.value()].m_block.m_index);
+					Threading threading(function, control_flow, MarmotIREdge{ predecessor, successor }, inspection, block.m_instructions.back().m_successors[decided.Value()].m_block.m_index);
 					if (threading.IsPossible())
 					{
 						threading.Apply();

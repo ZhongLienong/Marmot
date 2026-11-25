@@ -1,8 +1,8 @@
 #pragma once
 
 #include "Compiler/Module/ModuleInterface.h"
+#include "Support/Expected.h"
 
-#include <expected>
 #include <span>
 
 enum class ImportedSymbolAccess
@@ -27,7 +27,7 @@ public:
 	using TypeEnvironment = ModuleInterface::TypeEnvironment;
 	using ModuleTypes = std::unordered_map<std::string, TypeEnvironment>;
 
-	static std::expected<ModuleImports, ModuleImportConflict> Collect(std::span<const std::shared_ptr<const ModuleInterface>> dependencies);
+	static MarmotCompiler::Expected<ModuleImports, ModuleImportConflict> Collect(std::span<const std::shared_ptr<const ModuleInterface>> dependencies);
 
 	bool ContainsModule(std::string_view module_name) const;
 	ImportedSymbolAccess AccessFrom(std::string_view importer, const std::string& module_name, const std::string& symbol_name) const;

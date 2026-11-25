@@ -2,12 +2,13 @@
 
 #include <array>
 #include <format>
-#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include <memory>
+
+#include "Support/Optional.h"
 
 struct Token;
 class MarmotType;
@@ -65,11 +66,11 @@ struct CompilerErrorLocation
 {
 	std::string m_file_name;
 	int m_line = 0;
-	std::optional<int> m_column = std::nullopt;
-	std::optional<size_t> m_caret_length = std::nullopt;
-	std::optional<int> m_end_line = std::nullopt;
-	std::optional<int> m_end_column = std::nullopt;
-	std::optional<std::string> m_source_line = std::nullopt;
+	MarmotCompiler::Optional<int> m_column = MarmotCompiler::None;
+	MarmotCompiler::Optional<size_t> m_caret_length = MarmotCompiler::None;
+	MarmotCompiler::Optional<int> m_end_line = MarmotCompiler::None;
+	MarmotCompiler::Optional<int> m_end_column = MarmotCompiler::None;
+	MarmotCompiler::Optional<std::string> m_source_line = MarmotCompiler::None;
 };
 
 struct CompilerRelatedInformation
@@ -83,8 +84,8 @@ struct CompilerError
 	CompilerStage m_stage = CompilerStage::Unknown;
 	CompilerErrorCode m_code = CompilerErrorCode::None;
 	std::string m_message;
-	std::optional<CompilerErrorLocation> m_location = std::nullopt;
-	std::optional<std::string> m_suggestion = std::nullopt;
+	MarmotCompiler::Optional<CompilerErrorLocation> m_location = MarmotCompiler::None;
+	MarmotCompiler::Optional<std::string> m_suggestion = MarmotCompiler::None;
 	std::vector<CompilerRelatedInformation> m_related_information;
 	std::string m_rendered;
 
@@ -97,8 +98,8 @@ struct CompilerError
 	static CompilerError NoMatch();
 	static CompilerError Simple(CompilerStage stage, std::string_view message, CompilerErrorCode code = CompilerErrorCode::None);
 	static CompilerError WithFile(CompilerStage stage, std::string_view message, std::string_view file_name, CompilerErrorCode code = CompilerErrorCode::None);
-	static CompilerError WithContext(CompilerStage stage, std::string_view message, int line, std::string_view file_name, std::optional<int> column, std::optional<size_t> caret_length, std::optional<std::string_view> suggestion, std::optional<std::string_view> source_line = std::nullopt, CompilerErrorCode code = CompilerErrorCode::None);
-	static CompilerError WithToken(CompilerStage stage, std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion = std::nullopt, CompilerErrorCode code = CompilerErrorCode::None);
+	static CompilerError WithContext(CompilerStage stage, std::string_view message, int line, std::string_view file_name, MarmotCompiler::Optional<int> column, MarmotCompiler::Optional<size_t> caret_length, MarmotCompiler::Optional<std::string_view> suggestion, MarmotCompiler::Optional<std::string_view> source_line = MarmotCompiler::None, CompilerErrorCode code = CompilerErrorCode::None);
+	static CompilerError WithToken(CompilerStage stage, std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, MarmotCompiler::Optional<std::string_view> suggestion = MarmotCompiler::None, CompilerErrorCode code = CompilerErrorCode::None);
 
 	bool IsNoMatch() const;
 	std::string_view Rendered() const;
@@ -109,8 +110,8 @@ struct CompilerWarning
 	CompilerStage m_stage = CompilerStage::Unknown;
 	CompilerWarningCode m_code = CompilerWarningCode::None;
 	std::string m_message;
-	std::optional<CompilerErrorLocation> m_location = std::nullopt;
-	std::optional<std::string> m_suggestion = std::nullopt;
+	MarmotCompiler::Optional<CompilerErrorLocation> m_location = MarmotCompiler::None;
+	MarmotCompiler::Optional<std::string> m_suggestion = MarmotCompiler::None;
 	std::vector<CompilerRelatedInformation> m_related_information;
 	std::string m_rendered;
 
@@ -121,8 +122,8 @@ struct CompilerWarning
 	CompilerWarning(CompilerStage stage, std::string message);
 
 	static CompilerWarning Simple(CompilerStage stage, std::string_view message, CompilerWarningCode code = CompilerWarningCode::None);
-	static CompilerWarning WithContext(CompilerStage stage, std::string_view message, int line, std::string_view file_name, std::optional<int> column, std::optional<size_t> caret_length, std::optional<std::string_view> suggestion, std::optional<std::string_view> source_line = std::nullopt, CompilerWarningCode code = CompilerWarningCode::None);
-	static CompilerWarning WithToken(CompilerStage stage, std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion = std::nullopt, CompilerWarningCode code = CompilerWarningCode::None);
+	static CompilerWarning WithContext(CompilerStage stage, std::string_view message, int line, std::string_view file_name, MarmotCompiler::Optional<int> column, MarmotCompiler::Optional<size_t> caret_length, MarmotCompiler::Optional<std::string_view> suggestion, MarmotCompiler::Optional<std::string_view> source_line = MarmotCompiler::None, CompilerWarningCode code = CompilerWarningCode::None);
+	static CompilerWarning WithToken(CompilerStage stage, std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, MarmotCompiler::Optional<std::string_view> suggestion = MarmotCompiler::None, CompilerWarningCode code = CompilerWarningCode::None);
 
 	std::string_view Rendered() const;
 };
@@ -160,26 +161,26 @@ class MarmotError
 {
 private:
 
-	static CompilerError GenerateRichError(CompilerStage stage, std::string_view message, int line, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<int> column = std::nullopt, std::optional<size_t> caret_length = std::nullopt, std::optional<std::string_view> suggestion = std::nullopt, CompilerErrorCode code = CompilerErrorCode::None);
+	static CompilerError GenerateRichError(CompilerStage stage, std::string_view message, int line, std::string_view file_name, const std::vector<std::string>& source_lines, MarmotCompiler::Optional<int> column = MarmotCompiler::None, MarmotCompiler::Optional<size_t> caret_length = MarmotCompiler::None, MarmotCompiler::Optional<std::string_view> suggestion = MarmotCompiler::None, CompilerErrorCode code = CompilerErrorCode::None);
 
-	static CompilerError GenerateRichError(CompilerStage stage, std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion = std::nullopt, CompilerErrorCode code = CompilerErrorCode::None);
+	static CompilerError GenerateRichError(CompilerStage stage, std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, MarmotCompiler::Optional<std::string_view> suggestion = MarmotCompiler::None, CompilerErrorCode code = CompilerErrorCode::None);
 
 public:
-	static CompilerError GenerateCodeGeneratorErrorWithContext(CompilerErrorCode code, std::string_view message, int line, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion = std::nullopt);
+	static CompilerError GenerateCodeGeneratorErrorWithContext(CompilerErrorCode code, std::string_view message, int line, std::string_view file_name, const std::vector<std::string>& source_lines, MarmotCompiler::Optional<std::string_view> suggestion = MarmotCompiler::None);
 
-	static CompilerError GenerateLoweringErrorWithContext(CompilerErrorCode code, std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion = std::nullopt);
-	static CompilerError GenerateLoweringErrorWithContext(CompilerErrorCode code, std::string_view message, int line, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion = std::nullopt);
+	static CompilerError GenerateLoweringErrorWithContext(CompilerErrorCode code, std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, MarmotCompiler::Optional<std::string_view> suggestion = MarmotCompiler::None);
+	static CompilerError GenerateLoweringErrorWithContext(CompilerErrorCode code, std::string_view message, int line, std::string_view file_name, const std::vector<std::string>& source_lines, MarmotCompiler::Optional<std::string_view> suggestion = MarmotCompiler::None);
 
-	static CompilerError GenerateLexerErrorWithContext(std::string_view message, int line, int column, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion = std::nullopt);
+	static CompilerError GenerateLexerErrorWithContext(std::string_view message, int line, int column, std::string_view file_name, const std::vector<std::string>& source_lines, MarmotCompiler::Optional<std::string_view> suggestion = MarmotCompiler::None);
 
-	static CompilerError GenerateModuleErrorWithContext(std::string_view message, int line, std::string_view file_name, std::optional<std::string_view> suggestion = std::nullopt);
-	static CompilerError GenerateModuleErrorWithContext(CompilerErrorCode code, std::string_view message, int line, std::string_view file_name, std::optional<std::string_view> suggestion = std::nullopt);
+	static CompilerError GenerateModuleErrorWithContext(std::string_view message, int line, std::string_view file_name, MarmotCompiler::Optional<std::string_view> suggestion = MarmotCompiler::None);
+	static CompilerError GenerateModuleErrorWithContext(CompilerErrorCode code, std::string_view message, int line, std::string_view file_name, MarmotCompiler::Optional<std::string_view> suggestion = MarmotCompiler::None);
 
-	static CompilerError GenerateParserErrorWithContext(std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion = std::nullopt);
-	static CompilerError GenerateParserErrorWithContext(CompilerErrorCode code, std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion = std::nullopt);
+	static CompilerError GenerateParserErrorWithContext(std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, MarmotCompiler::Optional<std::string_view> suggestion = MarmotCompiler::None);
+	static CompilerError GenerateParserErrorWithContext(CompilerErrorCode code, std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, MarmotCompiler::Optional<std::string_view> suggestion = MarmotCompiler::None);
 
-	static CompilerError GenerateTypeCheckerErrorWithContext(std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion = std::nullopt);
-	static CompilerError GenerateTypeCheckerErrorWithContext(CompilerErrorCode code, std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion = std::nullopt);
+	static CompilerError GenerateTypeCheckerErrorWithContext(std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, MarmotCompiler::Optional<std::string_view> suggestion = MarmotCompiler::None);
+	static CompilerError GenerateTypeCheckerErrorWithContext(CompilerErrorCode code, std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, MarmotCompiler::Optional<std::string_view> suggestion = MarmotCompiler::None);
 
 	template <typename... ExpectedTypes>
 	static CompilerError GenerateTypeCheckerErrorWithContext(std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, const std::shared_ptr<MarmotType>& actual = nullptr, ExpectedTypes&&... expected)
@@ -198,7 +199,7 @@ public:
 			full_message = FormatTypeMismatch(message, expected_names, actual);
 		}
 
-		return GenerateRichError(CompilerStage::TypeChecker, full_message, token, file_name, source_lines, std::nullopt, code);
+		return GenerateRichError(CompilerStage::TypeChecker, full_message, token, file_name, source_lines, MarmotCompiler::None, code);
 	}
 
 	// "<message>\nExpected A or B, but got C".

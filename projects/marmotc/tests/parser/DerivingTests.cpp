@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "support/CompileHelpers.h"
+#include "Support/Expected.h"
 
 #include <format>
 #include <string_view>
@@ -23,8 +24,8 @@ TEST_CASE("Deriving preserves target order and type-name source anchors", "[pars
 type Box<T> = Empty | Full(T) deriving (Transferable, Map, Equatable, Bind, Unwrap);
 def after = 0;
 )";
-	std::expected<MarmotTest::ParsedSnippet, CompilerError> parsed = MarmotTest::ParseSnippet(source, "DerivedOrder.mmt");
-	REQUIRE(parsed.has_value());
+	MarmotCompiler::Expected<MarmotTest::ParsedSnippet, CompilerError> parsed = MarmotTest::ParseSnippet(source, "DerivedOrder.mmt");
+	REQUIRE(parsed.HasValue());
 	const MarmotProgramTree& program = parsed->m_program;
 	REQUIRE(program.size() == 7u);
 	REQUIRE(program[0]->IsStatement<MarmotStatement::Union>());
@@ -83,8 +84,8 @@ TEST_CASE("Deriving preserves each class target's generated method shape", "[par
 type Outcome = Unordered | Greater | Equal | Less;
 )";
 			}
-			const std::expected<MarmotTest::ParsedSnippet, CompilerError> parsed = MarmotTest::ParseSnippet(source);
-			REQUIRE(parsed.has_value());
+			const MarmotCompiler::Expected<MarmotTest::ParsedSnippet, CompilerError> parsed = MarmotTest::ParseSnippet(source);
+			REQUIRE(parsed.HasValue());
 			REQUIRE(parsed->m_program.size() == (orders ? 4u : 2u));
 			REQUIRE(parsed->m_program[1]->IsStatement<MarmotStatement::Instance>());
 			const MarmotStatement::Instance& instance = parsed->m_program[1]->GetStatement<MarmotStatement::Instance>();
@@ -109,17 +110,17 @@ TEST_CASE("Deriving rejects unsupported targets for each declaration shape", "[p
 	{
 		INFO(target);
 		const std::string source = std::format("module InvalidRecord\ntype Sample = {{ value: Int }} deriving ({});\n", target);
-		const std::expected<MarmotTest::ParsedSnippet, CompilerError> parsed = MarmotTest::ParseSnippet(source);
-		REQUIRE_FALSE(parsed.has_value());
-		CHECK(parsed.error().m_message == "Unsupported deriving target for struct.");
+		const MarmotCompiler::Expected<MarmotTest::ParsedSnippet, CompilerError> parsed = MarmotTest::ParseSnippet(source);
+		REQUIRE_FALSE(parsed.HasValue());
+		CHECK(parsed.Error().m_message == "Unsupported deriving target for struct.");
 	}
 	for (const std::string_view target : { "Bogus", "Numeric", "map" })
 	{
 		INFO(target);
 		const std::string source = std::format("module InvalidUnion\ntype Sample<T> = Empty | Full(T) deriving ({});\n", target);
-		const std::expected<MarmotTest::ParsedSnippet, CompilerError> parsed = MarmotTest::ParseSnippet(source);
-		REQUIRE_FALSE(parsed.has_value());
-		CHECK(parsed.error().m_message == "Unsupported deriving target for union.");
+		const MarmotCompiler::Expected<MarmotTest::ParsedSnippet, CompilerError> parsed = MarmotTest::ParseSnippet(source);
+		REQUIRE_FALSE(parsed.HasValue());
+		CHECK(parsed.Error().m_message == "Unsupported deriving target for union.");
 	}
 }
 
@@ -130,25 +131,25 @@ TEST_CASE("Deriving reserves container names before validating their bodies", "[
 		INFO(target);
 		const std::string declaration = std::format("type PairBox<T> = Empty | Pair(T, T) deriving ({});\n", target);
 		const std::string source = std::format("module Collision\ndef PairBox{} = 0;\n", target) + declaration;
-		std::expected<MarmotTest::ParsedSnippet, CompilerError> collision = MarmotTest::ParseSnippet(source);
-		REQUIRE_FALSE(collision.has_value());
-		CHECK(collision.error().m_stage == CompilerStage::Parser);
-		CHECK(collision.error().m_message == "Name already exists in the current scope");
-		REQUIRE(collision.error().m_location.has_value());
-		CHECK(collision.error().m_location->m_line == 3);
-		CHECK(collision.error().m_location->m_column == 5);
-		CHECK(collision.error().m_location->m_caret_length == 7u);
-		std::expected<MarmotTest::ParsedSnippet, CompilerError> invalid = MarmotTest::ParseSnippet("module Shape\n" + declaration);
-		REQUIRE_FALSE(invalid.has_value());
-		CHECK(invalid.error().m_message == target + " deriving requires variants to contain at most one direct field of the first type parameter.");
+		MarmotCompiler::Expected<MarmotTest::ParsedSnippet, CompilerError> collision = MarmotTest::ParseSnippet(source);
+		REQUIRE_FALSE(collision.HasValue());
+		CHECK(collision.Error().m_stage == CompilerStage::Parser);
+		CHECK(collision.Error().m_message == "Name already exists in the current scope");
+		REQUIRE(collision.Error().m_location.HasValue());
+		CHECK(collision.Error().m_location->m_line == 3);
+		CHECK(collision.Error().m_location->m_column == 5);
+		CHECK(collision.Error().m_location->m_caret_length == 7u);
+		MarmotCompiler::Expected<MarmotTest::ParsedSnippet, CompilerError> invalid = MarmotTest::ParseSnippet("module Shape\n" + declaration);
+		REQUIRE_FALSE(invalid.HasValue());
+		CHECK(invalid.Error().m_message == target + " deriving requires variants to contain at most one direct field of the first type parameter.");
 	}
 }
 
 TEST_CASE("Deriving checks container type parameters before reserving names", "[parser][deriving]")
 {
-	std::expected<MarmotTest::ParsedSnippet, CompilerError> parsed = MarmotTest::ParseSnippet("module NoParameters\ndef BoxMap = 0;\ntype Box = Empty | Other deriving (Map);\n");
-	REQUIRE_FALSE(parsed.has_value());
-	CHECK(parsed.error().m_message == "Container deriving requires at least one union type parameter.");
+	MarmotCompiler::Expected<MarmotTest::ParsedSnippet, CompilerError> parsed = MarmotTest::ParseSnippet("module NoParameters\ndef BoxMap = 0;\ntype Box = Empty | Other deriving (Map);\n");
+	REQUIRE_FALSE(parsed.HasValue());
+	CHECK(parsed.Error().m_message == "Container deriving requires at least one union type parameter.");
 }
 
 TEST_CASE("Deriving rejects local declarations before unsupported targets", "[parser][deriving]")
@@ -156,12 +157,12 @@ TEST_CASE("Deriving rejects local declarations before unsupported targets", "[pa
 	for (const std::string& declaration : { std::string("type Local<T> = Empty | Full(T) deriving (Bogus);"), std::string("type Local = { value: Int } deriving (Bogus);") })
 	{
 		const std::string source = "module LocalDeriving\ndef f = fn() -> Int => {\n    " + declaration + "\n    0\n};\n";
-		std::expected<MarmotTest::ParsedSnippet, CompilerError> parsed = MarmotTest::ParseSnippet(source);
-		REQUIRE_FALSE(parsed.has_value());
-		CHECK(parsed.error().m_message == "Deriving declarations are only supported at global scope.");
-		REQUIRE(parsed.error().m_location.has_value());
-		CHECK(parsed.error().m_location->m_line == 3);
-		CHECK(parsed.error().m_location->m_column == 9);
-		CHECK(parsed.error().m_location->m_caret_length == 5u);
+		MarmotCompiler::Expected<MarmotTest::ParsedSnippet, CompilerError> parsed = MarmotTest::ParseSnippet(source);
+		REQUIRE_FALSE(parsed.HasValue());
+		CHECK(parsed.Error().m_message == "Deriving declarations are only supported at global scope.");
+		REQUIRE(parsed.Error().m_location.HasValue());
+		CHECK(parsed.Error().m_location->m_line == 3);
+		CHECK(parsed.Error().m_location->m_column == 9);
+		CHECK(parsed.Error().m_location->m_caret_length == 5u);
 	}
 }

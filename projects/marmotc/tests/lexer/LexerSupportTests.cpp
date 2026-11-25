@@ -2,19 +2,20 @@
 
 #include "Compiler/Token/Token.h"
 #include "support/CompileHelpers.h"
+#include "Support/Expected.h"
 
 TEST_CASE("LexSnippet returns concise token sequences for expression tests", "[lexer][support]")
 {
 	const std::string source_code =
 		"def value = 1 + 2 * 3;\n";
 
-	std::expected<MarmotTest::LexedSnippet, CompilerError> lex_result = MarmotTest::LexSnippet(source_code, "LexerSupport.mmt");
-	if (!lex_result.has_value())
+	MarmotCompiler::Expected<MarmotTest::LexedSnippet, CompilerError> lex_result = MarmotTest::LexSnippet(source_code, "LexerSupport.mmt");
+	if (!lex_result.HasValue())
 	{
-		FAIL(std::string(lex_result.error().Rendered()));
+		FAIL(std::string(lex_result.Error().Rendered()));
 	}
 
-	const std::vector<Token::Name> token_names = MarmotTest::CollectTokenNames(lex_result.value().m_tokens);
+	const std::vector<Token::Name> token_names = MarmotTest::CollectTokenNames(lex_result.Value().m_tokens);
 	const std::vector<Token::Name> expected_names
 	{
 		Token::Name::DEF,

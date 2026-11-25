@@ -3,8 +3,8 @@
 #include "Compiler/Error/CompilerError.h"
 #include "Compiler/Analysis/AbstractSyntaxTreeWalker.h"
 #include "Compiler/AbstractSyntaxTree/AbstractSyntaxTree.h"
+#include "Support/Optional.h"
 
-#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -20,7 +20,7 @@ protected:
 
 	virtual void Finish();
 
-	void EmitWarning(CompilerWarningCode code, const Token& token, std::string_view message, std::optional<std::string_view> suggestion = std::nullopt);
+	void EmitWarning(CompilerWarningCode code, const Token& token, std::string_view message, MarmotCompiler::Optional<std::string_view> suggestion = MarmotCompiler::None);
 
 private:
 	std::string_view m_file_name;

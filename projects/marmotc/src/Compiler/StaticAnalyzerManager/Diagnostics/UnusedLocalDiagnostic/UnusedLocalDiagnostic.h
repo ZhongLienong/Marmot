@@ -1,8 +1,8 @@
 #pragma once
 
 #include "Compiler/StaticAnalyzerManager/Diagnostics/BaseDiagnosticPass/BaseDiagnosticPass.h"
+#include "Support/Optional.h"
 
-#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -57,7 +57,7 @@ private:
 	}
 
 	void FinishScope(const Scope& scope);
-	void RegisterBinding(const Token& token, const std::optional<BindingId>& binding, bool suppressed);
+	void RegisterBinding(const Token& token, const MarmotCompiler::Optional<BindingId>& binding, bool suppressed);
 	void RegisterParameterBindings(const FunctionParameters& params);
 	void MarkRead(const MarmotExpression::NameContext::Tag& name_ctx);
 };

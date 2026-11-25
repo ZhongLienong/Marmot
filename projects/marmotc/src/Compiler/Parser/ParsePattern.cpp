@@ -1,5 +1,7 @@
 #include "Parser.h"
 #include "Compiler/Names/SpecialNames.h"
+#include "Support/Expected.h"
+#include "Support/Optional.h"
 #include <algorithm>
 #include <format>
 #include <limits>
@@ -32,7 +34,7 @@ Parser::ConstructorResolutionResult Parser::ResolveConstructorName(const Token& 
 	const UseImportResolution use_import_resolution = ResolveUseImport(lookup_base);
 	if (use_import_resolution.m_status == UseImportResolutionStatus::Ambiguous)
 	{
-		return std::unexpected(GenerateParserError(BuildAmbiguousUseImportError(lookup_base, use_import_resolution.m_conflicting_modules), name_token));
+		return MarmotCompiler::Failure(GenerateParserError(BuildAmbiguousUseImportError(lookup_base, use_import_resolution.m_conflicting_modules), name_token));
 	}
 
 	if (use_import_resolution.m_status == UseImportResolutionStatus::Resolved)
@@ -79,7 +81,7 @@ Parser::ConstructorResolutionResult Parser::ResolveConstructorName(const Token& 
 				const ImportedSymbolAccess access = ResolveImportedSymbolAccess(lookup_base, type_name);
 				if (access != ImportedSymbolAccess::Accessible)
 				{
-					return std::unexpected(GenerateParserError(BuildImportedSymbolAccessError(lookup_base, type_name, access), name_token));
+					return MarmotCompiler::Failure(GenerateParserError(BuildImportedSymbolAccessError(lookup_base, type_name, access), name_token));
 				}
 
 				// The module's signatures hold its exported values beside its types,
@@ -102,7 +104,7 @@ Parser::ConstructorResolutionResult Parser::ResolveConstructorName(const Token& 
 		}
 	}
 
-	return std::optional<ConstructorResolution>(std::nullopt);
+	return MarmotCompiler::Optional<ConstructorResolution>(MarmotCompiler::None);
 }
 
 // `Qualifier::Name` in a pattern named no constructor. Say which half is wrong,
@@ -138,10 +140,10 @@ MarmotResult::PatternResult Parser::ParsePattern()
 			const Token as = Previous();
 			if (!Match(Token::Name::IDENTIFIER_LITERAL) || Previous().IsDiscard())
 			{
-				return std::unexpected(GenerateParserError("Expected a name after 'as' in a pattern.", as));
+				return MarmotCompiler::Failure(GenerateParserError("Expected a name after 'as' in a pattern.", as));
 			}
 
-			return ParseBindingPattern(Token(Previous())).transform([&](std::unique_ptr<MarmotPattern>&& binding)
+			return ParseBindingPattern(Token(Previous())).Transform([&](std::unique_ptr<MarmotPattern>&& binding)
 			{
 				return std::make_unique<MarmotPattern>(MarmotPattern::As(std::move(pattern), std::move(binding)));
 			});
@@ -155,14 +157,14 @@ MarmotResult::PatternResult Parser::ParsePattern()
 MarmotResult::PatternResult Parser::ParseAlternatives()
 {
 	MarmotResult::PatternResult first = ParsePrimaryPattern();
-	if (!first.has_value() || !Check(Token::Name::SINGLE_BAR, 0))
+	if (!first.HasValue() || !Check(Token::Name::SINGLE_BAR, 0))
 	{
 		return first;
 	}
 
 	std::vector<std::unique_ptr<MarmotPattern>> alternatives;
-	alternatives.push_back(std::move(first.value()));
-	const std::unordered_map<std::string, std::optional<BindingId>> locals = alternatives.front()->Bindings(false)
+	alternatives.push_back(std::move(first.Value()));
+	const std::unordered_map<std::string, MarmotCompiler::Optional<BindingId>> locals = alternatives.front()->Bindings(false)
 		| std::views::transform([](const MarmotPattern::Binding* binding) { return std::pair{ binding->m_name.m_lexeme, binding->m_binding }; })
 		| std::ranges::to<std::unordered_map>();
 
@@ -170,32 +172,32 @@ MarmotResult::PatternResult Parser::ParseAlternatives()
 	{
 		const Token bar = Previous();
 		MarmotResult::PatternResult alternative = InScope([this]() { return ParsePrimaryPattern(); });
-		if (!alternative.has_value())
+		if (!alternative.HasValue())
 		{
 			return alternative;
 		}
 
-		const std::vector<MarmotPattern::Binding*> bound = alternative.value()->Bindings(false);
+		const std::vector<MarmotPattern::Binding*> bound = alternative.Value()->Bindings(false);
 		for (const MarmotPattern::Binding* binding : bound)
 		{
 			if (!locals.contains(binding->m_name.m_lexeme))
 			{
-				return std::unexpected(GenerateParserError(std::format("'{}' is bound here but not by the first alternative; every alternative of '|' binds the same names.", binding->m_name.m_lexeme), binding->m_name));
+				return MarmotCompiler::Failure(GenerateParserError(std::format("'{}' is bound here but not by the first alternative; every alternative of '|' binds the same names.", binding->m_name.m_lexeme), binding->m_name));
 			}
 		}
 		for (const std::string& name : locals | std::views::keys)
 		{
 			if (std::ranges::none_of(bound, [&name](const MarmotPattern::Binding* binding) { return binding->m_name.m_lexeme == name; }))
 			{
-				return std::unexpected(GenerateParserError(std::format("The first alternative binds '{}' and this one does not; every alternative of '|' binds the same names.", name), bar));
+				return MarmotCompiler::Failure(GenerateParserError(std::format("The first alternative binds '{}' and this one does not; every alternative of '|' binds the same names.", name), bar));
 			}
 		}
 
-		for (MarmotPattern::Binding* binding : alternative.value()->Bindings(true))
+		for (MarmotPattern::Binding* binding : alternative.Value()->Bindings(true))
 		{
 			binding->m_binding = locals.at(binding->m_name.m_lexeme);
 		}
-		alternatives.push_back(std::move(alternative.value()));
+		alternatives.push_back(std::move(alternative.Value()));
 	}
 
 	return std::make_unique<MarmotPattern>(MarmotPattern::Or(std::move(alternatives)));
@@ -213,7 +215,7 @@ MarmotResult::PatternResult Parser::ParsePrimaryPattern()
 		}
 
 		return ParsePattern()
-			.and_then
+			.AndThen
 			(
 				[this, left_paren](std::unique_ptr<MarmotPattern>&& first_pattern) -> MarmotResult::PatternResult
 				{
@@ -227,13 +229,13 @@ MarmotResult::PatternResult Parser::ParsePrimaryPattern()
 							MarmotResult::PatternResult elem_result = ParsePattern();
 							if (!elem_result)
 							{
-								return std::unexpected(elem_result.error());
+								return MarmotCompiler::Failure(elem_result.Error());
 							}
-							elements.push_back(std::move(elem_result.value()));
+							elements.push_back(std::move(elem_result.Value()));
 						} while (Match(Token::Name::COMMA));
 
 						return Consume(Token::Name::RIGHT_PAREN, "Expected ')' after tuple pattern.")
-							.and_then
+							.AndThen
 							(
 								[&elements, left_paren](Token&&) -> MarmotResult::PatternResult
 								{
@@ -243,7 +245,7 @@ MarmotResult::PatternResult Parser::ParsePrimaryPattern()
 					}
 
 					return Consume(Token::Name::RIGHT_PAREN, "Expected ')' after pattern.")
-						.and_then
+						.AndThen
 						(
 							[pattern = std::move(first_pattern)](Token&&) mutable -> MarmotResult::PatternResult
 							{
@@ -258,7 +260,7 @@ MarmotResult::PatternResult Parser::ParsePrimaryPattern()
 	{
 		Token left_bracket = Previous();
 		std::vector<std::unique_ptr<MarmotPattern>> elements;
-		std::optional<MarmotPattern::Array::Rest> rest;
+		MarmotCompiler::Optional<MarmotPattern::Array::Rest> rest;
 		if (!Check(Token::Name::RIGHT_BRACKET, 0))
 		{
 			do
@@ -266,32 +268,32 @@ MarmotResult::PatternResult Parser::ParsePrimaryPattern()
 				if (Match(Token::Name::DOUBLE_DOT))
 				{
 					Token dots = Previous();
-					if (rest.has_value())
+					if (rest.HasValue())
 					{
-						return std::unexpected(GenerateParserError("An array pattern takes at most one '..'.", dots));
+						return MarmotCompiler::Failure(GenerateParserError("An array pattern takes at most one '..'.", dots));
 					}
 
 					MarmotResult::PatternResult rest_result = ParseArrayRest(std::move(dots));
 					if (!rest_result)
 					{
-						return std::unexpected(rest_result.error());
+						return MarmotCompiler::Failure(rest_result.Error());
 					}
-					rest.emplace(elements.size(), std::move(rest_result.value()));
+					rest.Emplace(elements.size(), std::move(rest_result.Value()));
 				}
 				else
 				{
 					MarmotResult::PatternResult elem_result = ParsePattern();
 					if (!elem_result)
 					{
-						return std::unexpected(elem_result.error());
+						return MarmotCompiler::Failure(elem_result.Error());
 					}
-					elements.push_back(std::move(elem_result.value()));
+					elements.push_back(std::move(elem_result.Value()));
 				}
 			} while (Match(Token::Name::COMMA));
 		}
 
 		return Consume(Token::Name::RIGHT_BRACKET, "Expected ']' after array pattern.")
-			.and_then
+			.AndThen
 			(
 				[&elements, &rest, left_bracket](Token&&) -> MarmotResult::PatternResult
 				{
@@ -308,7 +310,7 @@ MarmotResult::PatternResult Parser::ParsePrimaryPattern()
 	if (Check(Token::Name::FLOAT_LITERAL, 0) || Check(Token::Name::INTEGER_LITERAL, 0) || Check(Token::Name::SINGLE_MINUS, 0) || Check(Token::Name::SINGLE_PLUS, 0))
 	{
 		return ParseNumericLiteralPattern()
-			.and_then([this](std::unique_ptr<MarmotPattern>&& literal) -> MarmotResult::PatternResult
+			.AndThen([this](std::unique_ptr<MarmotPattern>&& literal) -> MarmotResult::PatternResult
 			{
 				return Check(Token::Name::DOUBLE_DOT, 0) ? ParseRangePattern(std::move(literal)) : std::move(literal);
 			});
@@ -328,7 +330,7 @@ MarmotResult::PatternResult Parser::ParsePrimaryPattern()
 		}
 
 		return MatchNameResolution()
-			.and_then
+			.AndThen
 			(
 				[&identifier, this](Token&& resolved) -> MarmotResult::PatternResult
 				{
@@ -337,20 +339,20 @@ MarmotResult::PatternResult Parser::ParsePrimaryPattern()
 					// A pattern names a constructor by the rule an expression does: in scope,
 					// through a `use`, or as Module::Record and Module::Union::Member.
 					ConstructorResolutionResult resolution = ResolveConstructorName(resolved, resolved.m_lexeme);
-					if (!resolution.has_value())
+					if (!resolution.HasValue())
 					{
-						return std::unexpected(resolution.error());
+						return MarmotCompiler::Failure(resolution.Error());
 					}
 
-					if (resolution.value().has_value())
+					if (resolution.Value().HasValue())
 					{
-						const bool is_union = !resolution.value()->m_is_struct;
-						resolved.m_lexeme = resolution.value()->m_constructor_name;
+						const bool is_union = !resolution.Value()->m_is_struct;
+						resolved.m_lexeme = resolution.Value()->m_constructor_name;
 						if (Check(Token::Name::LEFT_BRACE, 0))
 						{
 							if (is_union)
 							{
-								return std::unexpected(GenerateParserError("A variant's fields have no names; match it with Name(...).", Peek(0)));
+								return MarmotCompiler::Failure(GenerateParserError("A variant's fields have no names; match it with Name(...).", Peek(0)));
 							}
 							Advance();
 							return ParseRecordPattern(std::move(resolved));
@@ -365,26 +367,26 @@ MarmotResult::PatternResult Parser::ParsePrimaryPattern()
 									MarmotResult::PatternResult arg_result = ParsePattern();
 									if (!arg_result)
 									{
-										return std::unexpected(arg_result.error());
+										return MarmotCompiler::Failure(arg_result.Error());
 									}
-									args.push_back(std::move(arg_result.value()));
+									args.push_back(std::move(arg_result.Value()));
 								} while (Match(Token::Name::COMMA));
 
 								if (!Match(Token::Name::RIGHT_PAREN))
 								{
-									return std::unexpected(GenerateParserError("Expected ')' after constructor pattern.", Peek(0)));
+									return MarmotCompiler::Failure(GenerateParserError("Expected ')' after constructor pattern.", Peek(0)));
 								}
 							}
 
 							return std::make_unique<MarmotPattern>(MarmotPattern::Constructor(resolved, std::string(resolved.m_lexeme), std::move(args), is_union));
 						}
 
-						return std::unexpected(GenerateParserError("Constructor patterns require parentheses; use Name() for a constructor with no fields.", identifier));
+						return MarmotCompiler::Failure(GenerateParserError("Constructor patterns require parentheses; use Name() for a constructor with no fields.", identifier));
 					}
 
 					if (resolved.m_lexeme.find(NameSeparator) != std::string::npos)
 					{
-						return std::unexpected(GenerateParserError(DescribeUnknownConstructor(resolved.m_lexeme), resolved));
+						return MarmotCompiler::Failure(GenerateParserError(DescribeUnknownConstructor(resolved.m_lexeme), resolved));
 					}
 
 					return ParseBindingPattern(std::move(identifier));
@@ -392,7 +394,7 @@ MarmotResult::PatternResult Parser::ParsePrimaryPattern()
 			);
 	}
 
-	return std::unexpected(GenerateParserError("Expected pattern.", Peek(0)));
+	return MarmotCompiler::Failure(GenerateParserError("Expected pattern.", Peek(0)));
 }
 
 MarmotResult::PatternResult Parser::ParseNumericLiteralPattern()
@@ -403,7 +405,7 @@ MarmotResult::PatternResult Parser::ParseNumericLiteralPattern()
 		sign = Previous().m_token_name == Token::Name::SINGLE_MINUS ? "-" : "";
 		if (!Check(Token::Name::FLOAT_LITERAL, 0) && !Check(Token::Name::INTEGER_LITERAL, 0))
 		{
-			return std::unexpected(GenerateParserError("Expected numeric literal after unary sign in pattern.", Previous()));
+			return MarmotCompiler::Failure(GenerateParserError("Expected numeric literal after unary sign in pattern.", Previous()));
 		}
 	}
 
@@ -419,7 +421,7 @@ MarmotResult::PatternResult Parser::ParseNumericLiteralPattern()
 		literal.m_lexeme = sign + literal.m_lexeme;
 		return std::make_unique<MarmotPattern>(MarmotPattern::Literal(literal, MarmotPattern::LiteralKind::Integer));
 	}
-	return std::unexpected(GenerateParserError("Expected numeric literal in pattern.", Peek(0)));
+	return MarmotCompiler::Failure(GenerateParserError("Expected numeric literal in pattern.", Peek(0)));
 }
 
 // `start..end` and `start..step..end` match the Ints the same range visits. The
@@ -432,11 +434,11 @@ MarmotResult::PatternResult Parser::ParseRangePattern(std::unique_ptr<MarmotPatt
 	while (parts.size() < 3uz && Match(Token::Name::DOUBLE_DOT))
 	{
 		MarmotResult::PatternResult part = ParseNumericLiteralPattern();
-		if (!part.has_value())
+		if (!part.HasValue())
 		{
 			return part;
 		}
-		parts.push_back(std::move(part.value()));
+		parts.push_back(std::move(part.Value()));
 	}
 
 	std::vector<int64_t> values;
@@ -445,14 +447,14 @@ MarmotResult::PatternResult Parser::ParseRangePattern(std::unique_ptr<MarmotPatt
 		const MarmotPattern::Literal& literal = part->GetPattern<MarmotPattern::Literal>();
 		if (literal.m_kind != MarmotPattern::LiteralKind::Integer)
 		{
-			return std::unexpected(GenerateParserError("A range pattern's start, step and end are Int literals.", literal.m_token));
+			return MarmotCompiler::Failure(GenerateParserError("A range pattern's start, step and end are Int literals.", literal.m_token));
 		}
-		const std::optional<int64_t> value = ParseIntegerLiteral(literal.m_token.m_lexeme);
-		if (!value.has_value())
+		const MarmotCompiler::Optional<int64_t> value = ParseIntegerLiteral(literal.m_token.m_lexeme);
+		if (!value.HasValue())
 		{
-			return std::unexpected(GenerateParserError("This literal does not fit in an Int.", literal.m_token));
+			return MarmotCompiler::Failure(GenerateParserError("This literal does not fit in an Int.", literal.m_token));
 		}
-		values.push_back(value.value());
+		values.push_back(value.Value());
 	}
 
 	const Token& start_token = parts.front()->GetPattern<MarmotPattern::Literal>().m_token;
@@ -461,11 +463,11 @@ MarmotResult::PatternResult Parser::ParseRangePattern(std::unique_ptr<MarmotPatt
 	const int64_t end = values.back();
 	if (step != 1 && step != -1)
 	{
-		return std::unexpected(GenerateParserError("A range pattern steps by 1 or -1; test other steps with a guard, as in 'case n if n % 2 == 0'.", parts[1uz]->GetPattern<MarmotPattern::Literal>().m_token));
+		return MarmotCompiler::Failure(GenerateParserError("A range pattern steps by 1 or -1; test other steps with a guard, as in 'case n if n % 2 == 0'.", parts[1uz]->GetPattern<MarmotPattern::Literal>().m_token));
 	}
 	if (step == 1 ? first >= end : first <= end)
 	{
-		return std::unexpected(GenerateParserError("This range visits no value, so the pattern can never match.", start_token));
+		return MarmotCompiler::Failure(GenerateParserError("This range visits no value, so the pattern can never match.", start_token));
 	}
 	return step == 1
 		? std::make_unique<MarmotPattern>(MarmotPattern::Range(start_token, first, end - 1))
@@ -477,7 +479,7 @@ MarmotResult::PatternResult Parser::ParseRangePattern(std::unique_ptr<MarmotPatt
 MarmotResult::PatternResult Parser::ParseRecordPattern(Token&& name)
 {
 	std::vector<MarmotPattern::Record::Field> fields;
-	std::optional<Token> rest;
+	MarmotCompiler::Optional<Token> rest;
 	do
 	{
 		if (Match(Token::Name::DOUBLE_DOT))
@@ -486,25 +488,25 @@ MarmotResult::PatternResult Parser::ParseRecordPattern(Token&& name)
 			break;
 		}
 		MarmotResult::TokenResult field = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected a field name, or '..' to leave the rest out, in a record pattern.");
-		if (!field.has_value())
+		if (!field.HasValue())
 		{
-			return std::unexpected(field.error());
+			return MarmotCompiler::Failure(field.Error());
 		}
 		MarmotResult::TokenResult equal = Consume(Token::Name::SINGLE_EQUAL, "Expected '=' after the field name; a record pattern names each field as 'field = pattern'.");
-		if (!equal.has_value())
+		if (!equal.HasValue())
 		{
-			return std::unexpected(equal.error());
+			return MarmotCompiler::Failure(equal.Error());
 		}
 		MarmotResult::PatternResult pattern = ParsePattern();
-		if (!pattern.has_value())
+		if (!pattern.HasValue())
 		{
 			return pattern;
 		}
-		fields.emplace_back(field.value(), std::move(pattern.value()));
+		fields.emplace_back(field.Value(), std::move(pattern.Value()));
 	} while (Match(Token::Name::COMMA));
 
-	return Consume(Token::Name::RIGHT_BRACE, rest.has_value() ? "Expected '}' after '..'; it comes last in a record pattern." : "Expected '}' after record pattern.")
-		.transform([&name, &fields, &rest](Token&&)
+	return Consume(Token::Name::RIGHT_BRACE, rest.HasValue() ? "Expected '}' after '..'; it comes last in a record pattern." : "Expected '}' after record pattern.")
+		.Transform([&name, &fields, &rest](Token&&)
 		{
 			return std::make_unique<MarmotPattern>(MarmotPattern::Record(name, std::string(name.m_lexeme), std::move(fields), std::move(rest)));
 		});
@@ -514,11 +516,11 @@ MarmotResult::PatternResult Parser::ParseBindingPattern(Token&& name)
 {
 	constexpr bool is_variable = true;
 	return DefineName(name, is_variable)
-		.and_then
+		.AndThen
 		(
 			[this](Token&& defined_name) -> MarmotResult::PatternResult
 			{
-				std::optional<BindingId> binding = RegisterLocalBinding(defined_name.m_lexeme);
+				MarmotCompiler::Optional<BindingId> binding = RegisterLocalBinding(defined_name.m_lexeme);
 				return std::make_unique<MarmotPattern>(MarmotPattern::Binding(defined_name, std::move(binding)));
 			}
 		);

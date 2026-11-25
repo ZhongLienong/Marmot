@@ -2,13 +2,14 @@
 
 #include <concepts>
 #include <cstddef>
-#include <expected>
 #include <string>
 #include <string_view>
 #include <type_traits>
 #include <utility>
 #include <variant>
 #include <vector>
+
+#include "Support/Expected.h"
 
 namespace CompilerJson
 {
@@ -51,5 +52,5 @@ namespace CompilerJson
 	};
 
 	// Parses one JSON document (RFC 8259). Errors name the line and column.
-	[[nodiscard]] std::expected<JsonValue, std::string> Parse(std::string_view text);
+	[[nodiscard]] MarmotCompiler::Expected<JsonValue, std::string> Parse(std::string_view text);
 }

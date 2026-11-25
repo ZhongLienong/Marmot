@@ -1,14 +1,14 @@
 #include "IntegerOverflowDiagnostic.h"
 
 #include "Bytecode/Scalar/Scalar.h"
+#include "Support/Optional.h"
 
 #include <limits>
-#include <optional>
 #include <string>
 
 namespace
 {
-	std::optional<MarmotInteger> TryParseIntegerLiteral(const MarmotExpression& expression)
+	MarmotCompiler::Optional<MarmotInteger> TryParseIntegerLiteral(const MarmotExpression& expression)
 	{
 		const MarmotExpression* current = &expression;
 		while (current->IsExpression<MarmotExpression::Group>())
@@ -26,16 +26,16 @@ namespace
 			const MarmotExpression::UnaryPrefix& unary = current->GetExpression<MarmotExpression::UnaryPrefix>();
 			if (unary.m_op.m_token_name == Token::Name::SINGLE_MINUS)
 			{
-				const std::optional<MarmotInteger> inner = TryParseIntegerLiteral(*unary.m_expr);
-				if (!inner.has_value() || *inner == (std::numeric_limits<MarmotInteger>::min)())
+				const MarmotCompiler::Optional<MarmotInteger> inner = TryParseIntegerLiteral(*unary.m_expr);
+				if (!inner.HasValue() || *inner == (std::numeric_limits<MarmotInteger>::min)())
 				{
-					return std::nullopt;
+					return MarmotCompiler::None;
 				}
 				return -*inner;
 			}
 		}
 
-		return std::nullopt;
+		return MarmotCompiler::None;
 	}
 
 	bool WouldAdditionOverflow(MarmotInteger left, MarmotInteger right)
@@ -128,14 +128,14 @@ void IntegerOverflowDiagnostic::operator()(MarmotExpression::Binary& binary)
 		return;
 	}
 
-	const std::optional<MarmotInteger> left_value = TryParseIntegerLiteral(*binary.m_left);
-	const std::optional<MarmotInteger> right_value = TryParseIntegerLiteral(*binary.m_right);
-	if (!left_value.has_value() || !right_value.has_value())
+	const MarmotCompiler::Optional<MarmotInteger> left_value = TryParseIntegerLiteral(*binary.m_left);
+	const MarmotCompiler::Optional<MarmotInteger> right_value = TryParseIntegerLiteral(*binary.m_right);
+	if (!left_value.HasValue() || !right_value.HasValue())
 	{
 		return;
 	}
 
-	std::optional<std::string> message = std::nullopt;
+	MarmotCompiler::Optional<std::string> message = MarmotCompiler::None;
 	switch (binary.m_op.m_token_name)
 	{
 	case Token::Name::SINGLE_PLUS:
@@ -166,7 +166,7 @@ void IntegerOverflowDiagnostic::operator()(MarmotExpression::Binary& binary)
 		break;
 	}
 
-	if (message.has_value())
+	if (message.HasValue())
 	{
 		EmitWarning(CompilerWarningCode::IntegerOverflow, binary.m_op, *message);
 	}

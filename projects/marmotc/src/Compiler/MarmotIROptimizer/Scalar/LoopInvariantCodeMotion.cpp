@@ -1,5 +1,6 @@
 #include "Compiler/MarmotIROptimizer/Analysis/MarmotIRAnalysis.h"
 #include "Compiler/MarmotIROptimizer/MarmotIRPasses.h"
+#include "Support/Optional.h"
 
 #include <ranges>
 #include <utility>
@@ -58,7 +59,7 @@ namespace
 	// so it must give the same value every time.
 	bool IsHoistable(const MarmotIRInstruction& instruction)
 	{
-		if (!instruction.m_result.has_value() || IsMarmotIRTerminator(instruction.m_op))
+		if (!instruction.m_result.HasValue() || IsMarmotIRTerminator(instruction.m_op))
 		{
 			return false;
 		}
@@ -79,14 +80,14 @@ namespace
 
 	// The one block outside the loop that enters it, when it only jumps to
 	// the header.
-	std::optional<uint32_t> Preheader(const MarmotIRFunction& function, const MarmotIRControlFlow& control_flow, const Loop& loop)
+	MarmotCompiler::Optional<uint32_t> Preheader(const MarmotIRFunction& function, const MarmotIRControlFlow& control_flow, const Loop& loop)
 	{
 		const std::vector<uint32_t> outside = control_flow.Predecessors(loop.m_header)
 			| std::views::filter([&loop](uint32_t predecessor) { return !loop.m_blocks[predecessor]; })
 			| std::ranges::to<std::vector>();
 		if (outside.size() != 1u || function.m_blocks[outside.front()].m_instructions.back().m_op != MarmotIROp::Jump)
 		{
-			return std::nullopt;
+			return MarmotCompiler::None;
 		}
 		return outside.front();
 	}
@@ -94,8 +95,8 @@ namespace
 	// Hoisting moves instructions but no edge, so one graph serves every loop.
 	bool Hoist(MarmotIRFunction& function, const MarmotIRControlFlow& control_flow, const Loop& loop)
 	{
-		const std::optional<uint32_t> preheader = Preheader(function, control_flow, loop);
-		if (!preheader.has_value())
+		const MarmotCompiler::Optional<uint32_t> preheader = Preheader(function, control_flow, loop);
+		if (!preheader.HasValue())
 		{
 			return false;
 		}
@@ -112,7 +113,7 @@ namespace
 			}
 			for (const MarmotIRInstruction& instruction : function.m_blocks[block].m_instructions)
 			{
-				if (instruction.m_result.has_value())
+				if (instruction.m_result.HasValue())
 				{
 					defined_inside[instruction.m_result->m_index] = true;
 				}
@@ -143,7 +144,7 @@ namespace
 				}
 			);
 		}
-		std::vector<MarmotIRInstruction>& target = function.m_blocks[preheader.value()].m_instructions;
+		std::vector<MarmotIRInstruction>& target = function.m_blocks[preheader.Value()].m_instructions;
 		target.insert(target.end() - 1, std::make_move_iterator(hoisted.begin()), std::make_move_iterator(hoisted.end()));
 		return !hoisted.empty();
 	}

@@ -37,11 +37,11 @@ import
 	for (size_t jobs : { 1u, 2u, 4u, 2u })
 	{
 		const MarmotDriver::CompileFileWithReportResult result = MarmotDriver::CompileFileWithReport(main, CompilationInputs().WithJobs(jobs));
-		REQUIRE_FALSE(result.has_value());
-		const MarmotResult::CompilerReport& report = result.error().m_report;
+		REQUIRE_FALSE(result.HasValue());
+		const MarmotResult::CompilerReport& report = result.Error().m_report;
 		REQUIRE(report.m_errors.Size() == 1u);
 		const CompilerError& error = report.m_errors.First();
-		REQUIRE(error.m_location.has_value());
+		REQUIRE(error.m_location.HasValue());
 		CHECK(error.m_location->m_file_name == main.string());
 		CHECK(error.m_location->m_line == 5);
 		const std::string rendered = report.Rendered();

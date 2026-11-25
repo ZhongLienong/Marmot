@@ -16,10 +16,10 @@ namespace
 {
 	LoweredModule RequireLowered(std::string source)
 	{
-		std::expected<LoweredModule, MarmotResult::CompilerDiagnostics> lowered = MarmotTest::LowerSnippetWithDiagnostics(std::move(source));
-		if (!lowered.has_value())
+		MarmotResult::DiagnosticsResult<LoweredModule> lowered = MarmotTest::LowerSnippetWithDiagnostics(std::move(source));
+		if (!lowered.HasValue())
 		{
-			FAIL(lowered.error().Rendered());
+			FAIL(lowered.Error().Rendered());
 		}
 		const std::vector<MarmotIRViolation> violations = MarmotIRVerifier(lowered->m_module).Verify();
 		for (const MarmotIRViolation& violation : violations)
@@ -27,15 +27,15 @@ namespace
 			UNSCOPED_INFO(violation.ToString());
 		}
 		REQUIRE(violations.empty());
-		return std::move(lowered).value();
+		return std::move(lowered).Value();
 	}
 
 	CompilerError RequireLoweringError(std::string source)
 	{
-		std::expected<LoweredModule, MarmotResult::CompilerDiagnostics> lowered = MarmotTest::LowerSnippetWithDiagnostics(std::move(source));
-		REQUIRE_FALSE(lowered.has_value());
-		REQUIRE(lowered.error().Size() == 1u);
-		return lowered.error().m_items.front();
+		MarmotResult::DiagnosticsResult<LoweredModule> lowered = MarmotTest::LowerSnippetWithDiagnostics(std::move(source));
+		REQUIRE_FALSE(lowered.HasValue());
+		REQUIRE(lowered.Error().Size() == 1u);
+		return lowered.Error().m_items.front();
 	}
 
 	void RequireErrorMatches(const CompilerError& error, const MarmotTest::ErrorExpectation& expectation)
@@ -49,7 +49,7 @@ namespace
 
 TEST_CASE("A program of scalars, branches and tail calls prints what it computes", "[marmot_ir][lowering][backend]")
 {
-	const std::expected<MarmotTest::ExecutedSnippet, CompilerError> executed = MarmotTest::ExecuteSnippet(R"(module Parity
+	const MarmotResult::Result<MarmotTest::ExecutedSnippet> executed = MarmotTest::ExecuteSnippet(R"(module Parity
 foreign "MARMOT_FFI_Print" Print: fn(Text) -> Unit from "marmotstdlib";
 def Fib = fn(n: Int, a: Int, b: Int) -> Int => if n == 0 then a else Fib(n - 1, b, a + b);
 def Show = fn(label: Text, value: Int) -> Unit => Print(label ++ "=" ++ (value as Text) ++ "\n");
@@ -63,7 +63,7 @@ Show("mixed", {
 Print(Pick((Fib(5, 0, 1) == 5) && !(Fib(6, 0, 1) == 5)) ++ "\n");
 Print(((Fib(7, 0, 1) as Float) / 2.0) as Text);
 )");
-	REQUIRE(executed.has_value());
+	REQUIRE(executed.HasValue());
 	CHECK(executed->m_exit_code == 0);
 	CHECK(executed->m_output.m_stdout == "fib=12586269025\nmixed=104\nyes\n6.5");
 }

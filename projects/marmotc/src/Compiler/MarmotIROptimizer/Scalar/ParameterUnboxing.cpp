@@ -1,5 +1,6 @@
 #include "Compiler/MarmotIROptimizer/Analysis/MarmotIRAnalysis.h"
 #include "Compiler/MarmotIROptimizer/MarmotIRPasses.h"
+#include "Support/Optional.h"
 
 #include <map>
 #include <ranges>
@@ -24,7 +25,7 @@ namespace
 	{
 	private:
 		MarmotIRFunction& m_function;
-		std::vector<std::optional<MarmotIRSite>> m_sites;
+		std::vector<MarmotCompiler::Optional<MarmotIRSite>> m_sites;
 		std::vector<std::vector<MarmotIREdge>> m_incoming;
 
 	public:
@@ -41,12 +42,12 @@ namespace
 			{
 				for (size_t index = 0u; index < m_function.m_blocks[block].m_parameters.size(); index += 1u)
 				{
-					const std::optional<MarmotIROp> constructor = OnlyConstructor(block, index);
-					if (!constructor.has_value())
+					const MarmotCompiler::Optional<MarmotIROp> constructor = OnlyConstructor(block, index);
+					if (!constructor.HasValue())
 					{
 						continue;
 					}
-					const Reads reads = ReadsOf(block, index, ReadOf(constructor.value()));
+					const Reads reads = ReadsOf(block, index, ReadOf(constructor.Value()));
 					if (reads.m_escapes)
 					{
 						continue;
@@ -62,10 +63,10 @@ namespace
 		// Construct or MakeTuple when every edge passes a value made by it, or
 		// passes the parameter back to its own block, and at least one makes
 		// it.
-		std::optional<MarmotIROp> OnlyConstructor(uint32_t block, size_t index)
+		MarmotCompiler::Optional<MarmotIROp> OnlyConstructor(uint32_t block, size_t index)
 		{
 			const MarmotIRValueId parameter = m_function.m_blocks[block].m_parameters[index];
-			std::optional<MarmotIROp> constructor;
+			MarmotCompiler::Optional<MarmotIROp> constructor;
 			for (const MarmotIREdge& edge : m_incoming[block])
 			{
 				const MarmotIRValueId argument = MarmotIRAnalysis::SuccessorOf(m_function, edge).m_arguments[index];
@@ -74,9 +75,9 @@ namespace
 					continue;
 				}
 				const MarmotIRInstruction* definition = MarmotIRAnalysis::Definition(m_function, m_sites, argument);
-				if (definition == nullptr || (definition->m_op != MarmotIROp::Construct && definition->m_op != MarmotIROp::MakeTuple) || constructor.value_or(definition->m_op) != definition->m_op)
+				if (definition == nullptr || (definition->m_op != MarmotIROp::Construct && definition->m_op != MarmotIROp::MakeTuple) || constructor.ValueOr(definition->m_op) != definition->m_op)
 				{
-					return std::nullopt;
+					return MarmotCompiler::None;
 				}
 				constructor = definition->m_op;
 			}
@@ -117,7 +118,7 @@ namespace
 		void Unbox(uint32_t block, size_t index, const Reads& reads)
 		{
 			const MarmotIRValueId parameter = m_function.m_blocks[block].m_parameters[index];
-			std::vector<std::optional<MarmotIRValueId>> replacements(m_function.m_values.size());
+			std::vector<MarmotCompiler::Optional<MarmotIRValueId>> replacements(m_function.m_values.size());
 			std::vector<std::pair<uint32_t, MarmotIRValueId>> parts;
 			for (const auto& [part, sites] : reads.m_parts)
 			{
@@ -151,7 +152,7 @@ namespace
 			{
 				std::erase_if(user.m_instructions, [&](const MarmotIRInstruction& instruction)
 				{
-					return instruction.m_result.has_value() && instruction.m_result->m_index < replacements.size() && replacements[instruction.m_result->m_index].has_value();
+					return instruction.m_result.HasValue() && instruction.m_result->m_index < replacements.size() && replacements[instruction.m_result->m_index].HasValue();
 				});
 			}
 			MarmotIRAnalysis::ReplaceUses(m_function, replacements);

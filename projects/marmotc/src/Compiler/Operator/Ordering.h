@@ -1,9 +1,9 @@
 #pragma once
 
 #include "Compiler/AbstractSyntaxTree/Type.h"
+#include "Support/Optional.h"
 
 #include <array>
-#include <optional>
 
 enum class MarmotOrdering
 {
@@ -20,7 +20,7 @@ struct OrderingType
 
 	static constexpr std::string_view s_required_result = "Orderable::Compare must return a union with exactly the payload-free constructors Less, Equal, Greater, and Unordered.";
 
-	static std::optional<OrderingType> Resolve(const std::unordered_map<std::string, std::shared_ptr<MarmotType>>& methods);
+	static MarmotCompiler::Optional<OrderingType> Resolve(const std::unordered_map<std::string, std::shared_ptr<MarmotType>>& methods);
 	std::string ConstructorName(MarmotOrdering value) const;
 	int Tag(MarmotOrdering value) const;
 };

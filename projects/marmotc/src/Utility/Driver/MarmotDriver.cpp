@@ -5,7 +5,6 @@
 #include <filesystem>
 #include <format>
 #include <fstream>
-#include <optional>
 #include <print>
 #include <ranges>
 #include <sstream>
@@ -16,6 +15,7 @@
 #include <vector>
 
 #include "Compiler/Compiler.h"
+#include "Support/Expected.h"
 
 namespace
 {
@@ -46,7 +46,7 @@ namespace
 		return error;
 	}
 
-	[[nodiscard]] std::expected<std::string, MarmotDriver::DriverError> ReadSourceFile(const std::filesystem::path& file_path, const CompilationInputs& inputs)
+	[[nodiscard]] MarmotCompiler::Expected<std::string, MarmotDriver::DriverError> ReadSourceFile(const std::filesystem::path& file_path, const CompilationInputs& inputs)
 	{
 		if (const std::string* overlay = inputs.SourceOverlay(file_path); overlay != nullptr)
 		{
@@ -56,7 +56,7 @@ namespace
 		std::ifstream file(file_path, std::ios::binary);
 		if (std::filesystem::is_directory(file_path) || !file.is_open())
 		{
-			return std::unexpected(FileSystemError("Could not open file", file_path));
+			return MarmotCompiler::Failure(FileSystemError("Could not open file", file_path));
 		}
 
 		// Not `!buffer`: inserting an empty file's rdbuf sets failbit, and an
@@ -65,7 +65,7 @@ namespace
 		buffer << file.rdbuf();
 		if (file.bad())
 		{
-			return std::unexpected(FileSystemError("Could not read file", file_path));
+			return MarmotCompiler::Failure(FileSystemError("Could not read file", file_path));
 		}
 
 		return buffer.str();
@@ -104,12 +104,12 @@ namespace MarmotDriver
 		return CompilationInputs().WithSearchPaths(ReadPathList("MARMOT_PATH"));
 	}
 
-	MarmotResult::CompilationResult CompileSourceWithReport(std::string source_code, std::string file_name)
+	MarmotResult::CompiledProgramReportResult CompileSourceWithReport(std::string source_code, std::string file_name)
 	{
 		return CompileSourceWithReport(std::move(source_code), std::move(file_name), EnvironmentCompilationInputs());
 	}
 
-	MarmotResult::CompilationResult CompileSourceWithReport(std::string source_code, std::string file_name, CompilationInputs inputs)
+	MarmotResult::CompiledProgramReportResult CompileSourceWithReport(std::string source_code, std::string file_name, CompilationInputs inputs)
 	{
 		return Compiler(std::move(source_code), std::move(file_name), std::move(inputs)).CompileWithReport();
 	}
@@ -121,28 +121,28 @@ namespace MarmotDriver
 
 	CompileFileWithReportResult CompileFileWithReport(const std::filesystem::path& file_path, CompilationInputs inputs)
 	{
-		std::expected<std::string, DriverError> source_result = ReadSourceFile(file_path, inputs);
-		if (!source_result.has_value())
+		MarmotCompiler::Expected<std::string, DriverError> source_result = ReadSourceFile(file_path, inputs);
+		if (!source_result.HasValue())
 		{
-			return std::unexpected(std::move(source_result.error()));
+			return MarmotCompiler::Failure(std::move(source_result.Error()));
 		}
 
-		MarmotResult::CompilationResult compile_result = CompileSourceWithReport(std::move(source_result.value()), file_path.string(), std::move(inputs));
-		if (!compile_result.has_value())
+		MarmotResult::CompiledProgramReportResult compile_result = CompileSourceWithReport(std::move(source_result.Value()), file_path.string(), std::move(inputs));
+		if (!compile_result.HasValue())
 		{
-			return std::unexpected(DriverError::Compilation(std::move(compile_result.error())));
+			return MarmotCompiler::Failure(DriverError::Compilation(std::move(compile_result.Error())));
 		}
 
-		return std::move(compile_result).value();
+		return std::move(compile_result).Value();
 	}
 
 	EditorAnalysis AnalyzeFile(const std::filesystem::path& file_path, CompilationInputs inputs)
 	{
-		std::expected<std::string, DriverError> source = ReadSourceFile(file_path, inputs);
+		MarmotCompiler::Expected<std::string, DriverError> source = ReadSourceFile(file_path, inputs);
 		if (!source)
 		{
-			return { std::move(source.error().m_report), {} };
+			return { std::move(source.Error().m_report), {} };
 		}
-		return Compiler(std::move(source).value(), file_path.string(), std::move(inputs)).Analyze();
+		return Compiler(std::move(source).Value(), file_path.string(), std::move(inputs)).Analyze();
 	}
 }

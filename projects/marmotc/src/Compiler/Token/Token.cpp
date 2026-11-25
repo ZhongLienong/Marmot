@@ -1,4 +1,5 @@
 #include "Token.h"
+#include "Support/Optional.h"
 
 #include <array>
 #include <queue>
@@ -27,7 +28,7 @@ std::string_view Token::Spelling(Name token_name)
 	return s_definitions[static_cast<size_t>(token_name)].m_spelling;
 }
 
-std::optional<Token::Name> Token::KeywordName(std::string_view spelling)
+MarmotCompiler::Optional<Token::Name> Token::KeywordName(std::string_view spelling)
 {
 	static const std::unordered_map<std::string_view, Name> s_keywords = []
 	{
@@ -42,7 +43,7 @@ std::optional<Token::Name> Token::KeywordName(std::string_view spelling)
 		return keywords;
 	}();
 	const std::unordered_map<std::string_view, Name>::const_iterator keyword = s_keywords.find(spelling);
-	return keyword == s_keywords.cend() ? std::nullopt : std::optional<Name>(keyword->second);
+	return keyword == s_keywords.cend() ? MarmotCompiler::None : MarmotCompiler::Optional<Name>(keyword->second);
 }
 
 bool Token::IsKeyword(Name token_name)

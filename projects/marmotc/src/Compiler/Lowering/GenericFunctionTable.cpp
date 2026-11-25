@@ -1,5 +1,6 @@
 #include "GenericFunctionTable.h"
 #include "Compiler/Names/SpecialNames.h"
+#include "Support/Optional.h"
 
 GenericFunctionTable::GenericFunctionTable(std::string module_name, GenericFunctions imported)
 	: m_module_name(std::move(module_name)),
@@ -27,13 +28,13 @@ GenericFunctions GenericFunctionTable::TakeAll() &&
 	return std::move(m_functions);
 }
 
-std::optional<std::string> GenericFunctionTable::KeyIn(const std::string& module_name, const std::string& symbol_name) const
+MarmotCompiler::Optional<std::string> GenericFunctionTable::KeyIn(const std::string& module_name, const std::string& symbol_name) const
 {
 	const std::string key = module_name == m_module_name ? symbol_name : module_name + std::string(NameSeparator) + symbol_name;
-	return m_functions.contains(key) ? std::optional<std::string>(key) : std::nullopt;
+	return m_functions.contains(key) ? MarmotCompiler::Optional<std::string>(key) : MarmotCompiler::None;
 }
 
-std::optional<std::string> GenericFunctionTable::FindKey(const std::string& resolved_name, const std::optional<std::string>& specialization_source_module) const
+MarmotCompiler::Optional<std::string> GenericFunctionTable::FindKey(const std::string& resolved_name, const MarmotCompiler::Optional<std::string>& specialization_source_module) const
 {
 	const size_t separator_pos = resolved_name.rfind(NameSeparator);
 	if (separator_pos != std::string::npos)
@@ -41,10 +42,10 @@ std::optional<std::string> GenericFunctionTable::FindKey(const std::string& reso
 		return KeyIn(resolved_name.substr(0u, separator_pos), resolved_name.substr(separator_pos + NameSeparator.length()));
 	}
 
-	if (specialization_source_module.has_value())
+	if (specialization_source_module.HasValue())
 	{
-		return KeyIn(specialization_source_module.value(), resolved_name);
+		return KeyIn(specialization_source_module.Value(), resolved_name);
 	}
 
-	return m_functions.contains(resolved_name) ? std::optional<std::string>(resolved_name) : std::nullopt;
+	return m_functions.contains(resolved_name) ? MarmotCompiler::Optional<std::string>(resolved_name) : MarmotCompiler::None;
 }

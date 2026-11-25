@@ -5,6 +5,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "support/CompileHelpers.h"
+#include "Support/Expected.h"
 
 TEST_CASE("The Marmot libraries link into the unit test target", "[smoke]")
 {
@@ -13,11 +14,11 @@ TEST_CASE("The Marmot libraries link into the unit test target", "[smoke]")
 		"\n"
 		"def main = fn() -> Int => 0;\n";
 
-	std::expected<MarmotTest::ExecutedSnippet, CompilerError> run_result = MarmotTest::ExecuteSnippet(std::move(source_code), "Smoke.mmt");
-	if (!run_result.has_value())
+	MarmotCompiler::Expected<MarmotTest::ExecutedSnippet, CompilerError> run_result = MarmotTest::ExecuteSnippet(std::move(source_code), "Smoke.mmt");
+	if (!run_result.HasValue())
 	{
-		FAIL(std::string(run_result.error().Rendered()));
+		FAIL(std::string(run_result.Error().Rendered()));
 	}
 
-	REQUIRE(run_result.value().m_exit_code == EXIT_SUCCESS);
+	REQUIRE(run_result.Value().m_exit_code == EXIT_SUCCESS);
 }

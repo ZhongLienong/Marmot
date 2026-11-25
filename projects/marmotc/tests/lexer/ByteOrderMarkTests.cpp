@@ -7,7 +7,6 @@
 #include "support/DiagnosticMatchers.h"
 #include "support/TempProject.h"
 
-#include <expected>
 #include <fstream>
 #include <string>
 
@@ -30,11 +29,11 @@ namespace
 
 TEST_CASE("A diagnostic from a file with a byte order mark quotes the line without it", "[lexer][source]")
 {
-	const MarmotResult::CompilerResult compiled = MarmotTest::CompileSnippet(
+	const MarmotResult::ExecutableDiagnosticsResult compiled = MarmotTest::CompileSnippet(
 		WithByteOrderMark("module Main\ndef broken = ;\n"));
 
-	REQUIRE_FALSE(compiled.has_value());
-	const std::string rendered = MarmotTest::StripAnsiCodes(compiled.error().Rendered());
+	REQUIRE_FALSE(compiled.HasValue());
+	const std::string rendered = MarmotTest::StripAnsiCodes(compiled.Error().Rendered());
 	CHECK_THAT(rendered, ContainsSubstring("def broken = ;"));
 	CHECK(rendered.find(MarmotSource::UTF8_BYTE_ORDER_MARK) == std::string::npos);
 }
@@ -48,7 +47,7 @@ TEST_CASE("Formatting keeps the byte order mark the file came with", "[formatter
 
 	const MarmotFormatter::RunResult written = MarmotFormatter::FormatPath(path, MarmotFormatter::Options{ true, false });
 	REQUIRE(written.m_files.size() == 1u);
-	REQUIRE_FALSE(written.m_files.front().m_error.has_value());
+	REQUIRE_FALSE(written.m_files.front().m_error.HasValue());
 	CHECK(written.m_files.front().m_changed);
 
 	const std::string formatted = ReadFile(path);

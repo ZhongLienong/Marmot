@@ -2,9 +2,9 @@
 
 #include "support/CompileHelpers.h"
 #include "support/TempDir.h"
+#include "Support/Expected.h"
 
 #include <cstdlib>
-#include <expected>
 #include <filesystem>
 #include <format>
 #include <fstream>
@@ -37,14 +37,14 @@ namespace
 		return std::string(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
 	}
 
-	const MarmotTest::ExecutedSnippet& RequireExecutedSnippet(const std::expected<MarmotTest::ExecutedSnippet, CompilerError>& run_result)
+	const MarmotTest::ExecutedSnippet& RequireExecutedSnippet(const MarmotCompiler::Expected<MarmotTest::ExecutedSnippet, CompilerError>& run_result)
 	{
-		if (!run_result.has_value())
+		if (!run_result.HasValue())
 		{
-			FAIL(std::string(run_result.error().Rendered()));
+			FAIL(std::string(run_result.Error().Rendered()));
 		}
 
-		return run_result.value();
+		return run_result.Value();
 	}
 }
 
@@ -87,7 +87,7 @@ def main = fn() -> Int => 0;
 		MarmotPathLiteral(data_file_path)
 	);
 
-	const std::expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
+	const MarmotCompiler::Expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
 		MarmotTest::ExecuteSnippet(source_code, source_file_path.string());
 	const MarmotTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
 
@@ -127,7 +127,7 @@ match IO::TryReadBinaryFile("{}") with
 		MarmotPathLiteral(directory_path)
 	);
 
-	const std::expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
+	const MarmotCompiler::Expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
 		MarmotTest::ExecuteSnippet(source_code, source_file_path.string());
 	const MarmotTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
 
@@ -147,7 +147,7 @@ def main = fn() -> Int => 0;
 )",
 		MarmotPathLiteral(io_module_path));
 
-	const std::expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
+	const MarmotCompiler::Expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
 		MarmotTest::ExecuteSnippet(source_code, "RuntimeStderr.mmt");
 	const MarmotTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
 
@@ -180,7 +180,7 @@ def main = fn() -> Int => 0;
 )",
 		MarmotPathLiteral(io_module_path));
 
-	const std::expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
+	const MarmotCompiler::Expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
 		MarmotTest::ExecuteSnippet(source_code, "RuntimeClosure.mmt");
 	const MarmotTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
 
@@ -210,7 +210,7 @@ def main = fn() -> Int => 0;
 )",
 		MarmotPathLiteral(io_module_path));
 
-	const std::expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
+	const MarmotCompiler::Expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
 		MarmotTest::ExecuteSnippet(source_code, "RuntimeAggregate.mmt");
 	const MarmotTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
 
@@ -230,7 +230,7 @@ def main = fn() -> Int => 0;
 )";
 	std::ofstream(source_file_path) << source_code;
 
-	const std::expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
+	const MarmotCompiler::Expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
 		MarmotTest::ExecuteSnippet(source_code, source_file_path.string());
 	const MarmotTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
 
@@ -258,7 +258,7 @@ def main = fn() -> Int => 0;
 )";
 	std::ofstream(source_file_path) << source_code;
 
-	const std::expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
+	const MarmotCompiler::Expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
 		MarmotTest::ExecuteSnippet(source_code, source_file_path.string());
 	const MarmotTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
 
@@ -287,7 +287,7 @@ def value = Deep(1000000);
 )";
 	std::ofstream(source_file_path) << source_code;
 
-	const std::expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
+	const MarmotCompiler::Expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
 		MarmotTest::ExecuteSnippet(source_code, source_file_path.string());
 	const MarmotTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
 
@@ -313,7 +313,7 @@ def value = GenericOriginLib::Sixth([1, 2]);
 		MarmotPathLiteral(library_path));
 	std::ofstream(source_file_path) << source_code;
 
-	const std::expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
+	const MarmotCompiler::Expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
 		MarmotTest::ExecuteSnippet(source_code, source_file_path.string());
 	const MarmotTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
 
@@ -332,7 +332,7 @@ def value = [1, 2][4];
 def main = fn() -> Int => 0;
 )";
 
-	const std::expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
+	const MarmotCompiler::Expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
 		MarmotTest::ExecuteSnippet(source_code, "EmbeddedRuntimeError.mmt");
 	const MarmotTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
 
@@ -349,7 +349,7 @@ def value = 10 / 0;
 def main = fn() -> Int => 0;
 )";
 
-	const std::expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
+	const MarmotCompiler::Expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
 		MarmotTest::ExecuteSnippet(source_code, "RuntimeDivision.mmt");
 	const MarmotTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
 

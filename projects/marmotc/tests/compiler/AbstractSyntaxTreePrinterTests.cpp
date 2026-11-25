@@ -3,6 +3,7 @@
 #include "Compiler/AbstractSyntaxTree/Printer/AbstractSyntaxTreePrinter.h"
 #include "Utility/Driver/MarmotDriver.h"
 #include "support/CompileHelpers.h"
+#include "Support/Expected.h"
 
 #include <filesystem>
 #include <string>
@@ -14,7 +15,7 @@
 
 TEST_CASE("The AST printer writes classes, instances, aliases and comprehensions", "[ast][printer]")
 {
-	std::expected<MarmotTest::TypedSnippet, CompilerError> typed = MarmotTest::TypeCheckSnippet(R"(module Shapes
+	MarmotCompiler::Expected<MarmotTest::TypedSnippet, CompilerError> typed = MarmotTest::TypeCheckSnippet(R"(module Shapes
 alias Meters = Int;
 
 class Describe<T>
@@ -29,9 +30,9 @@ instance Describe<Int>
 
 def squares = [x * x for x in 0..1..4];
 )", "Shapes.mmt");
-	if (!typed.has_value())
+	if (!typed.HasValue())
 	{
-		FAIL(std::string(typed.error().Rendered()));
+		FAIL(std::string(typed.Error().Rendered()));
 	}
 
 	const std::string printed = AbstractSyntaxTreePrinter("Shapes", typed->m_program).Print();
@@ -60,9 +61,9 @@ TEST_CASE("Every prelude module prints its syntax tree", "[ast][printer][prelude
 	{
 		INFO(module.string());
 		MarmotDriver::CompileFileWithReportResult compiled = MarmotDriver::CompileFileWithReport(module, MarmotDriver::EnvironmentCompilationInputs().WithEmitAst(true));
-		if (!compiled.has_value())
+		if (!compiled.HasValue())
 		{
-			FAIL(compiled.error().Rendered());
+			FAIL(compiled.Error().Rendered());
 		}
 		REQUIRE_FALSE(compiled->m_ast.empty());
 		CHECK(compiled->m_ast.back().starts_with("module "));

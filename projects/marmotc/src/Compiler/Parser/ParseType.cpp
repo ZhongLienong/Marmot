@@ -1,6 +1,8 @@
 #include "Parser.h"
 #include "Compiler/Names/SpecialNames.h"
 #include "Compiler/TypeTransform/TypeTransform.h"
+#include "Support/Expected.h"
+#include "Support/Optional.h"
 #include <algorithm>
 #include <format>
 #include <ranges>
@@ -10,7 +12,7 @@ using namespace std::string_literals;
 namespace
 {
 	// The type a keyword names on its own, such as `Int`.
-	std::optional<std::shared_ptr<MarmotType>> KeywordType(Token::Name name)
+	MarmotCompiler::Optional<std::shared_ptr<MarmotType>> KeywordType(Token::Name name)
 	{
 		switch (name)
 		{
@@ -31,7 +33,7 @@ namespace
 		case Token::Name::NEVER:
 			return MarmotType::MakeLiteralType<MarmotType::NeverType>();
 		default:
-			return std::nullopt;
+			return MarmotCompiler::None;
 		}
 	}
 }
@@ -326,7 +328,7 @@ bool Parser::ReachesUnfinishedType(const std::shared_ptr<MarmotType>& type) cons
 // waiting. Those left waiting on each other are a type instantiated, through
 // the types it holds, inside its own instantiation with other arguments, which
 // has no finite form.
-std::optional<CompilerError> Parser::FillDeferredInstantiations()
+MarmotCompiler::Optional<CompilerError> Parser::FillDeferredInstantiations()
 {
 	std::vector<const DeferredInstantiation*> waiting;
 	std::ranges::transform(m_deferred_instantiations, std::back_inserter(waiting), [](const DeferredInstantiation& deferred) { return &deferred; });
@@ -372,7 +374,7 @@ std::optional<CompilerError> Parser::FillDeferredInstantiations()
 		waiting.erase(ready);
 	}
 
-	return std::nullopt;
+	return MarmotCompiler::None;
 }
 
 // A type whose body is not parsed yet, or that holds one, cannot be copied
@@ -441,7 +443,7 @@ MarmotResult::TokenResult Parser::ConsumeTypeRightAngle(std::string_view message
 		return Advance();
 	}
 
-	return std::unexpected(GenerateParserError(std::string(message), Peek(0)));
+	return MarmotCompiler::Failure(GenerateParserError(std::string(message), Peek(0)));
 }
 
 MarmotResult::TokenResult Parser::ConsumeReturnTypeSeparator(std::string_view message)
@@ -451,7 +453,7 @@ MarmotResult::TokenResult Parser::ConsumeReturnTypeSeparator(std::string_view me
 		return Advance();
 	}
 
-	return std::unexpected(GenerateParserError(std::string(message), Peek(0)));
+	return MarmotCompiler::Failure(GenerateParserError(std::string(message), Peek(0)));
 }
 
 MarmotResult::TypeResult Parser::ParseTypeOfOne(Token::Name keyword, std::string_view argument_noun, MakeTypeOfOne make)
@@ -463,13 +465,13 @@ MarmotResult::TypeResult Parser::ParseTypeOfOne(Token::Name keyword, std::string
 		[this, keyword, argument_noun, make](Token&&) -> MarmotResult::TypeResult
 		{
 			return Consume(Token::Name::LEFT_ANGLE, std::format("Expected '<' after '{}'.", Token::Spelling(keyword)))
-				.and_then([this](Token&&) { return ParseType(); })
-				.and_then
+				.AndThen([this](Token&&) { return ParseType(); })
+				.AndThen
 				(
 					[this, argument_noun, make](std::shared_ptr<MarmotType>&& type) -> MarmotResult::TypeResult
 					{
 						return ConsumeTypeRightAngle(std::format("Expected '>' after {}.", argument_noun))
-							.transform([&type, make](Token&&) { return make(type); });
+							.Transform([&type, make](Token&&) { return make(type); });
 					}
 				);
 		}
@@ -483,8 +485,8 @@ MarmotResult::TypeResult Parser::ParseType(bool is_foreign)
 		m_state,
 		[this]() -> MarmotResult::TypeResult
 		{
-			const std::optional<std::shared_ptr<MarmotType>> keyword_type = KeywordType(Peek(m_state, 0).m_token_name);
-			if (!keyword_type.has_value())
+			const MarmotCompiler::Optional<std::shared_ptr<MarmotType>> keyword_type = KeywordType(Peek(m_state, 0).m_token_name);
+			if (!keyword_type.HasValue())
 			{
 				return NoMatch<std::shared_ptr<MarmotType>>();
 			}
@@ -519,12 +521,12 @@ MarmotResult::TypeResult Parser::ParseType(bool is_foreign)
 					std::function<MarmotResult::TypeResult(std::vector<std::shared_ptr<MarmotType>>&&)> func_type_aux_func = [is_foreign, this](std::vector<std::shared_ptr<MarmotType>>&& types) ->MarmotResult::TypeResult
 						{
 							return Consume(Token::Name::THIN_ARROW, "Expected '->' before return type token.")
-								.and_then
+								.AndThen
 								(
 									[&types, is_foreign, this](Token&&) ->MarmotResult::TypeResult
 									{
 										return ParseType()
-											.and_then
+											.AndThen
 											(
 												[&types, is_foreign](std::shared_ptr<MarmotType>&& return_type) ->MarmotResult::TypeResult
 												{
@@ -535,7 +537,7 @@ MarmotResult::TypeResult Parser::ParseType(bool is_foreign)
 								);
 						};
 					return Consume(Token::Name::LEFT_PAREN, "Expected '(' before function argument types.")
-						.and_then
+						.AndThen
 						(
 							[&func_type_aux_func, this](Token&&)
 							{
@@ -547,7 +549,7 @@ MarmotResult::TypeResult Parser::ParseType(bool is_foreign)
 											[this]() { return Consume(Token::Name::COMMA, "Expected ',' after argument type"); },
 											[this]() { return Consume(Token::Name::RIGHT_PAREN, "Expected ')' after argument types."); }
 										)
-										.and_then
+										.AndThen
 										(
 											[&func_type_aux_func](std::vector<std::shared_ptr<MarmotType>>&& types) ->MarmotResult::TypeResult
 											{
@@ -578,7 +580,7 @@ MarmotResult::TypeResult Parser::ParseType(bool is_foreign)
 					}
 
 					return ParseType()
-						.and_then
+						.AndThen
 						(
 							[this](std::shared_ptr<MarmotType>&& first_type) -> MarmotResult::TypeResult
 							{
@@ -594,11 +596,11 @@ MarmotResult::TypeResult Parser::ParseType(bool is_foreign)
 										{
 											return elem_result;
 										}
-										element_types.push_back(std::move(elem_result.value()));
+										element_types.push_back(std::move(elem_result.Value()));
 									} while (Match(Token::Name::COMMA));
 
 									return Consume(Token::Name::RIGHT_PAREN, "Expected ')' after tuple types.")
-										.and_then
+										.AndThen
 										(
 											[&element_types](Token&&) -> MarmotResult::TypeResult
 											{
@@ -611,7 +613,7 @@ MarmotResult::TypeResult Parser::ParseType(bool is_foreign)
 									return Consume
 									(
 										Token::Name::RIGHT_PAREN, "Expected ')' after type.")
-										.and_then([&first_type](Token&&) -> MarmotResult::TypeResult
+										.AndThen([&first_type](Token&&) -> MarmotResult::TypeResult
 											{
 												return first_type;
 											}
@@ -631,7 +633,7 @@ MarmotResult::TypeResult Parser::ParseType(bool is_foreign)
 				[this](Token&&) -> MarmotResult::TypeResult
 				{
 					return MatchNameResolution()
-						.and_then
+						.AndThen
 						(
 							[this](Token&& type_name) ->MarmotResult::TypeResult
 							{
@@ -651,7 +653,7 @@ MarmotResult::TypeResult Parser::ParseType(bool is_foreign)
 									std::string associated_type_qualifier = ExtractQualifier(type_name.m_lexeme);
 									if (associated_type_qualifier.empty())
 									{
-										return std::unexpected(GenerateParserError("Undefined struct or union.", type_name));
+										return MarmotCompiler::Failure(GenerateParserError("Undefined struct or union.", type_name));
 									}
 
 									std::string associated_type_name = ExtractSymbolName(type_name.m_lexeme);
@@ -659,12 +661,12 @@ MarmotResult::TypeResult Parser::ParseType(bool is_foreign)
 									if (assoc_it == m_state.m_typeclass_associated_types.cend()
 										|| !std::ranges::contains(assoc_it->second, associated_type_name))
 									{
-										return std::unexpected(GenerateParserError("Undefined struct or union.", type_name));
+										return MarmotCompiler::Failure(GenerateParserError("Undefined struct or union.", type_name));
 									}
 
 									if (!Match(Token::Name::LEFT_ANGLE))
 									{
-										return std::unexpected(GenerateParserError("Expected '<' after associated type name.", type_name));
+										return MarmotCompiler::Failure(GenerateParserError("Expected '<' after associated type name.", type_name));
 									}
 
 									MarmotResult::TypeListResult type_args_result = ParseDelimitedZeroOrMoreLimited<std::shared_ptr<MarmotType>>
@@ -673,18 +675,18 @@ MarmotResult::TypeResult Parser::ParseType(bool is_foreign)
 										[this]() { return Consume(Token::Name::COMMA, "Expected ',' after associated type argument."); },
 										[this]() { return ConsumeTypeRightAngle("Expected '>' after associated type arguments."); }
 									);
-									if (!type_args_result.has_value())
+									if (!type_args_result.HasValue())
 									{
-										return std::unexpected(type_args_result.error());
+										return MarmotCompiler::Failure(type_args_result.Error());
 									}
 
 									const size_t expected_arg_count = m_state.m_typeclass_type_params.contains(associated_type_qualifier)
 										? m_state.m_typeclass_type_params.at(associated_type_qualifier).size()
 										: 0u;
-									std::vector<std::shared_ptr<MarmotType>> type_args = std::move(type_args_result.value());
+									std::vector<std::shared_ptr<MarmotType>> type_args = std::move(type_args_result.Value());
 									if (type_args.size() != expected_arg_count)
 									{
-										return std::unexpected
+										return MarmotCompiler::Failure
 										(
 											GenerateParserError
 											(
@@ -713,7 +715,7 @@ MarmotResult::TypeResult Parser::ParseType(bool is_foreign)
 									const UseImportResolution use_import_resolution = ResolveUseImport(type_name.m_lexeme);
 									if (use_import_resolution.m_status == UseImportResolutionStatus::Ambiguous)
 									{
-										return std::unexpected(GenerateParserError(BuildAmbiguousUseImportError(type_name.m_lexeme, use_import_resolution.m_conflicting_modules), type_name));
+										return MarmotCompiler::Failure(GenerateParserError(BuildAmbiguousUseImportError(type_name.m_lexeme, use_import_resolution.m_conflicting_modules), type_name));
 									}
 
 									if (use_import_resolution.m_status == UseImportResolutionStatus::Resolved)
@@ -763,7 +765,7 @@ MarmotResult::TypeResult Parser::ParseType(bool is_foreign)
 												{
 													if (m_context.m_imports.ContainsModule(qualifier))
 													{
-														return std::unexpected(GenerateParserError("Type '" + symbol_name + "' is not exported by module '" + qualifier + "'.", type_name));
+														return MarmotCompiler::Failure(GenerateParserError("Type '" + symbol_name + "' is not exported by module '" + qualifier + "'.", type_name));
 													}
 												}
 											}
@@ -786,7 +788,7 @@ MarmotResult::TypeResult Parser::ParseType(bool is_foreign)
 										const std::vector<std::string> exporting_modules = ModulesExporting(type_name.m_lexeme);
 										if (!exporting_modules.empty())
 										{
-											return std::unexpected(GenerateParserError(BuildUnimportedSymbolError(type_name.m_lexeme, exporting_modules), type_name));
+											return MarmotCompiler::Failure(GenerateParserError(BuildUnimportedSymbolError(type_name.m_lexeme, exporting_modules), type_name));
 										}
 
 										if (m_state.m_allow_implicit_generic_params && type_name.m_lexeme.find(NameSeparator) == std::string::npos)
@@ -797,7 +799,7 @@ MarmotResult::TypeResult Parser::ParseType(bool is_foreign)
 										}
 										else
 										{
-											return std::unexpected(GenerateParserError("Undefined struct or union.", type_name));
+											return MarmotCompiler::Failure(GenerateParserError("Undefined struct or union.", type_name));
 										}
 									}
 								}
@@ -811,12 +813,12 @@ MarmotResult::TypeResult Parser::ParseType(bool is_foreign)
 											[this]() { return ConsumeTypeRightAngle("Expected '>' after type arguments."); }
 										);
 
-									if (!type_args_result.has_value())
+									if (!type_args_result.HasValue())
 									{
-										return std::unexpected(type_args_result.error());
+										return MarmotCompiler::Failure(type_args_result.Error());
 									}
 
-									std::vector<std::shared_ptr<MarmotType>> type_args = std::move(type_args_result.value());
+									std::vector<std::shared_ptr<MarmotType>> type_args = std::move(type_args_result.Value());
 
 									// An alias binds its own parameters, and its expansion no longer
 									// carries any, so the alias is asked first and the expansion
@@ -848,7 +850,7 @@ MarmotResult::TypeResult Parser::ParseType(bool is_foreign)
 
 									if (type_args.size() != generic_params.size())
 									{
-										return std::unexpected(GenerateParserError(
+										return MarmotCompiler::Failure(GenerateParserError(
 											BuildTypeArgumentCountMismatchMessage(type_name.m_lexeme, alias_generic_params != nullptr, generic_params.size(), type_args.size()), type_name));
 									}
 
@@ -870,7 +872,7 @@ MarmotResult::TypeResult Parser::ParseType(bool is_foreign)
 								// whose parameters nothing binds.
 								if (alias_generic_params != nullptr)
 								{
-									return std::unexpected(GenerateParserError(
+									return MarmotCompiler::Failure(GenerateParserError(
 										BuildTypeArgumentCountMismatchMessage(type_name.m_lexeme, true, alias_generic_params->size(), 0u), type_name));
 								}
 
@@ -882,7 +884,7 @@ MarmotResult::TypeResult Parser::ParseType(bool is_foreign)
 		},
 		[this]() -> MarmotResult::TypeResult
 		{
-			return std::unexpected(GenerateParserError("Expected type token.", Peek(0)));
+			return MarmotCompiler::Failure(GenerateParserError("Expected type token.", Peek(0)));
 		}
 	);
 }
@@ -894,13 +896,13 @@ MarmotResult::TokenListResult Parser::ParseGenericParameters(std::vector<std::sh
 			[this, out_types]() -> MarmotResult::TokenResult
 			{
 				return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected generic parameter name.")
-					.and_then
+					.AndThen
 					(
 						[this, out_types](Token&& param_name) -> MarmotResult::TokenResult
 						{
 							constexpr bool is_variable = false;
 							return DefineName(param_name, is_variable)
-								.and_then
+								.AndThen
 								(
 									[this, out_types](Token&& param_name) -> MarmotResult::TokenResult
 									{
@@ -935,33 +937,35 @@ void Parser::PushActiveConstraints(const std::vector<MarmotType::ClassConstraint
 	}
 }
 
-std::expected<std::vector<MarmotType::ClassConstraint>, CompilerError> Parser::ParseClassConstraints()
+Parser::ClassConstraintListResult Parser::ParseClassConstraints()
 {
+	using ClassConstraintResult = MarmotResult::Result<MarmotType::ClassConstraint>;
+
 	// An equality constraint reads 'Class::Assoc<S> ~ Type'. The '::' one token
 	// past the leading identifier is what distinguishes it from a class
 	// constraint, which reads 'Class<Type,...>'.
-	std::function<std::expected<MarmotType::ClassConstraint, CompilerError>()> parse_equality_constraint = [this]() -> std::expected<MarmotType::ClassConstraint, CompilerError>
+	std::function<ClassConstraintResult()> parse_equality_constraint = [this]() -> ClassConstraintResult
 		{
 			Token projection_token = Peek(0);
 			return ParseType()
-				.and_then
+				.AndThen
 				(
-					[&projection_token, this](std::shared_ptr<MarmotType>&& equality_lhs) -> std::expected<MarmotType::ClassConstraint, CompilerError>
+					[&projection_token, this](std::shared_ptr<MarmotType>&& equality_lhs) -> ClassConstraintResult
 					{
 						if (!equality_lhs->IsType<MarmotType::AssociatedType>())
 						{
-							return std::unexpected(GenerateParserError("The left side of a '~' constraint must be an associated type projection, such as 'Stepper::Item<S>'.", projection_token));
+							return MarmotCompiler::Failure(GenerateParserError("The left side of a '~' constraint must be an associated type projection, such as 'Stepper::Item<S>'.", projection_token));
 						}
 
 						return Consume(Token::Name::TILDE, "Expected '~' after the associated type projection in an equality constraint.")
-							.and_then
+							.AndThen
 							(
-								[&equality_lhs, this](Token&&) -> std::expected<MarmotType::ClassConstraint, CompilerError>
+								[&equality_lhs, this](Token&&) -> ClassConstraintResult
 								{
 									return ParseType()
-										.and_then
+										.AndThen
 										(
-											[&equality_lhs](std::shared_ptr<MarmotType>&& equality_rhs) -> std::expected<MarmotType::ClassConstraint, CompilerError>
+											[&equality_lhs](std::shared_ptr<MarmotType>&& equality_rhs) -> ClassConstraintResult
 											{
 												return MarmotType::ClassConstraint{ std::move(equality_lhs), std::move(equality_rhs) };
 											}
@@ -972,7 +976,7 @@ std::expected<std::vector<MarmotType::ClassConstraint>, CompilerError> Parser::P
 				);
 		};
 
-	std::function<std::expected<MarmotType::ClassConstraint, CompilerError>()> parse_constraint = [&parse_equality_constraint, this]() -> std::expected<MarmotType::ClassConstraint, CompilerError>
+	std::function<ClassConstraintResult()> parse_constraint = [&parse_equality_constraint, this]() -> ClassConstraintResult
 		{
 			// A leading '~' after the identifier routes here too, so that 'T ~ Int'
 			// is rejected by the rule it actually breaks rather than by a missing '<'.
@@ -982,15 +986,15 @@ std::expected<std::vector<MarmotType::ClassConstraint>, CompilerError> Parser::P
 			}
 
 			return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected class name in constraint.")
-				.and_then
+				.AndThen
 				(
-					[this](Token&& first_token) -> std::expected<MarmotType::ClassConstraint, CompilerError>
+					[this](Token&& first_token) -> ClassConstraintResult
 					{
 						Token typeclass_name = std::move(first_token);
 						return Consume(Token::Name::LEFT_ANGLE, "Expected '<' after class name in constraint (e.g., 'Show<T>').")
-							.and_then
+							.AndThen
 							(
-								[&typeclass_name, this](Token&&) -> std::expected<MarmotType::ClassConstraint, CompilerError>
+								[&typeclass_name, this](Token&&) -> ClassConstraintResult
 								{
 									return ParseDelimitedZeroOrMoreLimited<std::shared_ptr<MarmotType>>
 										(
@@ -998,9 +1002,9 @@ std::expected<std::vector<MarmotType::ClassConstraint>, CompilerError> Parser::P
 											[this]() { return Consume(Token::Name::COMMA, "Expected ',' between type arguments."); },
 											[this]() { return ConsumeTypeRightAngle("Expected '>' after type arguments."); }
 										)
-										.and_then
+										.AndThen
 										(
-											[&typeclass_name](std::vector<std::shared_ptr<MarmotType>>&& type_args) -> std::expected<MarmotType::ClassConstraint, CompilerError>
+											[&typeclass_name](std::vector<std::shared_ptr<MarmotType>>&& type_args) -> ClassConstraintResult
 											{
 												return MarmotType::ClassConstraint{ typeclass_name.m_lexeme, std::move(type_args) };
 											}
@@ -1011,34 +1015,34 @@ std::expected<std::vector<MarmotType::ClassConstraint>, CompilerError> Parser::P
 				);
 		};
 
-	std::expected<std::vector<MarmotType::ClassConstraint>, CompilerError> constraints_result = ParseDelimitedOneOrMoreUnlimited<MarmotType::ClassConstraint>
+	ClassConstraintListResult constraints_result = ParseDelimitedOneOrMoreUnlimited<MarmotType::ClassConstraint>
 	(
 		parse_constraint,
 		[this]() { return Consume(Token::Name::COMMA, "Expected ',' between constraints."); }
 	);
 
-	if (!constraints_result.has_value())
+	if (!constraints_result.HasValue())
 	{
-		return std::unexpected(std::move(constraints_result.error()));
+		return MarmotCompiler::Failure(std::move(constraints_result.Error()));
 	}
 
-	return std::move(constraints_result.value());
+	return std::move(constraints_result.Value());
 }
 
 MarmotResult::TypeResult Parser::ParseRefTypeArguments()
 {
 	return Consume(Token::Name::LEFT_ANGLE, "Expected '<' after 'Ref'.")
-		.and_then
+		.AndThen
 		(
 			[this](Token&&) -> MarmotResult::TypeResult
 			{
 				return ParseType()
-					.and_then
+					.AndThen
 					(
 						[this](std::shared_ptr<MarmotType>&& element_type) -> MarmotResult::TypeResult
 						{
 							return ConsumeTypeRightAngle("Expected '>' after reference element type.")
-								.and_then
+								.AndThen
 								(
 									[&element_type](Token&&) -> MarmotResult::TypeResult
 									{

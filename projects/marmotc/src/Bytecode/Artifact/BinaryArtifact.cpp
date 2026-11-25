@@ -11,6 +11,7 @@
 #include <zlib.h>
 
 #include "Bytecode/Format/Format.h"
+#include "Support/Expected.h"
 
 namespace
 {
@@ -199,10 +200,10 @@ namespace
 				writer.WriteString(directory);
 			}
 			writer.WriteU8(library.m_policy.m_thread_safe ? 1u : 0u);
-			writer.WriteU8(library.m_policy.m_checksum.has_value() ? 1u : 0u);
-			if (library.m_policy.m_checksum.has_value())
+			writer.WriteU8(library.m_policy.m_checksum.HasValue() ? 1u : 0u);
+			if (library.m_policy.m_checksum.HasValue())
 			{
-				writer.WriteString(library.m_policy.m_checksum.value());
+				writer.WriteString(library.m_policy.m_checksum.Value());
 			}
 		}
 
@@ -251,7 +252,7 @@ namespace
 }
 namespace MarmotBinaryArtifact
 {
-	std::expected<void, std::string> WriteExecutable(
+	MarmotCompiler::Expected<void, std::string> WriteExecutable(
 		const MarmotExecutable& executable,
 		std::ostream& out,
 		bool embed_sources)
@@ -263,7 +264,7 @@ namespace MarmotBinaryArtifact
 			WritePayload(payload_writer, executable, embed_sources);
 			if (!payload_writer.Good())
 			{
-				return std::unexpected("Failed to build bytecode artifact payload.");
+				return MarmotCompiler::Failure("Failed to build bytecode artifact payload.");
 			}
 		}
 
@@ -313,13 +314,13 @@ namespace MarmotBinaryArtifact
 		out.write(payload_str.data(), static_cast<std::streamsize>(payload_str.size()));
 		if (!out.good())
 		{
-			return std::unexpected("Failed to write bytecode artifact to stream.");
+			return MarmotCompiler::Failure("Failed to write bytecode artifact to stream.");
 		}
 
 		return {};
 	}
 
-	std::expected<void, std::string> WriteExecutableToFile(
+	MarmotCompiler::Expected<void, std::string> WriteExecutableToFile(
 		const MarmotExecutable& executable,
 		const std::filesystem::path& path,
 		bool embed_sources)
@@ -327,7 +328,7 @@ namespace MarmotBinaryArtifact
 		std::ofstream out(path, std::ios::binary | std::ios::trunc);
 		if (!out.is_open())
 		{
-			return std::unexpected(std::format("Could not open bytecode artifact for writing: {}", path.string()));
+			return MarmotCompiler::Failure(std::format("Could not open bytecode artifact for writing: {}", path.string()));
 		}
 
 		return WriteExecutable(executable, out, embed_sources);

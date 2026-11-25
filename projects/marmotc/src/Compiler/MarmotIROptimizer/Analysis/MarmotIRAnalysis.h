@@ -1,11 +1,11 @@
 #pragma once
 
 #include "Compiler/MarmotIR/MarmotIR.h"
+#include "Support/Optional.h"
 
 #include <algorithm>
 #include <cstdint>
 #include <memory>
-#include <optional>
 #include <string>
 #include <vector>
 
@@ -19,7 +19,7 @@ private:
 	std::vector<std::vector<uint32_t>> m_predecessors;
 	std::vector<uint32_t> m_reverse_postorder;
 	std::vector<uint32_t> m_order;
-	std::vector<std::optional<uint32_t>> m_immediate_dominators;
+	std::vector<MarmotCompiler::Optional<uint32_t>> m_immediate_dominators;
 
 public:
 	explicit MarmotIRControlFlow(const MarmotIRFunction& function);
@@ -71,14 +71,14 @@ namespace MarmotIRAnalysis
 
 	// Where each value an instruction defines is defined; nothing for a block
 	// parameter or a value no instruction defines.
-	std::vector<std::optional<MarmotIRSite>> DefinitionSites(const MarmotIRFunction& function);
+	std::vector<MarmotCompiler::Optional<MarmotIRSite>> DefinitionSites(const MarmotIRFunction& function);
 
 	// The instruction that defines a value, if one does.
-	const MarmotIRInstruction* Definition(const MarmotIRFunction& function, const std::vector<std::optional<MarmotIRSite>>& sites, MarmotIRValueId value);
+	const MarmotIRInstruction* Definition(const MarmotIRFunction& function, const std::vector<MarmotCompiler::Optional<MarmotIRSite>>& sites, MarmotIRValueId value);
 
 	// Replaces each use of a value with its replacement, following chains, in
 	// every block, reachable or not.
-	void ReplaceUses(MarmotIRFunction& function, const std::vector<std::optional<MarmotIRValueId>>& replacements);
+	void ReplaceUses(MarmotIRFunction& function, const std::vector<MarmotCompiler::Optional<MarmotIRValueId>>& replacements);
 
 	MarmotIRValueId AddValue(MarmotIRFunction& function, std::shared_ptr<MarmotType> type, std::string name = {});
 	// An empty block at `index`, moving that block and every later one up by
@@ -107,7 +107,7 @@ namespace MarmotIRAnalysis
 	size_t Size(const MarmotIRFunction& function);
 
 	// Whether an instruction may be dropped once nothing uses its value.
-	bool IsRemovable(const MarmotIRFunction& function, const std::vector<std::optional<MarmotIRSite>>& sites, const MarmotIRInstruction& instruction);
+	bool IsRemovable(const MarmotIRFunction& function, const std::vector<MarmotCompiler::Optional<MarmotIRSite>>& sites, const MarmotIRInstruction& instruction);
 
 	// Records proofs that an instruction cannot fault, so other passes can
 	// move it as well as drop it.

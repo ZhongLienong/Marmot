@@ -1,9 +1,9 @@
 #pragma once
 
 #include "Compiler/MarmotIR/MarmotIR.h"
+#include "Support/Optional.h"
 
 #include <cstdint>
-#include <optional>
 #include <string>
 #include <vector>
 
@@ -21,10 +21,10 @@ struct MarmotIRViolation
 {
 	MarmotIRRule m_rule;
 	std::string m_function;
-	std::optional<MarmotIRBlockId> m_block;
+	MarmotCompiler::Optional<MarmotIRBlockId> m_block;
 	std::string m_message;
 
-	MarmotIRViolation(MarmotIRRule rule, std::string function, std::optional<MarmotIRBlockId> block, std::string message);
+	MarmotIRViolation(MarmotIRRule rule, std::string function, MarmotCompiler::Optional<MarmotIRBlockId> block, std::string message);
 
 	std::string ToString() const;
 };

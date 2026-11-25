@@ -1,6 +1,7 @@
 #include "Lexer.h"
 
 #include "Compiler/Source/Source.h"
+#include "Support/Expected.h"
 
 #include <sstream>
 
@@ -201,7 +202,7 @@ MarmotResult::VoidResult Lexer::SkipBlockComment()
 
 		if (IsAtEnd(0))
 		{
-			return std::unexpected(MarmotError::GenerateLexerErrorWithContext("Unterminated block comment", m_cursor.m_begin_line, BeginColumn(), m_source.m_file_name, m_source.m_lines));
+			return MarmotCompiler::Failure(MarmotError::GenerateLexerErrorWithContext("Unterminated block comment", m_cursor.m_begin_line, BeginColumn(), m_source.m_file_name, m_source.m_lines));
 		}
 
 		if (LookAhead(0) == '\n')
@@ -253,7 +254,7 @@ MarmotResult::VoidResult Lexer::SkipWhitespaceAndComments()
 				Advance(); // '/'
 				Advance(); // '/'
 				return SkipLineComment()
-					.and_then([this]() -> MarmotResult::VoidResult { return SkipWhitespaceAndComments(); });
+					.AndThen([this]() -> MarmotResult::VoidResult { return SkipWhitespaceAndComments(); });
 			}
 			else if (LookAhead(1) == '*')
 			{
@@ -266,7 +267,7 @@ MarmotResult::VoidResult Lexer::SkipWhitespaceAndComments()
 				Advance(); // '/'
 				Advance(); // '*'
 				return SkipBlockComment()
-					.and_then([this]() -> MarmotResult::VoidResult { return SkipWhitespaceAndComments(); });
+					.AndThen([this]() -> MarmotResult::VoidResult { return SkipWhitespaceAndComments(); });
 			}
 			return {};
 		}
@@ -283,7 +284,7 @@ MarmotResult::TokenResult Lexer::MatchString()
 	{
 		if (IsAtEnd(0))
 		{
-			return std::unexpected(MarmotError::GenerateLexerErrorWithContext("Unterminated string", m_cursor.m_begin_line, BeginColumn(), m_source.m_file_name, m_source.m_lines));
+			return MarmotCompiler::Failure(MarmotError::GenerateLexerErrorWithContext("Unterminated string", m_cursor.m_begin_line, BeginColumn(), m_source.m_file_name, m_source.m_lines));
 		}
 
 		if (LookAhead(0) == '"')
@@ -308,7 +309,7 @@ MarmotResult::TokenResult Lexer::MatchString()
 		const int column = CurrentColumn();
 		const auto invalid_escape = [this, column](std::string_view message) -> MarmotResult::TokenResult
 		{
-			return std::unexpected(MarmotError::GenerateLexerErrorWithContext(message, m_cursor.m_line, column, m_source.m_file_name, m_source.m_lines));
+			return MarmotCompiler::Failure(MarmotError::GenerateLexerErrorWithContext(message, m_cursor.m_line, column, m_source.m_file_name, m_source.m_lines));
 		};
 		Advance();
 		const char escape = Advance();
@@ -429,7 +430,7 @@ MarmotResult::TokenResult Lexer::MatchIdentifierOrReserved()
 
 	std::string identifier = m_source.m_code.substr(m_cursor.m_begin, m_cursor.m_current - m_cursor.m_begin);
 
-	return MakeTokenResult(Token::KeywordName(identifier).value_or(Token::Name::IDENTIFIER_LITERAL));
+	return MakeTokenResult(Token::KeywordName(identifier).ValueOr(Token::Name::IDENTIFIER_LITERAL));
 }
 
 MarmotResult::TokenResult Lexer::LexTokenAfterWhitespace()
@@ -585,7 +586,7 @@ MarmotResult::TokenResult Lexer::MatchBlockComment()
 
 		if (IsAtEnd(0))
 		{
-			return std::unexpected(MarmotError::GenerateLexerErrorWithContext("Unterminated block comment", m_cursor.m_begin_line, BeginColumn(), m_source.m_file_name, m_source.m_lines));
+			return MarmotCompiler::Failure(MarmotError::GenerateLexerErrorWithContext("Unterminated block comment", m_cursor.m_begin_line, BeginColumn(), m_source.m_file_name, m_source.m_lines));
 		}
 
 		if (LookAhead(0) == '\n')
@@ -714,13 +715,13 @@ MarmotResult::TokenResult Lexer::MatchLiteralOrIdentifier(char next_char)
 
 MarmotResult::TokenResult Lexer::MakeInvalidCharacterError(char next_char) const
 {
-	return std::unexpected(MarmotError::GenerateLexerErrorWithContext("Invalid character: "s + next_char, m_cursor.m_line, BeginColumn(), m_source.m_file_name, m_source.m_lines));
+	return MarmotCompiler::Failure(MarmotError::GenerateLexerErrorWithContext("Invalid character: "s + next_char, m_cursor.m_line, BeginColumn(), m_source.m_file_name, m_source.m_lines));
 }
 
 MarmotResult::Result<Lexer::LexState> Lexer::RecordTokenOrError(LexState state)
 {
 	return LexOneToken()
-		.transform
+		.Transform
 		(
 			[state = std::move(state), this](Token&& token) mutable -> LexState
 			{
@@ -740,7 +741,7 @@ MarmotResult::Result<Lexer::LexState> Lexer::RecordTokenOrError(LexState state)
 MarmotResult::TokenResult Lexer::LexOneToken()
 {
 	return SkipWhitespaceAndComments()
-		.and_then([this]() -> MarmotResult::TokenResult { return LexTokenAfterWhitespace(); });
+		.AndThen([this]() -> MarmotResult::TokenResult { return LexTokenAfterWhitespace(); });
 }
 
 std::vector<std::string> Lexer::SplitIntoLines(const std::string& source)
@@ -780,7 +781,7 @@ MarmotResult::LexerResult Lexer::LexRecursive(LexState state)
 	while (!IsAtEnd(0))
 	{
 		MarmotResult::VoidResult step = RecordTokenOrError(std::move(state))
-			.and_then
+			.AndThen
 			(
 				[&state](LexState&& next_state) -> MarmotResult::VoidResult
 				{
@@ -790,7 +791,7 @@ MarmotResult::LexerResult Lexer::LexRecursive(LexState state)
 			);
 		if (!step)
 		{
-			return std::unexpected(step.error());
+			return MarmotCompiler::Failure(step.Error());
 		}
 	}
 

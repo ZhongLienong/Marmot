@@ -10,6 +10,8 @@
 #include "Compiler/TypeChecker/TypeChecker.h"
 #include "Utility/Driver/MarmotDriver.h"
 #include "Bytecode/Artifact/BinaryArtifact.h"
+#include "Support/Expected.h"
+#include "Support/Optional.h"
 
 #include <filesystem>
 #include <format>
@@ -25,10 +27,10 @@ namespace
 	{
 		MarmotTest::SourceFixture m_source;
 		TokenStream m_tokens;
-		std::optional<ModuleDeclaration> m_module_declaration;
+		MarmotCompiler::Optional<ModuleDeclaration> m_module_declaration;
 		std::vector<UseImport> m_use_imports;
 
-		PreparedModule(MarmotTest::SourceFixture source, TokenStream&& tokens, std::optional<ModuleDeclaration>&& module_declaration, std::vector<UseImport>&& use_imports)
+		PreparedModule(MarmotTest::SourceFixture source, TokenStream&& tokens, MarmotCompiler::Optional<ModuleDeclaration>&& module_declaration, std::vector<UseImport>&& use_imports)
 			: m_source(std::move(source)),
 			m_tokens(std::move(tokens)),
 			m_module_declaration(std::move(module_declaration)),
@@ -42,9 +44,9 @@ namespace
 		MarmotTest::SourceFixture m_source;
 		MarmotProgramTree m_program;
 		std::vector<CompilerWarning> m_warnings;
-		std::optional<ModuleDeclaration> m_module_declaration;
+		MarmotCompiler::Optional<ModuleDeclaration> m_module_declaration;
 
-		PreparedTypedModule(MarmotTest::SourceFixture source, MarmotProgramTree&& program, std::vector<CompilerWarning>&& warnings, std::optional<ModuleDeclaration>&& module_declaration)
+		PreparedTypedModule(MarmotTest::SourceFixture source, MarmotProgramTree&& program, std::vector<CompilerWarning>&& warnings, MarmotCompiler::Optional<ModuleDeclaration>&& module_declaration)
 			: m_source(std::move(source)),
 			m_program(std::move(program)),
 			m_warnings(std::move(warnings)),
@@ -53,28 +55,28 @@ namespace
 		}
 	};
 
-	std::expected<PreparedModule, CompilerError> PrepareSingleModule(MarmotTest::SourceFixture&& source)
+	MarmotResult::Result<PreparedModule> PrepareSingleModule(MarmotTest::SourceFixture&& source)
 	{
 		MarmotResult::LexerResult lex_result = Lexer(std::string(source.SourceCode()), source.FileName()).Lex();
-		if (!lex_result.has_value())
+		if (!lex_result.HasValue())
 		{
-			return std::unexpected(std::move(lex_result.error()));
+			return MarmotCompiler::Failure(std::move(lex_result.Error()));
 		}
 
-		MarmotResult::ModuleManagerResult build_graph_result = ModuleManager(std::move(lex_result.value()), source.FileName(), source.SourceLines(), MarmotDriver::EnvironmentCompilationInputs()).GenerateBuildGraph();
-		if (!build_graph_result.has_value())
+		MarmotResult::ModuleManagerResult build_graph_result = ModuleManager(std::move(lex_result.Value()), source.FileName(), source.SourceLines(), MarmotDriver::EnvironmentCompilationInputs()).GenerateBuildGraph();
+		if (!build_graph_result.HasValue())
 		{
-			return std::unexpected(std::move(build_graph_result.error()));
+			return MarmotCompiler::Failure(std::move(build_graph_result.Error()));
 		}
 
-		BuildGraph build_graph = std::move(build_graph_result.value());
+		BuildGraph build_graph = std::move(build_graph_result.Value());
 		std::unordered_map<std::string, BuildGraph::BuildNode>::iterator node_it = build_graph.m_nodes.find(source.FileName());
 		if (node_it == build_graph.m_nodes.end())
 		{
-			return std::unexpected(CompilerError::Simple(CompilerStage::Module, "Failed to locate the prepared main module."));
+			return MarmotCompiler::Failure(CompilerError::Simple(CompilerStage::Module, "Failed to locate the prepared main module."));
 		}
 
-		std::optional<ModuleDeclaration> module_declaration = std::nullopt;
+		MarmotCompiler::Optional<ModuleDeclaration> module_declaration = MarmotCompiler::None;
 		std::unordered_map<std::string, ModuleDeclaration>::const_iterator module_it = build_graph.m_module_declarations.find(source.FileName());
 		if (module_it != build_graph.m_module_declarations.end())
 		{
@@ -86,33 +88,33 @@ namespace
 		return PreparedModule(std::move(source), std::move(tokens), std::move(module_declaration), std::move(use_imports));
 	}
 
-	std::expected<PreparedTypedModule, MarmotResult::CompilerDiagnostics> TypeCheckPreparedModuleWithDiagnostics(PreparedModule&& prepared)
+	MarmotResult::DiagnosticsResult<PreparedTypedModule> TypeCheckPreparedModuleWithDiagnostics(PreparedModule&& prepared)
 	{
-		const ModuleDeclaration* module_declaration = prepared.m_module_declaration.has_value()
-			? &prepared.m_module_declaration.value()
+		const ModuleDeclaration* module_declaration = prepared.m_module_declaration.HasValue()
+			? &prepared.m_module_declaration.Value()
 			: nullptr;
 		const ModuleImports imports;
 		Parser parser(std::move(prepared.m_tokens), prepared.m_source.FileName(), prepared.m_source.SourceLines(), imports, prepared.m_use_imports, module_declaration);
 		MarmotResult::ParserResult parse_result = parser.Parse();
-		if (!parse_result.has_value())
+		if (!parse_result.HasValue())
 		{
-			return std::unexpected(std::move(parse_result.error()));
+			return MarmotCompiler::Failure(std::move(parse_result.Error()));
 		}
 
 		std::vector<CompilerWarning> warnings = parser.GetWarnings();
-		MarmotResult::TypeCheckerResult typecheck_result = TypeChecker(std::move(parse_result).value(), prepared.m_source.FileName(), prepared.m_source.SourceLines()).TypeCheck();
-		if (!typecheck_result.has_value())
+		MarmotResult::TypeCheckerResult typecheck_result = TypeChecker(std::move(parse_result).Value(), prepared.m_source.FileName(), prepared.m_source.SourceLines()).TypeCheck();
+		if (!typecheck_result.HasValue())
 		{
-			return std::unexpected(std::move(typecheck_result.error()));
+			return MarmotCompiler::Failure(std::move(typecheck_result.Error()));
 		}
 
-		return PreparedTypedModule(std::move(prepared.m_source), std::move(typecheck_result).value(), std::move(warnings), std::move(prepared.m_module_declaration));
+		return PreparedTypedModule(std::move(prepared.m_source), std::move(typecheck_result).Value(), std::move(warnings), std::move(prepared.m_module_declaration));
 	}
 
-	std::unordered_set<std::string> CollectExports(const std::optional<ModuleDeclaration>& module_declaration)
+	std::unordered_set<std::string> CollectExports(const MarmotCompiler::Optional<ModuleDeclaration>& module_declaration)
 	{
 		std::unordered_set<std::string> export_set;
-		if (!module_declaration.has_value())
+		if (!module_declaration.HasValue())
 		{
 			return export_set;
 		}
@@ -134,7 +136,7 @@ namespace MarmotTest
 	{
 	}
 
-	ParsedSnippet::ParsedSnippet(SourceFixture source, MarmotProgramTree&& program, std::vector<CompilerWarning>&& warnings, std::optional<ModuleDeclaration>&& module_declaration, std::vector<UseImport>&& use_imports)
+	ParsedSnippet::ParsedSnippet(SourceFixture source, MarmotProgramTree&& program, std::vector<CompilerWarning>&& warnings, MarmotCompiler::Optional<ModuleDeclaration>&& module_declaration, std::vector<UseImport>&& use_imports)
 		: m_source(std::move(source)),
 		m_program(std::move(program)),
 		m_warnings(std::move(warnings)),
@@ -164,93 +166,93 @@ namespace MarmotTest
 	{
 	}
 
-	std::expected<LexedSnippet, CompilerError> LexSnippet(std::string source_code, std::string file_name)
+	MarmotResult::Result<LexedSnippet> LexSnippet(std::string source_code, std::string file_name)
 	{
 		SourceFixture source(std::move(source_code), std::move(file_name));
 		MarmotResult::LexerResult lex_result = Lexer(std::string(source.SourceCode()), source.FileName()).Lex();
-		if (!lex_result.has_value())
+		if (!lex_result.HasValue())
 		{
-			return std::unexpected(std::move(lex_result.error()));
+			return MarmotCompiler::Failure(std::move(lex_result.Error()));
 		}
 
-		return LexedSnippet(std::move(source), std::move(lex_result.value()));
+		return LexedSnippet(std::move(source), std::move(lex_result.Value()));
 	}
 
-	std::expected<ParsedSnippet, CompilerError> ParseSnippet(std::string source_code, std::string file_name)
+	MarmotResult::Result<ParsedSnippet> ParseSnippet(std::string source_code, std::string file_name)
 	{
-		std::expected<PreparedModule, CompilerError> prepared_result = PrepareSingleModule(SourceFixture(std::move(source_code), std::move(file_name)));
-		if (!prepared_result.has_value())
+		MarmotResult::Result<PreparedModule> prepared_result = PrepareSingleModule(SourceFixture(std::move(source_code), std::move(file_name)));
+		if (!prepared_result.HasValue())
 		{
-			return std::unexpected(std::move(prepared_result.error()));
+			return MarmotCompiler::Failure(std::move(prepared_result.Error()));
 		}
 
-		PreparedModule prepared = std::move(prepared_result.value());
-		const ModuleDeclaration* module_declaration = prepared.m_module_declaration.has_value()
-			? &prepared.m_module_declaration.value()
+		PreparedModule prepared = std::move(prepared_result.Value());
+		const ModuleDeclaration* module_declaration = prepared.m_module_declaration.HasValue()
+			? &prepared.m_module_declaration.Value()
 			: nullptr;
 		const ModuleImports imports;
 		Parser parser(std::move(prepared.m_tokens), prepared.m_source.FileName(), prepared.m_source.SourceLines(), imports, prepared.m_use_imports, module_declaration);
 		MarmotResult::ParserResult parse_result = parser.Parse();
-		if (!parse_result.has_value())
+		if (!parse_result.HasValue())
 		{
 			// Test helpers still offer single-error adapters for legacy callers; preserve
 			// structured diagnostics upstream and narrow only at this boundary.
-			return std::unexpected(std::move(parse_result.error()).TakeFirst());
+			return MarmotCompiler::Failure(std::move(parse_result.Error()).TakeFirst());
 		}
 
 		std::vector<CompilerWarning> warnings = parser.GetWarnings();
-		return ParsedSnippet(std::move(prepared.m_source), std::move(parse_result.value()), std::move(warnings), std::move(prepared.m_module_declaration), std::move(prepared.m_use_imports));
+		return ParsedSnippet(std::move(prepared.m_source), std::move(parse_result.Value()), std::move(warnings), std::move(prepared.m_module_declaration), std::move(prepared.m_use_imports));
 	}
 
-	std::expected<TypedSnippet, MarmotResult::CompilerDiagnostics> TypeCheckSnippetWithDiagnostics(std::string source_code, std::string file_name)
+	MarmotResult::DiagnosticsResult<TypedSnippet> TypeCheckSnippetWithDiagnostics(std::string source_code, std::string file_name)
 	{
-		std::expected<PreparedModule, CompilerError> prepared_result = PrepareSingleModule(SourceFixture(std::move(source_code), std::move(file_name)));
-		if (!prepared_result.has_value())
+		MarmotResult::Result<PreparedModule> prepared_result = PrepareSingleModule(SourceFixture(std::move(source_code), std::move(file_name)));
+		if (!prepared_result.HasValue())
 		{
-			return std::unexpected(MarmotResult::CompilerDiagnostics(std::move(prepared_result.error())));
+			return MarmotCompiler::Failure(MarmotResult::CompilerDiagnostics(std::move(prepared_result.Error())));
 		}
 
-		std::expected<PreparedTypedModule, MarmotResult::CompilerDiagnostics> typed_result =
-			TypeCheckPreparedModuleWithDiagnostics(std::move(prepared_result.value()));
-		if (!typed_result.has_value())
+		MarmotResult::DiagnosticsResult<PreparedTypedModule> typed_result =
+			TypeCheckPreparedModuleWithDiagnostics(std::move(prepared_result.Value()));
+		if (!typed_result.HasValue())
 		{
-			return std::unexpected(std::move(typed_result.error()));
+			return MarmotCompiler::Failure(std::move(typed_result.Error()));
 		}
 
-		PreparedTypedModule typed = std::move(typed_result.value());
+		PreparedTypedModule typed = std::move(typed_result.Value());
 		return TypedSnippet(std::move(typed.m_source), std::move(typed.m_program), std::move(typed.m_warnings));
 	}
 
-	std::expected<TypedSnippet, CompilerError> TypeCheckSnippet(std::string source_code, std::string file_name)
+	MarmotResult::Result<TypedSnippet> TypeCheckSnippet(std::string source_code, std::string file_name)
 	{
-		std::expected<TypedSnippet, MarmotResult::CompilerDiagnostics> typed_result = TypeCheckSnippetWithDiagnostics(std::move(source_code), std::move(file_name));
-		if (!typed_result.has_value())
+		MarmotResult::DiagnosticsResult<TypedSnippet> typed_result = TypeCheckSnippetWithDiagnostics(std::move(source_code), std::move(file_name));
+		if (!typed_result.HasValue())
 		{
 			// Test helpers still offer single-error adapters for legacy callers; preserve
 			// structured diagnostics upstream and narrow only at this boundary.
-			return std::unexpected(std::move(typed_result.error()).TakeFirst());
+			return MarmotCompiler::Failure(std::move(typed_result.Error()).TakeFirst());
 		}
 
-		return std::move(typed_result.value());
+		return std::move(typed_result.Value());
 	}
 
-	std::expected<LoweredModule, MarmotResult::CompilerDiagnostics> LowerSnippetWithDiagnostics(std::string source_code, std::string file_name)
+	MarmotResult::DiagnosticsResult<LoweredModule> LowerSnippetWithDiagnostics(std::string source_code, std::string file_name)
 	{
-		std::expected<PreparedModule, CompilerError> prepared_result = PrepareSingleModule(SourceFixture(std::move(source_code), std::move(file_name)));
-		if (!prepared_result.has_value())
+		MarmotResult::Result<PreparedModule> prepared_result = PrepareSingleModule(SourceFixture(std::move(source_code), std::move(file_name)));
+		if (!prepared_result.HasValue())
 		{
-			return std::unexpected(MarmotResult::CompilerDiagnostics(std::move(prepared_result.error())));
+			return MarmotCompiler::Failure(MarmotResult::CompilerDiagnostics(std::move(prepared_result.Error())));
 		}
 
-		std::expected<PreparedTypedModule, MarmotResult::CompilerDiagnostics> typed_result =
-			TypeCheckPreparedModuleWithDiagnostics(std::move(prepared_result.value()));
-		if (!typed_result.has_value())
+		MarmotResult::DiagnosticsResult<PreparedTypedModule> typed_result =
+			TypeCheckPreparedModuleWithDiagnostics(std::move(prepared_result.Value()));
+		if (!typed_result.HasValue())
 		{
-			return std::unexpected(std::move(typed_result.error()));
+			return MarmotCompiler::Failure(std::move(typed_result.Error()));
 		}
 
-		PreparedTypedModule typed = std::move(typed_result.value());
-		const std::string module_name = typed.m_module_declaration.has_value()
+		PreparedTypedModule typed = std::move(typed_result.Value());
+		const std::string module_name = typed.m_module_declaration.HasValue()
 			? typed.m_module_declaration->ModuleName()
 			: std::filesystem::path(typed.m_source.FileName()).stem().string();
 		const std::unordered_set<std::string> exports = CollectExports(typed.m_module_declaration);
@@ -258,75 +260,75 @@ namespace MarmotTest
 		return Lowering(typed.m_program, typed.m_source.FileName(), typed.m_source.SourceLines(), module_name, exports, imports).Lower();
 	}
 
-	std::expected<BytecodeModule, MarmotResult::CompilerDiagnostics> GenerateBytecodeSnippetWithDiagnostics(std::string source_code, std::string file_name)
+	MarmotResult::DiagnosticsResult<BytecodeModule> GenerateBytecodeSnippetWithDiagnostics(std::string source_code, std::string file_name)
 	{
 		SourceFixture source(std::move(source_code), std::move(file_name));
-		std::expected<LoweredModule, MarmotResult::CompilerDiagnostics> lowered = LowerSnippetWithDiagnostics(std::string(source.SourceCode()), source.FileName());
-		if (!lowered.has_value())
+		MarmotResult::DiagnosticsResult<LoweredModule> lowered = LowerSnippetWithDiagnostics(std::string(source.SourceCode()), source.FileName());
+		if (!lowered.HasValue())
 		{
-			return std::unexpected(std::move(lowered.error()));
+			return MarmotCompiler::Failure(std::move(lowered.Error()));
 		}
 
-		std::expected<void, MarmotIROptimizationFailure> optimized = MarmotIROptimizer().Optimize(lowered->m_module);
-		if (!optimized.has_value())
+		MarmotCompiler::Expected<void, MarmotIROptimizationFailure> optimized = MarmotIROptimizer().Optimize(lowered->m_module);
+		if (!optimized.HasValue())
 		{
-			return std::unexpected(MarmotResult::CompilerDiagnostics(CompilerError::Simple(CompilerStage::Lowering, std::format("{} produced invalid MarmotIR.", optimized.error().m_producer), CompilerErrorCode::CompilerInternalError)));
+			return MarmotCompiler::Failure(MarmotResult::CompilerDiagnostics(CompilerError::Simple(CompilerStage::Lowering, std::format("{} produced invalid MarmotIR.", optimized.Error().m_producer), CompilerErrorCode::CompilerInternalError)));
 		}
 
-		return BytecodeBackend(lowered.value(), source.FileName(), source.SourceLines()).Emit();
+		return BytecodeBackend(lowered.Value(), source.FileName(), source.SourceLines()).Emit();
 	}
 
-	std::expected<AnalyzedSnippet, CompilerError> AnalyzeSnippet(std::string source_code, std::string file_name)
+	MarmotResult::Result<AnalyzedSnippet> AnalyzeSnippet(std::string source_code, std::string file_name)
 	{
-		std::expected<TypedSnippet, CompilerError> typed_result = TypeCheckSnippet(std::move(source_code), std::move(file_name));
-		if (!typed_result.has_value())
+		MarmotResult::Result<TypedSnippet> typed_result = TypeCheckSnippet(std::move(source_code), std::move(file_name));
+		if (!typed_result.HasValue())
 		{
-			return std::unexpected(std::move(typed_result.error()));
+			return MarmotCompiler::Failure(std::move(typed_result.Error()));
 		}
 
-		TypedSnippet typed = std::move(typed_result.value());
+		TypedSnippet typed = std::move(typed_result.Value());
 		std::vector<CompilerWarning> warnings = StaticAnalyzerManager().Analyze(typed.m_program, typed.m_source.FileName(), typed.m_source.SourceLines());
 		return AnalyzedSnippet(std::move(typed.m_source), std::move(typed.m_program), std::move(warnings));
 	}
 
-	MarmotResult::CompilationResult CompileSnippetWithReport(std::string source_code, std::string file_name)
+	MarmotResult::CompiledProgramReportResult CompileSnippetWithReport(std::string source_code, std::string file_name)
 	{
 
 		return MarmotDriver::CompileSourceWithReport(std::move(source_code), std::move(file_name));
 	}
 
-	const MarmotResult::CompilerReport& CompilationReport(const MarmotResult::CompilationResult& compilation_result)
+	const MarmotResult::CompilerReport& CompilationReport(const MarmotResult::CompiledProgramReportResult& compilation_result)
 	{
-		if (compilation_result.has_value())
+		if (compilation_result.HasValue())
 		{
 			return compilation_result->Report();
 		}
 
-		return compilation_result.error();
+		return compilation_result.Error();
 	}
 
-	MarmotResult::CompilerResult CompileSnippet(std::string source_code, std::string file_name)
+	MarmotResult::ExecutableDiagnosticsResult CompileSnippet(std::string source_code, std::string file_name)
 	{
 		return MarmotDriver::CompileSourceWithReport(std::move(source_code), std::move(file_name))
-			.transform([](MarmotResult::CompiledProgram&& program) { return std::move(program).TakeExecutable(); })
-			.transform_error([](MarmotResult::CompilerReport&& report) { return std::move(report.m_errors); });
+			.Transform([](MarmotResult::CompiledProgram&& program) { return std::move(program).TakeExecutable(); })
+			.TransformError([](MarmotResult::CompilerReport&& report) { return std::move(report.m_errors); });
 	}
 
-	std::expected<ExecutedSnippet, CompilerError> ExecuteSnippet(std::string source_code, std::string file_name)
+	MarmotResult::Result<ExecutedSnippet> ExecuteSnippet(std::string source_code, std::string file_name)
 	{
 		SourceFixture source(std::move(source_code), std::move(file_name));
 
-		MarmotResult::CompilationResult compile_result = MarmotDriver::CompileSourceWithReport(
+		MarmotResult::CompiledProgramReportResult compile_result = MarmotDriver::CompileSourceWithReport(
 			std::string(source.SourceCode()), source.FileName(),
 			MarmotDriver::EnvironmentCompilationInputs().WithNativeLibraryPolicies({ { "marmotstdlib", NativeLibraryPolicy{ .m_thread_safe = true } } }));
-		if (!compile_result.has_value())
+		if (!compile_result.HasValue())
 		{
 			// Execution helpers keep a single-error surface for legacy tests; compile-time
 			// collections are narrowed explicitly at this boundary.
-			return std::unexpected(std::move(compile_result.error().m_errors).TakeFirst());
+			return MarmotCompiler::Failure(std::move(compile_result.Error().m_errors).TakeFirst());
 		}
 
-		std::pair<int, CapturedOutput> run = RunExecutable(std::move(compile_result.value()).TakeExecutable());
+		std::pair<int, CapturedOutput> run = RunExecutable(std::move(compile_result.Value()).TakeExecutable());
 		return ExecutedSnippet(std::move(source), run.first, std::move(run.second));
 	}
 

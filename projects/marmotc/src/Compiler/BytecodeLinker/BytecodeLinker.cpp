@@ -2,6 +2,8 @@
 #include "Bytecode/Format/Format.h"
 #include "Compiler/Constant/Constant.h"
 #include "Compiler/Names/SpecialNames.h"
+#include "Support/Expected.h"
+#include "Support/Optional.h"
 
 #include <map>
 #include <set>
@@ -50,7 +52,7 @@ namespace
 	}
 
 	// Where an instruction's shape operand starts, counted from its opcode.
-	std::optional<int> ShapeOperandOffset(OpCode opcode)
+	MarmotCompiler::Optional<int> ShapeOperandOffset(OpCode opcode)
 	{
 		switch (opcode)
 		{
@@ -64,7 +66,7 @@ namespace
 		case OpCode::LOCAL_UNION2:
 			return 5;
 		default:
-			return std::nullopt;
+			return MarmotCompiler::None;
 		}
 	}
 
@@ -110,12 +112,12 @@ namespace
 		return module.m_module_name;
 	}
 
-	std::string FormatModuleOrigin(const BytecodeModule& module, const std::optional<BytecodeModule::SourceProvenance>& source_provenance)
+	std::string FormatModuleOrigin(const BytecodeModule& module, const MarmotCompiler::Optional<BytecodeModule::SourceProvenance>& source_provenance)
 	{
 		const std::string file_name = DiagnosticFileName(module);
 		if (!file_name.empty())
 		{
-			if (source_provenance.has_value() && source_provenance->m_line > 0)
+			if (source_provenance.HasValue() && source_provenance->m_line > 0)
 			{
 				return std::format("{}:{}", file_name, source_provenance->m_line);
 			}
@@ -131,21 +133,21 @@ namespace
 		return "<unknown module>";
 	}
 
-	std::optional<std::string_view> ToOptionalStringView(const std::optional<std::string>& source_line)
+	MarmotCompiler::Optional<std::string_view> ToOptionalStringView(const MarmotCompiler::Optional<std::string>& source_line)
 	{
-		if (!source_line.has_value())
+		if (!source_line.HasValue())
 		{
-			return std::nullopt;
+			return MarmotCompiler::None;
 		}
 
-		return std::string_view(source_line.value());
+		return std::string_view(source_line.Value());
 	}
 
-	std::optional<CompilerError> MakeContextualLinkerError(CompilerErrorCode code, std::string_view message, const BytecodeModule& module, const std::optional<BytecodeModule::SourceProvenance>& source_provenance)
+	MarmotCompiler::Optional<CompilerError> MakeContextualLinkerError(CompilerErrorCode code, std::string_view message, const BytecodeModule& module, const MarmotCompiler::Optional<BytecodeModule::SourceProvenance>& source_provenance)
 	{
-		if (!source_provenance.has_value() || source_provenance->m_line <= 0)
+		if (!source_provenance.HasValue() || source_provenance->m_line <= 0)
 		{
-			return std::nullopt;
+			return MarmotCompiler::None;
 		}
 
 		return CompilerError::WithContext
@@ -156,7 +158,7 @@ namespace
 			DiagnosticFileName(module),
 			source_provenance->m_column,
 			source_provenance->m_caret_length,
-			std::nullopt,
+			MarmotCompiler::None,
 			ToOptionalStringView(source_provenance->m_source_line),
 			code
 		);
@@ -174,26 +176,26 @@ MarmotResult::BytecodeLinkerResult BytecodeLinker::Link()
 	AssignModuleBaseOffsets();
 
 	MarmotResult::VoidResult symbol_result = BuildGlobalSymbolTable();
-	if (!symbol_result.has_value())
+	if (!symbol_result.HasValue())
 	{
-		return std::unexpected(symbol_result.error());
+		return MarmotCompiler::Failure(symbol_result.Error());
 	}
 
 	MergeConstantPools();
 	MarmotResult::VoidResult shape_result = MergeShapes();
-	if (!shape_result.has_value())
+	if (!shape_result.HasValue())
 	{
-		return std::unexpected(shape_result.error());
+		return MarmotCompiler::Failure(shape_result.Error());
 	}
 	MergeFunctionNames();
 	MergeGlobalVariables();
 	if (m_global_procedure_names.size() > UINT16_MAX)
 	{
-		return std::unexpected(CompilerError::Simple(CompilerStage::BytecodeLinker, std::format("Too many procedures in the program (max {} including bootstrap)", UINT16_MAX + 1), CompilerErrorCode::CodeGeneratorLimitExceeded));
+		return MarmotCompiler::Failure(CompilerError::Simple(CompilerStage::BytecodeLinker, std::format("Too many procedures in the program (max {} including bootstrap)", UINT16_MAX + 1), CompilerErrorCode::CodeGeneratorLimitExceeded));
 	}
 	if (m_global_variables.size() > static_cast<size_t>(UINT16_MAX) + 1uz)
 	{
-		return std::unexpected(CompilerError::Simple(CompilerStage::BytecodeLinker, std::format("Too many globals in the program (max {})", UINT16_MAX + 1), CompilerErrorCode::CodeGeneratorLimitExceeded));
+		return MarmotCompiler::Failure(CompilerError::Simple(CompilerStage::BytecodeLinker, std::format("Too many globals in the program (max {})", UINT16_MAX + 1), CompilerErrorCode::CodeGeneratorLimitExceeded));
 	}
 	for (const BytecodeModule& module : m_modules)
 	{
@@ -207,9 +209,9 @@ MarmotResult::BytecodeLinkerResult BytecodeLinker::Link()
 	}
 
 	MarmotResult::VoidResult import_result = ResolveImportsAndPatch();
-	if (!import_result.has_value())
+	if (!import_result.HasValue())
 	{
-		return std::unexpected(import_result.error());
+		return MarmotCompiler::Failure(import_result.Error());
 	}
 
 	ConcatenateBytecode();
@@ -223,7 +225,7 @@ MarmotResult::BytecodeLinkerResult BytecodeLinker::Link()
 			message += "  ";
 			message += unresolved;
 		}
-		return std::unexpected(CompilerError::Simple(CompilerStage::BytecodeLinker, message, CompilerErrorCode::BytecodeLinkerUnresolvedImport));
+		return MarmotCompiler::Failure(CompilerError::Simple(CompilerStage::BytecodeLinker, message, CompilerErrorCode::BytecodeLinkerUnresolvedImport));
 	}
 
 
@@ -295,16 +297,16 @@ MarmotResult::VoidResult BytecodeLinker::BuildGlobalSymbolTable()
 					FormatModuleOrigin(*existing_export.m_module, existing_export.m_export->m_source_provenance)
 				);
 
-				if (std::optional<CompilerError> contextual_error = MakeContextualLinkerError(CompilerErrorCode::BytecodeLinkerDuplicateExportedSymbol, message, module, exp.m_source_provenance))
+				if (MarmotCompiler::Optional<CompilerError> contextual_error = MakeContextualLinkerError(CompilerErrorCode::BytecodeLinkerDuplicateExportedSymbol, message, module, exp.m_source_provenance))
 				{
-					return std::unexpected(std::move(*contextual_error));
+					return MarmotCompiler::Failure(std::move(*contextual_error));
 				}
-				if (std::optional<CompilerError> fallback_context = MakeContextualLinkerError(CompilerErrorCode::BytecodeLinkerDuplicateExportedSymbol, message, *existing_export.m_module, existing_export.m_export->m_source_provenance))
+				if (MarmotCompiler::Optional<CompilerError> fallback_context = MakeContextualLinkerError(CompilerErrorCode::BytecodeLinkerDuplicateExportedSymbol, message, *existing_export.m_module, existing_export.m_export->m_source_provenance))
 				{
-					return std::unexpected(std::move(*fallback_context));
+					return MarmotCompiler::Failure(std::move(*fallback_context));
 				}
 
-				return std::unexpected(CompilerError::WithFile(CompilerStage::BytecodeLinker, message, DiagnosticFileName(module), CompilerErrorCode::BytecodeLinkerDuplicateExportedSymbol));
+				return MarmotCompiler::Failure(CompilerError::WithFile(CompilerStage::BytecodeLinker, message, DiagnosticFileName(module), CompilerErrorCode::BytecodeLinkerDuplicateExportedSymbol));
 			}
 
 			m_global_symbol_table.emplace(symbol_key, LinkedExport{ global_procedure_index, &module, &exp });
@@ -354,7 +356,7 @@ MarmotResult::VoidResult BytecodeLinker::MergeShapes()
 			}
 			if (m_global_shapes.size() > static_cast<size_t>(UINT16_MAX))
 			{
-				return std::unexpected(CompilerError::Simple(CompilerStage::BytecodeLinker, std::format("Too many aggregate shapes in the program (max {})", UINT16_MAX + 1), CompilerErrorCode::CodeGeneratorLimitExceeded));
+				return MarmotCompiler::Failure(CompilerError::Simple(CompilerStage::BytecodeLinker, std::format("Too many aggregate shapes in the program (max {})", UINT16_MAX + 1), CompilerErrorCode::CodeGeneratorLimitExceeded));
 			}
 			const uint16_t index = static_cast<uint16_t>(m_global_shapes.size());
 			m_global_shapes.push_back(shape);
@@ -435,7 +437,7 @@ MarmotResult::VoidResult BytecodeLinker::ResolveImportsAndPatch()
 		for (const BytecodeModule::ImportedSymbol& import : module.m_imports)
 		{
 			const MarmotResult::VoidResult result = ValidateImport(module, import);
-			if (!result.has_value())
+			if (!result.HasValue())
 			{
 				return result;
 			}
@@ -591,7 +593,7 @@ const BytecodeModule* BytecodeLinker::DefiningModule(const std::string& module_n
 	return nullptr;
 }
 
-std::optional<size_t> BytecodeLinker::FindSymbolInExports(const BytecodeModule& module, const std::string& symbol_name) const
+MarmotCompiler::Optional<size_t> BytecodeLinker::FindSymbolInExports(const BytecodeModule& module, const std::string& symbol_name) const
 {
 	std::vector<BytecodeModule::ExportedSymbol>::const_iterator it = std::ranges::find_if
 	(
@@ -601,7 +603,7 @@ std::optional<size_t> BytecodeLinker::FindSymbolInExports(const BytecodeModule& 
 
 	if (it == module.m_exports.end())
 	{
-		return std::nullopt;
+		return MarmotCompiler::None;
 	}
 
 	std::unordered_map<std::string, size_t>::const_iterator base_it = m_module_base_global_indices.find(module.m_module_name);
@@ -610,7 +612,7 @@ std::optional<size_t> BytecodeLinker::FindSymbolInExports(const BytecodeModule& 
 	return base_offset + it->m_global_index;
 }
 
-std::optional<size_t> BytecodeLinker::FindSymbolInGlobals(const BytecodeModule& module, const std::string& symbol_name, size_t base_global_offset) const
+MarmotCompiler::Optional<size_t> BytecodeLinker::FindSymbolInGlobals(const BytecodeModule& module, const std::string& symbol_name, size_t base_global_offset) const
 {
 	std::vector<std::string>::const_iterator it = std::ranges::find_if
 	(
@@ -620,7 +622,7 @@ std::optional<size_t> BytecodeLinker::FindSymbolInGlobals(const BytecodeModule& 
 
 	if (it == module.m_global_variables.end())
 	{
-		return std::nullopt;
+		return MarmotCompiler::None;
 	}
 
 	size_t local_index = std::distance(module.m_global_variables.cbegin(), it);
@@ -646,24 +648,24 @@ MarmotResult::VoidResult BytecodeLinker::ValidateImport(const BytecodeModule& mo
 
 	if (imported_module == nullptr)
 	{
-		if (std::optional<CompilerError> contextual_error = MakeContextualLinkerError(CompilerErrorCode::BytecodeLinkerUnresolvedImport, contextual_message, module, import.m_source_provenance))
+		if (MarmotCompiler::Optional<CompilerError> contextual_error = MakeContextualLinkerError(CompilerErrorCode::BytecodeLinkerUnresolvedImport, contextual_message, module, import.m_source_provenance))
 		{
-			return std::unexpected(std::move(*contextual_error));
+			return MarmotCompiler::Failure(std::move(*contextual_error));
 		}
 
-		return std::unexpected(CompilerError::WithFile(CompilerStage::BytecodeLinker, message_with_origin, DiagnosticFileName(module), CompilerErrorCode::BytecodeLinkerUnresolvedImport));
+		return MarmotCompiler::Failure(CompilerError::WithFile(CompilerStage::BytecodeLinker, message_with_origin, DiagnosticFileName(module), CompilerErrorCode::BytecodeLinkerUnresolvedImport));
 	}
 
 	const size_t base_offset = m_module_base_global_indices.at(imported_module->m_module_name);
-	const std::optional<size_t> global_result = FindSymbolInGlobals(*imported_module, import.m_name, base_offset);
-	if (!global_result.has_value())
+	const MarmotCompiler::Optional<size_t> global_result = FindSymbolInGlobals(*imported_module, import.m_name, base_offset);
+	if (!global_result.HasValue())
 	{
-		if (std::optional<CompilerError> contextual_error = MakeContextualLinkerError(CompilerErrorCode::BytecodeLinkerUnresolvedImport, contextual_message, module, import.m_source_provenance))
+		if (MarmotCompiler::Optional<CompilerError> contextual_error = MakeContextualLinkerError(CompilerErrorCode::BytecodeLinkerUnresolvedImport, contextual_message, module, import.m_source_provenance))
 		{
-			return std::unexpected(std::move(*contextual_error));
+			return MarmotCompiler::Failure(std::move(*contextual_error));
 		}
 
-		return std::unexpected(CompilerError::WithFile(CompilerStage::BytecodeLinker, message_with_origin, DiagnosticFileName(module), CompilerErrorCode::BytecodeLinkerUnresolvedImport));
+		return MarmotCompiler::Failure(CompilerError::WithFile(CompilerStage::BytecodeLinker, message_with_origin, DiagnosticFileName(module), CompilerErrorCode::BytecodeLinkerUnresolvedImport));
 	}
 
 	return {};
@@ -687,10 +689,10 @@ std::vector<size_t> BytecodeLinker::ResolveImports(const BytecodeModule& module)
 				return 0uz;
 			}
 
-			const std::optional<size_t> export_result = FindSymbolInExports(*imported_module, import.m_name);
-			if (export_result.has_value())
+			const MarmotCompiler::Optional<size_t> export_result = FindSymbolInExports(*imported_module, import.m_name);
+			if (export_result.HasValue())
 			{
-				return export_result.value();
+				return export_result.Value();
 			}
 
 			// An instance method is a global the module never lists as an export:
@@ -698,14 +700,14 @@ std::vector<size_t> BytecodeLinker::ResolveImports(const BytecodeModule& module)
 			// is found. A name a program can write has already been checked
 			// against the export list by the parser.
 			const size_t base_offset = m_module_base_global_indices.at(imported_module->m_module_name);
-			const std::optional<size_t> global_result = FindSymbolInGlobals(*imported_module, import.m_name, base_offset);
-			if (!global_result.has_value())
+			const MarmotCompiler::Optional<size_t> global_result = FindSymbolInGlobals(*imported_module, import.m_name, base_offset);
+			if (!global_result.HasValue())
 			{
 				m_unresolved_imports.emplace_back(std::format("'{}' from module '{}', imported by '{}'", import.m_name, import.m_from_module, module.m_module_name));
 				return 0uz;
 			}
 
-			return global_result.value();
+			return global_result.Value();
 		}
 	);
 
@@ -752,9 +754,9 @@ void BytecodeLinker::PatchProcedure(
 		const OpCode opcode = procedure.ReadByteCode(offset);
 		const int advance = OpCodeTable::Length(opcode);
 
-		if (const std::optional<int> shape_offset = ShapeOperandOffset(opcode))
+		if (const MarmotCompiler::Optional<int> shape_offset = ShapeOperandOffset(opcode))
 		{
-			const int at = offset + shape_offset.value() - 1;
+			const int at = offset + shape_offset.Value() - 1;
 			WriteShortOperandLE(procedure, at, shape_mapping[static_cast<size_t>(ReadShortOperandLE(procedure, at))]);
 		}
 

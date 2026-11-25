@@ -1,5 +1,6 @@
 #include "Compiler/MarmotIROptimizer/Analysis/MarmotIRAnalysis.h"
 #include "Compiler/MarmotIROptimizer/MarmotIRPasses.h"
+#include "Support/Optional.h"
 
 #include <utility>
 
@@ -12,7 +13,7 @@ namespace
 	{
 	private:
 		const MarmotIRFunction& m_function;
-		std::vector<std::optional<MarmotIRSite>> m_sites;
+		std::vector<MarmotCompiler::Optional<MarmotIRSite>> m_sites;
 
 	public:
 		explicit Forwarding(const MarmotIRFunction& function)
@@ -22,40 +23,40 @@ namespace
 		}
 
 		// The value a read gives, or, for a union's tag, the constant tag.
-		std::optional<std::variant<MarmotIRValueId, int>> Forward(const MarmotIRInstruction& instruction) const
+		MarmotCompiler::Optional<std::variant<MarmotIRValueId, int>> Forward(const MarmotIRInstruction& instruction) const
 		{
 			if (instruction.m_operands.empty())
 			{
-				return std::nullopt;
+				return MarmotCompiler::None;
 			}
 			const MarmotIRInstruction* whole = Definition(instruction.m_operands.front());
 			if (whole == nullptr)
 			{
-				return std::nullopt;
+				return MarmotCompiler::None;
 			}
 			switch (instruction.m_op)
 			{
 			case MarmotIROp::TupleGet:
-				return whole->m_op == MarmotIROp::MakeTuple ? std::optional(Part(*whole, Index(instruction))) : std::nullopt;
+				return whole->m_op == MarmotIROp::MakeTuple ? MarmotCompiler::Optional(Part(*whole, Index(instruction))) : MarmotCompiler::None;
 			case MarmotIROp::GetMember:
 				return Member(*whole, Index(instruction));
 			case MarmotIROp::GetTag:
-				return whole->m_op == MarmotIROp::MakeUnion ? std::optional<std::variant<MarmotIRValueId, int>>(std::get<MarmotIRTag>(whole->m_immediate).m_value) : std::nullopt;
+				return whole->m_op == MarmotIROp::MakeUnion ? MarmotCompiler::Optional<std::variant<MarmotIRValueId, int>>(std::get<MarmotIRTag>(whole->m_immediate).m_value) : MarmotCompiler::None;
 			case MarmotIROp::UnionField:
 			{
 				const MarmotIRUnionField field = std::get<MarmotIRUnionField>(instruction.m_immediate);
 				const bool is_that_member = whole->m_op == MarmotIROp::MakeUnion && std::get<MarmotIRTag>(whole->m_immediate).m_value == field.m_tag;
-				return is_that_member ? std::optional(Part(*whole, field.m_index)) : std::nullopt;
+				return is_that_member ? MarmotCompiler::Optional(Part(*whole, field.m_index)) : MarmotCompiler::None;
 			}
 			// MakeRange takes its start, step and end in that order.
 			case MarmotIROp::RangeStart:
-				return whole->m_op == MarmotIROp::MakeRange ? std::optional(Part(*whole, 0u)) : std::nullopt;
+				return whole->m_op == MarmotIROp::MakeRange ? MarmotCompiler::Optional(Part(*whole, 0u)) : MarmotCompiler::None;
 			case MarmotIROp::RangeStep:
-				return whole->m_op == MarmotIROp::MakeRange ? std::optional(Part(*whole, 1u)) : std::nullopt;
+				return whole->m_op == MarmotIROp::MakeRange ? MarmotCompiler::Optional(Part(*whole, 1u)) : MarmotCompiler::None;
 			case MarmotIROp::RangeEnd:
-				return whole->m_op == MarmotIROp::MakeRange ? std::optional(Part(*whole, 2u)) : std::nullopt;
+				return whole->m_op == MarmotIROp::MakeRange ? MarmotCompiler::Optional(Part(*whole, 2u)) : MarmotCompiler::None;
 			default:
-				return std::nullopt;
+				return MarmotCompiler::None;
 			}
 		}
 
@@ -77,7 +78,7 @@ namespace
 
 		// A record update keeps every member but the one it sets, so a member
 		// is read through it from the record it updated.
-		std::optional<std::variant<MarmotIRValueId, int>> Member(const MarmotIRInstruction& whole, uint32_t index) const
+		MarmotCompiler::Optional<std::variant<MarmotIRValueId, int>> Member(const MarmotIRInstruction& whole, uint32_t index) const
 		{
 			const MarmotIRInstruction* record = &whole;
 			while (record->m_op == MarmotIROp::RecordUpdate)
@@ -89,10 +90,10 @@ namespace
 				record = Definition(record->m_operands[0u]);
 				if (record == nullptr)
 				{
-					return std::nullopt;
+					return MarmotCompiler::None;
 				}
 			}
-			return record->m_op == MarmotIROp::Construct ? std::optional(Part(*record, index)) : std::nullopt;
+			return record->m_op == MarmotIROp::Construct ? MarmotCompiler::Optional(Part(*record, index)) : MarmotCompiler::None;
 		}
 	};
 
@@ -104,25 +105,25 @@ namespace
 		bool changed = false;
 		const Forwarding forwarding(function);
 		const MarmotIRControlFlow control_flow(function);
-		std::vector<std::optional<MarmotIRValueId>> replacements(function.m_values.size());
+		std::vector<MarmotCompiler::Optional<MarmotIRValueId>> replacements(function.m_values.size());
 		for (const uint32_t block : control_flow.ReversePostorder())
 		{
 			for (MarmotIRInstruction& instruction : function.m_blocks[block].m_instructions)
 			{
-				std::ranges::for_each(instruction.m_operands, [&replacements](MarmotIRValueId& operand) { operand = replacements[operand.m_index].value_or(operand); });
-				const std::optional<std::variant<MarmotIRValueId, int>> forwarded = forwarding.Forward(instruction);
-				if (!forwarded.has_value())
+				std::ranges::for_each(instruction.m_operands, [&replacements](MarmotIRValueId& operand) { operand = replacements[operand.m_index].ValueOr(operand); });
+				const MarmotCompiler::Optional<std::variant<MarmotIRValueId, int>> forwarded = forwarding.Forward(instruction);
+				if (!forwarded.HasValue())
 				{
 					continue;
 				}
-				if (std::holds_alternative<MarmotIRValueId>(forwarded.value()))
+				if (std::holds_alternative<MarmotIRValueId>(forwarded.Value()))
 				{
 					changed = true;
-					replacements[instruction.m_result->m_index] = std::get<MarmotIRValueId>(forwarded.value());
+					replacements[instruction.m_result->m_index] = std::get<MarmotIRValueId>(forwarded.Value());
 					continue;
 				}
 				changed = true;
-				instruction = MarmotIRAnalysis::Const(instruction.m_result.value(), MarmotIRScalarType(MarmotIRScalar::Int), static_cast<int64_t>(std::get<int>(forwarded.value())), instruction.m_line);
+				instruction = MarmotIRAnalysis::Const(instruction.m_result.Value(), MarmotIRScalarType(MarmotIRScalar::Int), static_cast<int64_t>(std::get<int>(forwarded.Value())), instruction.m_line);
 			}
 		}
 		MarmotIRAnalysis::ReplaceUses(function, replacements);

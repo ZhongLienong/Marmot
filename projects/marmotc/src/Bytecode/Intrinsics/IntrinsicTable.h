@@ -2,9 +2,10 @@
 
 #include <array>
 #include <cstddef>
-#include <optional>
 #include <span>
 #include <string_view>
+
+#include "Support/Optional.h"
 
 struct MarmotIntrinsicSignature
 {
@@ -30,7 +31,7 @@ private:
 	};
 
 public:
-	static constexpr std::optional<size_t> FindIndex(std::string_view name)
+	static constexpr MarmotCompiler::Optional<size_t> FindIndex(std::string_view name)
 	{
 		for (size_t index = 0uz; index < s_signatures.size(); index += 1uz)
 		{
@@ -39,7 +40,7 @@ public:
 				return index;
 			}
 		}
-		return std::nullopt;
+		return MarmotCompiler::None;
 	}
 
 	static constexpr const MarmotIntrinsicSignature& At(size_t index)

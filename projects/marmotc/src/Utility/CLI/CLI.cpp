@@ -3,13 +3,11 @@
 #include <algorithm>
 #include <charconv>
 #include <cstdio>
-#include <expected>
 #include <filesystem>
 #include <fstream>
 #include <format>
 #include <iostream>
 #include <iterator>
-#include <optional>
 #include <print>
 #include <sstream>
 #include <string>
@@ -25,6 +23,8 @@
 #include "Utility/BuildPlan/BuildPlan.h"
 #include "Utility/Driver/MarmotDriver.h"
 #include "Utility/Formatter/Formatter.h"
+#include "Support/Expected.h"
+#include "Support/Optional.h"
 
 #include <CLI/CLI.hpp>
 
@@ -54,26 +54,26 @@ namespace
 		std::filesystem::path m_source_file;
 		// Set by --plan: the plan's inputs replace all discovery, and its entry
 		// becomes m_source_file.
-		std::optional<CompilationInputs> m_plan_inputs = std::nullopt;
+		MarmotCompiler::Optional<CompilationInputs> m_plan_inputs = MarmotCompiler::None;
 		std::vector<std::filesystem::path> m_fmt_paths;
 		bool m_fmt_write = false;
 		bool m_fmt_check = false;
 		bool m_embed_sources = false;
 		// build: where the .mmc goes (-o), where to list the files it was built
 		// from (--deps), and whether to leave out the summary.
-		std::optional<std::filesystem::path> m_output_path = std::nullopt;
-		std::optional<std::filesystem::path> m_deps_path = std::nullopt;
+		MarmotCompiler::Optional<std::filesystem::path> m_output_path = MarmotCompiler::None;
+		MarmotCompiler::Optional<std::filesystem::path> m_deps_path = MarmotCompiler::None;
 		bool m_quiet = false;
 		// check and build: --emit-ir and --emit-ast, which print each
 		// module's MarmotIR and checked syntax tree. They need text output.
 		bool m_emit_ir = false;
 		bool m_emit_ast = false;
 		bool m_optimizer_stats = false;
-		std::optional<size_t> m_jobs;
+		MarmotCompiler::Optional<size_t> m_jobs;
 		bool m_timings = false;
 	};
 
-	using ParseResult = std::expected<Invocation, std::string>;
+	using ParseResult = MarmotCompiler::Expected<Invocation, std::string>;
 	using CommandHandler = int(*)(const Invocation&);
 
 	struct CommandSpec
@@ -214,10 +214,10 @@ namespace
 		return previous[right.size()];
 	}
 
-	[[nodiscard]] std::optional<std::string_view> SuggestCommand(std::string_view input)
+	[[nodiscard]] MarmotCompiler::Optional<std::string_view> SuggestCommand(std::string_view input)
 	{
 		static constexpr std::string_view commands[] = { "check", "build", "fmt", "help" };
-		std::optional<std::string_view> best_match = std::nullopt;
+		MarmotCompiler::Optional<std::string_view> best_match = MarmotCompiler::None;
 		int best_distance = 1000;
 		for (const std::string_view command : commands)
 		{
@@ -229,48 +229,48 @@ namespace
 			}
 		}
 
-		if (best_match.has_value() && best_distance <= 3)
+		if (best_match.HasValue() && best_distance <= 3)
 		{
 			return best_match;
 		}
 
-		return std::nullopt;
+		return MarmotCompiler::None;
 	}
 
 	// A plan names its own entry, so it replaces the source-file argument.
-	[[nodiscard]] std::expected<void, std::string> ApplyPlan(Invocation& invocation, const std::optional<std::filesystem::path>& plan_file, std::string_view command)
+	[[nodiscard]] MarmotCompiler::Expected<void, std::string> ApplyPlan(Invocation& invocation, const MarmotCompiler::Optional<std::filesystem::path>& plan_file, std::string_view command)
 	{
-		if (!plan_file.has_value())
+		if (!plan_file.HasValue())
 		{
 			if (!invocation.m_show_help && invocation.m_source_file.empty())
 			{
-				return std::unexpected(std::format("Missing source file for {}.", command));
+				return MarmotCompiler::Failure(std::format("Missing source file for {}.", command));
 			}
 			return {};
 		}
 
-		std::expected<BuildPlan, std::string> plan = MarmotBuildPlan::ReadFile(plan_file.value());
-		if (!plan.has_value())
+		MarmotBuildPlan::PlanResult plan = MarmotBuildPlan::ReadFile(plan_file.Value());
+		if (!plan.HasValue())
 		{
-			return std::unexpected(std::format("Invalid build plan: {}", plan.error()));
+			return MarmotCompiler::Failure(std::format("Invalid build plan: {}", plan.Error()));
 		}
 
 		// A plan without an entry gives only the inputs, and the file given
 		// with it is the entry (the marmot tool compiles tests this way). A plan
 		// with an entry is the whole compile.
-		if (plan->m_entry.has_value() && !invocation.m_source_file.empty())
+		if (plan->m_entry.HasValue() && !invocation.m_source_file.empty())
 		{
-			return std::unexpected(std::format("Pass either a source file or a plan with an entry to {}, not both.", command));
+			return MarmotCompiler::Failure(std::format("Pass either a source file or a plan with an entry to {}, not both.", command));
 		}
 
-		if (!plan->m_entry.has_value() && invocation.m_source_file.empty())
+		if (!plan->m_entry.HasValue() && invocation.m_source_file.empty())
 		{
-			return std::unexpected(std::format("Invalid build plan: {}: {} needs an \"entry\", or a source file", plan_file->string(), command));
+			return MarmotCompiler::Failure(std::format("Invalid build plan: {}: {} needs an \"entry\", or a source file", plan_file->string(), command));
 		}
 
-		if (plan->m_entry.has_value())
+		if (plan->m_entry.HasValue())
 		{
-			invocation.m_source_file = plan->m_entry.value();
+			invocation.m_source_file = plan->m_entry.Value();
 		}
 		invocation.m_plan_inputs = std::move(plan->m_inputs);
 		return {};
@@ -284,7 +284,7 @@ namespace
 				"marmotc compiles and never runs a program. Run one with `marmot {} <file>`, or build it with `marmotc build` and run the .mmc with marmotvm.",
 				command == "test" ? "test" : "run");
 		}
-		const std::optional<std::string_view> suggestion = SuggestCommand(command);
+		const MarmotCompiler::Optional<std::string_view> suggestion = SuggestCommand(command);
 		return suggestion ? std::format("Unknown command: {}. Did you mean `{}`?", command, *suggestion) : std::format("Unknown command: {}", command);
 	}
 
@@ -348,10 +348,10 @@ namespace
 			const std::vector<std::string> extras = app.remaining(true);
 			if (extras.empty())
 			{
-				return std::unexpected(error.what());
+				return MarmotCompiler::Failure(error.what());
 			}
 			const std::string& extra = extras.front();
-			return std::unexpected(extra.starts_with('-') ? "Unknown option: " + extra : UnknownCommand(extra));
+			return MarmotCompiler::Failure(extra.starts_with('-') ? "Unknown option: " + extra : UnknownCommand(extra));
 		}
 		catch (const CLI::ArgumentMismatch& error)
 		{
@@ -360,18 +360,18 @@ namespace
 			{
 				if (message.starts_with(option) && message.find("missing") != std::string_view::npos)
 				{
-					return std::unexpected(std::format("Missing value for {}.", option));
+					return MarmotCompiler::Failure(std::format("Missing value for {}.", option));
 				}
 			}
 			if (message.starts_with("--plan"))
 			{
-				return std::unexpected("Only one --plan is allowed.");
+				return MarmotCompiler::Failure("Only one --plan is allowed.");
 			}
-			return std::unexpected(error.what());
+			return MarmotCompiler::Failure(error.what());
 		}
 		catch (const CLI::ParseError& error)
 		{
-			return std::unexpected(error.what());
+			return MarmotCompiler::Failure(error.what());
 		}
 
 		for (const std::vector<std::string>* values : { &global_formats, &formats })
@@ -380,7 +380,7 @@ namespace
 			{
 				if (format != "json")
 				{
-					return std::unexpected("Unknown format: " + format);
+					return MarmotCompiler::Failure("Unknown format: " + format);
 				}
 			}
 		}
@@ -399,7 +399,7 @@ namespace
 			const auto topic = std::ranges::find(commands, help_topic, &CommandSpec::m_name);
 			if (!help_topic.empty() && topic == commands.end())
 			{
-				return std::unexpected("Unknown help topic: " + help_topic);
+				return MarmotCompiler::Failure("Unknown help topic: " + help_topic);
 			}
 			if (topic != commands.end())
 			{
@@ -412,7 +412,7 @@ namespace
 			invocation.m_fmt_paths.assign(format_paths.begin(), format_paths.end());
 			if (!invocation.m_show_help && invocation.m_fmt_paths.empty())
 			{
-				return std::unexpected("Missing file or directory for fmt.");
+				return MarmotCompiler::Failure("Missing file or directory for fmt.");
 			}
 		}
 		else if (*analyze)
@@ -426,7 +426,7 @@ namespace
 			const std::string_view command = is_build ? "build" : "check";
 			if (sources.size() > 1u)
 			{
-				return std::unexpected(std::format("Only one source file is allowed for {}.", command));
+				return MarmotCompiler::Failure(std::format("Only one source file is allowed for {}.", command));
 			}
 			if (!sources.empty())
 			{
@@ -448,36 +448,36 @@ namespace
 				const std::from_chars_result number = std::from_chars(value.data(), value.data() + value.size(), count);
 				if (number.ec != std::errc{} || number.ptr != value.data() + value.size() || count == 0u)
 				{
-					return std::unexpected("--jobs requires a positive integer.");
+					return MarmotCompiler::Failure("--jobs requires a positive integer.");
 				}
 				invocation.m_jobs = count;
 			}
 #if !MARMOT_ENABLE_OPTIMIZER_STATS
 			if (invocation.m_optimizer_stats)
 			{
-				return std::unexpected("--optimizer-stats requires a Debug or Dev build.");
+				return MarmotCompiler::Failure("--optimizer-stats requires a Debug or Dev build.");
 			}
 #endif
-			const std::optional<std::filesystem::path> plan_file = compile->count("--plan") != 0u
-				? std::optional<std::filesystem::path>(plan)
-				: std::nullopt;
-			if (const std::expected<void, std::string> applied = ApplyPlan(invocation, plan_file, command); !applied)
+			const MarmotCompiler::Optional<std::filesystem::path> plan_file = compile->count("--plan") != 0u
+				? MarmotCompiler::Optional<std::filesystem::path>(plan)
+				: MarmotCompiler::None;
+			if (const MarmotCompiler::Expected<void, std::string> applied = ApplyPlan(invocation, plan_file, command); !applied)
 			{
-				return std::unexpected(applied.error());
+				return MarmotCompiler::Failure(applied.Error());
 			}
 		}
 		else if (!global_formats.empty())
 		{
-			return std::unexpected("Missing command after global flags.");
+			return MarmotCompiler::Failure("Missing command after global flags.");
 		}
 
 		if (invocation.m_emit_ir && invocation.m_format == OutputFormat::Json)
 		{
-			return std::unexpected("--emit-ir prints text, so it cannot be used with --format json.");
+			return MarmotCompiler::Failure("--emit-ir prints text, so it cannot be used with --format json.");
 		}
 		if (invocation.m_emit_ast && invocation.m_format == OutputFormat::Json)
 		{
-			return std::unexpected("--emit-ast prints text, so it cannot be used with --format json.");
+			return MarmotCompiler::Failure("--emit-ast prints text, so it cannot be used with --format json.");
 		}
 		return invocation;
 	}
@@ -497,10 +497,10 @@ namespace
 		std::string_view command,
 		bool success,
 		const MarmotResult::CompilerReport& report,
-		std::optional<int> exit_code = std::nullopt,
+		MarmotCompiler::Optional<int> exit_code = MarmotCompiler::None,
 		std::string_view stdout_text = {},
 		std::string_view stderr_text = {},
-		std::optional<std::string_view> artifact_json = std::nullopt,
+		MarmotCompiler::Optional<std::string_view> artifact_json = MarmotCompiler::None,
 		const EditorSymbols* symbols = nullptr)
 	{
 		MarmotJson::Document payload;
@@ -512,7 +512,7 @@ namespace
 		payload.AddStringField("stdout", stdout_text);
 		payload.AddStringField("stderr", stderr_text);
 		payload.AddRawField("report", report.MachineReadableJson());
-		if (artifact_json.has_value())
+		if (artifact_json.HasValue())
 		{
 			payload.AddRawField("artifact", *artifact_json);
 		}
@@ -575,7 +575,7 @@ namespace
 	// inputs the CLI discovers when there is no plan.
 	[[nodiscard]] MarmotDriver::CompileFileWithReportResult CompileInvocation(const Invocation& invocation)
 	{
-		CompilationInputs inputs = invocation.m_plan_inputs.value_or(MarmotDriver::EnvironmentCompilationInputs());
+		CompilationInputs inputs = invocation.m_plan_inputs.ValueOr(MarmotDriver::EnvironmentCompilationInputs());
 		return MarmotDriver::CompileFileWithReport(invocation.m_source_file, std::move(inputs)
 			.WithEmitMarmotIR(invocation.m_emit_ir)
 			.WithEmitAst(invocation.m_emit_ast)
@@ -606,16 +606,16 @@ namespace
 
 		const CompilerDiagnostics::ScopedStatistics statistics(invocation.m_optimizer_stats);
 		const MarmotDriver::CompileFileWithReportResult compile_result = CompileInvocation(invocation);
-		if (!compile_result.has_value())
+		if (!compile_result.HasValue())
 		{
-			const MarmotResult::CompilerReport& report = compile_result.error().m_report;
+			const MarmotResult::CompilerReport& report = compile_result.Error().m_report;
 			if (invocation.m_format == OutputFormat::Json)
 			{
 				std::print("{}", CommandJson("check", false, report, EXIT_FAILURE));
 			}
 			else
 			{
-				std::print(stderr, "{}", compile_result.error().Rendered());
+				std::print(stderr, "{}", compile_result.Error().Rendered());
 			}
 			return EXIT_FAILURE;
 		}
@@ -634,31 +634,31 @@ namespace
 		return EXIT_SUCCESS;
 	}
 
-	[[nodiscard]] std::expected<BuildPlan, std::string> ReadAnalysisRequest()
+	[[nodiscard]] MarmotBuildPlan::PlanResult ReadAnalysisRequest()
 	{
 		std::ostringstream input;
 		input << std::cin.rdbuf();
-		const std::expected<CompilerJson::JsonValue, std::string> request = CompilerJson::Parse(input.str());
+		const MarmotCompiler::Expected<CompilerJson::JsonValue, std::string> request = CompilerJson::Parse(input.str());
 		if (!request)
 		{
-			return std::unexpected(request.error());
+			return MarmotCompiler::Failure(request.Error());
 		}
 
 		const CompilerJson::JsonValue* plan_value = request->Find("plan");
 		const CompilerJson::JsonValue* sources = request->Find("sources");
 		if (plan_value == nullptr || sources == nullptr || !sources->IsObject())
 		{
-			return std::unexpected("Expected an analysis request with a plan and a sources object.");
+			return MarmotCompiler::Failure("Expected an analysis request with a plan and a sources object.");
 		}
 
-		std::expected<BuildPlan, std::string> plan = MarmotBuildPlan::Parse(*plan_value, std::filesystem::current_path());
+		MarmotBuildPlan::PlanResult plan = MarmotBuildPlan::Parse(*plan_value, std::filesystem::current_path());
 		if (!plan)
 		{
-			return std::unexpected(plan.error());
+			return MarmotCompiler::Failure(plan.Error());
 		}
 		if (!plan->m_entry)
 		{
-			return std::unexpected("The analysis plan must name an entry.");
+			return MarmotCompiler::Failure("The analysis plan must name an entry.");
 		}
 
 		CompilationInputs::SourceOverlays overlays;
@@ -666,7 +666,7 @@ namespace
 		{
 			if (!std::filesystem::path(file_path).is_absolute() || !text.IsString())
 			{
-				return std::unexpected("Analysis sources must map absolute file paths to strings.");
+				return MarmotCompiler::Failure("Analysis sources must map absolute file paths to strings.");
 			}
 			overlays.emplace(file_path, text.AsString());
 		}
@@ -682,17 +682,17 @@ namespace
 			return EXIT_SUCCESS;
 		}
 
-		std::expected<BuildPlan, std::string> plan = ReadAnalysisRequest();
+		MarmotBuildPlan::PlanResult plan = ReadAnalysisRequest();
 		if (!plan)
 		{
-			PrintCliError(plan.error());
+			PrintCliError(plan.Error());
 			return EXIT_FAILURE;
 		}
 
 		const EditorAnalysis analysis = MarmotDriver::AnalyzeFile(*plan->m_entry, std::move(plan->m_inputs));
 		const bool success = analysis.m_report.m_errors.Empty();
 		const int exit_code = success ? EXIT_SUCCESS : EXIT_FAILURE;
-		std::print("{}", CommandJson("analyze", success, analysis.m_report, exit_code, {}, {}, std::nullopt, &analysis.m_symbols));
+		std::print("{}", CommandJson("analyze", success, analysis.m_report, exit_code, {}, {}, MarmotCompiler::None, &analysis.m_symbols));
 		return exit_code;
 	}
 
@@ -706,16 +706,16 @@ namespace
 
 		const CompilerDiagnostics::ScopedStatistics statistics(invocation.m_optimizer_stats);
 		const MarmotDriver::CompileFileWithReportResult compile_result = CompileInvocation(invocation);
-		if (!compile_result.has_value())
+		if (!compile_result.HasValue())
 		{
-			const MarmotResult::CompilerReport& report = compile_result.error().m_report;
+			const MarmotResult::CompilerReport& report = compile_result.Error().m_report;
 			if (invocation.m_format == OutputFormat::Json)
 			{
 				std::print("{}", CommandJson("build", false, report, EXIT_FAILURE));
 			}
 			else
 			{
-				std::print(stderr, "{}", compile_result.error().Rendered());
+				std::print(stderr, "{}", compile_result.Error().Rendered());
 			}
 			return EXIT_FAILURE;
 		}
@@ -724,13 +724,13 @@ namespace
 		PrintDumps(compiled_program);
 		const MarmotExecutable& executable = compiled_program.m_executable;
 
-		std::filesystem::path artifact_path = invocation.m_output_path.value_or(invocation.m_source_file);
-		if (!invocation.m_output_path.has_value())
+		std::filesystem::path artifact_path = invocation.m_output_path.ValueOr(invocation.m_source_file);
+		if (!invocation.m_output_path.HasValue())
 		{
 			artifact_path.replace_extension(".mmc");
 		}
 
-		std::expected<void, std::string> write_result = {};
+		MarmotCompiler::Expected<void, std::string> write_result = {};
 		std::error_code directory_error;
 		if (artifact_path.has_parent_path())
 		{
@@ -738,14 +738,14 @@ namespace
 		}
 		if (directory_error)
 		{
-			write_result = std::unexpected(std::format("Could not create {}: {}", artifact_path.parent_path().string(), directory_error.message()));
+			write_result = MarmotCompiler::Failure(std::format("Could not create {}: {}", artifact_path.parent_path().string(), directory_error.message()));
 		}
 		else
 		{
 			write_result = MarmotBinaryArtifact::WriteExecutableToFile(executable, artifact_path, invocation.m_embed_sources);
 		}
 
-		if (write_result.has_value() && invocation.m_deps_path.has_value())
+		if (write_result.HasValue() && invocation.m_deps_path.HasValue())
 		{
 			std::string listing;
 			for (const std::string& source_file : compiled_program.m_source_files)
@@ -754,19 +754,19 @@ namespace
 				listing.push_back('\n');
 			}
 
-			std::ofstream deps(invocation.m_deps_path.value(), std::ios::binary | std::ios::trunc);
+			std::ofstream deps(invocation.m_deps_path.Value(), std::ios::binary | std::ios::trunc);
 			deps.write(listing.data(), static_cast<std::streamsize>(listing.size()));
 			if (!deps)
 			{
-				write_result = std::unexpected(std::format("Could not write {}", invocation.m_deps_path->string()));
+				write_result = MarmotCompiler::Failure(std::format("Could not write {}", invocation.m_deps_path->string()));
 			}
 		}
 
-		if (!write_result.has_value())
+		if (!write_result.HasValue())
 		{
 			MarmotResult::CompilerReport report = compiled_program.Report();
 			report.m_errors.Append(MarmotResult::CompilerDiagnostics(
-				CompilerError::Simple(CompilerStage::Compiler, write_result.error())));
+				CompilerError::Simple(CompilerStage::Compiler, write_result.Error())));
 			if (invocation.m_format == OutputFormat::Json)
 			{
 				std::print("{}", CommandJson("build", false, report, EXIT_FAILURE));
@@ -845,27 +845,27 @@ namespace
 
 		if (prints_one_file && !invocation.m_fmt_write && !invocation.m_fmt_check)
 		{
-			const std::expected<std::string, std::string> read_result = [&]() -> std::expected<std::string, std::string>
+			const MarmotCompiler::Expected<std::string, std::string> read_result = [&]() -> MarmotCompiler::Expected<std::string, std::string>
 			{
 				std::ifstream input(first_path, std::ios::binary);
 				if (!input.is_open())
 				{
-					return std::unexpected(std::format("Could not open file: {}", first_path.string()));
+					return MarmotCompiler::Failure(std::format("Could not open file: {}", first_path.string()));
 				}
 
 				std::string text((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
 				return text;
 			}();
-			if (!read_result.has_value())
+			if (!read_result.HasValue())
 			{
-				PrintCliError(read_result.error());
+				PrintCliError(read_result.Error());
 				return EXIT_FAILURE;
 			}
 
-			const std::expected<std::string, CompilerError> format_result = MarmotFormatter::FormatSource(read_result.value(), first_path.string());
-			if (!format_result.has_value())
+			const MarmotResult::Result<std::string> format_result = MarmotFormatter::FormatSource(read_result.Value(), first_path.string());
+			if (!format_result.HasValue())
 			{
-				PrintCliError(format_result.error().Rendered());
+				PrintCliError(format_result.Error().Rendered());
 				return EXIT_FAILURE;
 			}
 
@@ -877,13 +877,13 @@ namespace
 				payload.AddStringField("command", "fmt");
 				payload.AddBoolField("success", true);
 				payload.AddStringField("target", first_path.generic_string());
-				payload.AddStringField("formattedText", format_result.value());
+				payload.AddStringField("formattedText", format_result.Value());
 
 				std::print("{}", payload.Write());
 			}
 			else
 			{
-				std::print("{}", format_result.value());
+				std::print("{}", format_result.Value());
 			}
 			return EXIT_SUCCESS;
 		}
@@ -906,7 +906,7 @@ namespace
 				object.AddStringField("path", file.m_path.generic_string());
 				object.AddBoolField("changed", file.m_changed);
 				object.AddBoolField("written", file.m_written);
-				object.AddStringField("error", file.m_error.has_value() ? std::optional<std::string_view>(*file.m_error) : std::nullopt);
+				object.AddStringField("error", file.m_error.HasValue() ? MarmotCompiler::Optional<std::string_view>(*file.m_error) : MarmotCompiler::None);
 				files_json.Append(object);
 			}
 
@@ -925,7 +925,7 @@ namespace
 		{
 			for (const MarmotFormatter::FileResult& file : result.m_files)
 			{
-				if (file.m_error.has_value())
+				if (file.m_error.HasValue())
 				{
 					PrintCliError(std::format("{}: {}", file.m_path.string(), *file.m_error));
 				}
@@ -1006,14 +1006,14 @@ namespace MarmotCLI
 	{
 		MarmotTerminal::SetColorEnabled(MarmotTerminal::ShouldUseColor(stderr));
 		const ParseResult parse_result = ParseInvocation(argc, argv);
-		if (!parse_result.has_value())
+		if (!parse_result.HasValue())
 		{
-			std::string message = parse_result.error();
+			std::string message = parse_result.Error();
 			if (argc >= 2)
 			{
 				const std::string_view head = argv[1];
-				const std::optional<std::string_view> suggestion = SuggestCommand(head);
-				if (suggestion.has_value())
+				const MarmotCompiler::Optional<std::string_view> suggestion = SuggestCommand(head);
+				if (suggestion.HasValue())
 				{
 					message += std::format(" Did you mean '{}'?", *suggestion);
 				}
@@ -1024,7 +1024,7 @@ namespace MarmotCLI
 			return EXIT_FAILURE;
 		}
 
-		const Invocation invocation = parse_result.value();
+		const Invocation invocation = parse_result.Value();
 		if (invocation.m_show_help)
 		{
 			const std::string_view command_name = CommandName(invocation.m_kind);

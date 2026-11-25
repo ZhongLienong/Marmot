@@ -1,10 +1,10 @@
 #pragma once
 
 #include "Bytecode/Executable/Executable.h"
+#include "Support/Optional.h"
 
 #include <filesystem>
 #include <memory>
-#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -25,7 +25,7 @@ private:
 	std::shared_ptr<const SourceOverlays> m_source_overlays;
 	bool m_emit_marmot_ir = false;
 	bool m_emit_ast = false;
-	std::optional<size_t> m_jobs;
+	MarmotCompiler::Optional<size_t> m_jobs;
 	bool m_emit_timings = false;
 
 public:
@@ -55,9 +55,9 @@ public:
 
 	bool EmitsAst() const;
 
-	CompilationInputs WithJobs(std::optional<size_t> jobs) &&;
+	CompilationInputs WithJobs(MarmotCompiler::Optional<size_t> jobs) &&;
 
-	const std::optional<size_t>& Jobs() const;
+	const MarmotCompiler::Optional<size_t>& Jobs() const;
 
 	CompilationInputs WithTimings(bool emit_timings) &&;
 

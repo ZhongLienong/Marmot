@@ -1,5 +1,6 @@
 #include "Compiler/MarmotIROptimizer/Analysis/MarmotIRAnalysis.h"
 #include "Compiler/MarmotIROptimizer/MarmotIRPasses.h"
+#include "Support/Optional.h"
 
 #include <ranges>
 #include <utility>
@@ -11,7 +12,7 @@ namespace
 	bool RemoveRedundantParameters(MarmotIRFunction& function)
 	{
 		const std::vector<std::vector<MarmotIREdge>> incoming = MarmotIRAnalysis::IncomingEdges(function);
-		std::vector<std::optional<MarmotIRValueId>> replacements(function.m_values.size());
+		std::vector<MarmotCompiler::Optional<MarmotIRValueId>> replacements(function.m_values.size());
 		bool changed = false;
 		for (uint32_t block = 1u; block < function.m_blocks.size(); block += 1u)
 		{
@@ -19,7 +20,7 @@ namespace
 			for (size_t index = parameters.size(); index-- > 0u;)
 			{
 				const MarmotIRValueId parameter = parameters[index];
-				std::optional<MarmotIRValueId> only;
+				MarmotCompiler::Optional<MarmotIRValueId> only;
 				bool is_redundant = true;
 				for (const MarmotIREdge& edge : incoming[block])
 				{
@@ -28,14 +29,14 @@ namespace
 					{
 						continue;
 					}
-					if (only.has_value())
+					if (only.HasValue())
 					{
 						is_redundant = false;
 						break;
 					}
 					only = argument;
 				}
-				if (!is_redundant || !only.has_value())
+				if (!is_redundant || !only.HasValue())
 				{
 					continue;
 				}
@@ -61,9 +62,9 @@ namespace
 	// live when it is.
 	bool RemoveDeadValues(MarmotIRFunction& function)
 	{
-		const std::vector<std::optional<MarmotIRSite>> sites = MarmotIRAnalysis::DefinitionSites(function);
+		const std::vector<MarmotCompiler::Optional<MarmotIRSite>> sites = MarmotIRAnalysis::DefinitionSites(function);
 		const std::vector<std::vector<MarmotIREdge>> incoming = MarmotIRAnalysis::IncomingEdges(function);
-		std::vector<std::optional<std::pair<uint32_t, size_t>>> parameter_of(function.m_values.size());
+		std::vector<MarmotCompiler::Optional<std::pair<uint32_t, size_t>>> parameter_of(function.m_values.size());
 		for (uint32_t block = 0u; block < function.m_blocks.size(); block += 1u)
 		{
 			const std::vector<MarmotIRValueId>& parameters = function.m_blocks[block].m_parameters;
@@ -91,7 +92,7 @@ namespace
 				// Compaction invalidates definition positions, so decide whether
 				// an instruction can fail before moving any of them.
 				const bool is_removable = MarmotIRAnalysis::IsRemovable(function, sites, instruction);
-				if (instruction.m_result.has_value())
+				if (instruction.m_result.HasValue())
 				{
 					removable[instruction.m_result->m_index] = is_removable;
 				}
@@ -110,9 +111,9 @@ namespace
 			{
 				std::ranges::for_each(definition->m_operands, mark);
 			}
-			else if (parameter_of[value.m_index].has_value())
+			else if (parameter_of[value.m_index].HasValue())
 			{
-				const auto [block, index] = parameter_of[value.m_index].value();
+				const auto [block, index] = parameter_of[value.m_index].Value();
 				for (const MarmotIREdge& edge : incoming[block])
 				{
 					mark(MarmotIRAnalysis::SuccessorOf(function, edge).m_arguments[index]);
@@ -126,7 +127,7 @@ namespace
 			const size_t before = block.m_instructions.size();
 			std::erase_if(block.m_instructions, [&](const MarmotIRInstruction& instruction)
 			{
-				return instruction.m_result.has_value() && !live[instruction.m_result->m_index] && removable[instruction.m_result->m_index];
+				return instruction.m_result.HasValue() && !live[instruction.m_result->m_index] && removable[instruction.m_result->m_index];
 			});
 			changed = changed || block.m_instructions.size() != before;
 		}
@@ -151,12 +152,12 @@ namespace
 		return changed;
 	}
 
-	std::optional<bool> ConstantCondition(const MarmotIRFunction& function, const std::vector<std::optional<MarmotIRSite>>& sites, MarmotIRValueId condition)
+	MarmotCompiler::Optional<bool> ConstantCondition(const MarmotIRFunction& function, const std::vector<MarmotCompiler::Optional<MarmotIRSite>>& sites, MarmotIRValueId condition)
 	{
 		const MarmotIRInstruction* definition = MarmotIRAnalysis::Definition(function, sites, condition);
 		if (definition == nullptr || definition->m_op != MarmotIROp::Const)
 		{
-			return std::nullopt;
+			return MarmotCompiler::None;
 		}
 		return std::get<bool>(definition->m_immediate);
 	}
@@ -170,10 +171,10 @@ namespace
 	// The edge a branch always takes: the one its constant condition picks,
 	// or the other when one edge reaches only `unreachable`, as an exhaustive
 	// match's last test does.
-	std::optional<bool> TakenEdge(const MarmotIRFunction& function, const std::vector<std::optional<MarmotIRSite>>& sites, const MarmotIRInstruction& branch)
+	MarmotCompiler::Optional<bool> TakenEdge(const MarmotIRFunction& function, const std::vector<MarmotCompiler::Optional<MarmotIRSite>>& sites, const MarmotIRInstruction& branch)
 	{
-		const std::optional<bool> condition = ConstantCondition(function, sites, branch.m_operands.front());
-		if (condition.has_value())
+		const MarmotCompiler::Optional<bool> condition = ConstantCondition(function, sites, branch.m_operands.front());
+		if (condition.HasValue())
 		{
 			return condition;
 		}
@@ -185,14 +186,14 @@ namespace
 		{
 			return false;
 		}
-		return std::nullopt;
+		return MarmotCompiler::None;
 	}
 
 	// A branch that always takes one edge, or whose two edges are one, is a
 	// jump.
 	bool FoldBranches(MarmotIRFunction& function)
 	{
-		const std::vector<std::optional<MarmotIRSite>> sites = MarmotIRAnalysis::DefinitionSites(function);
+		const std::vector<MarmotCompiler::Optional<MarmotIRSite>> sites = MarmotIRAnalysis::DefinitionSites(function);
 		bool changed = false;
 		for (MarmotIRBlock& block : function.m_blocks)
 		{
@@ -201,12 +202,12 @@ namespace
 			{
 				continue;
 			}
-			const std::optional<bool> condition = TakenEdge(function, sites, terminator);
-			if (!condition.has_value() && terminator.m_successors[0u] != terminator.m_successors[1u])
+			const MarmotCompiler::Optional<bool> condition = TakenEdge(function, sites, terminator);
+			if (!condition.HasValue() && terminator.m_successors[0u] != terminator.m_successors[1u])
 			{
 				continue;
 			}
-			terminator = MarmotIRAnalysis::Jump(std::move(terminator.m_successors[condition.value_or(true) ? 0u : 1u]), terminator.m_line);
+			terminator = MarmotIRAnalysis::Jump(std::move(terminator.m_successors[condition.ValueOr(true) ? 0u : 1u]), terminator.m_line);
 			changed = true;
 		}
 		return changed;
@@ -282,7 +283,7 @@ namespace
 			}
 		}
 
-		std::vector<std::optional<MarmotIRValueId>> replacements(function.m_values.size());
+		std::vector<MarmotCompiler::Optional<MarmotIRValueId>> replacements(function.m_values.size());
 		bool changed = false;
 		for (const uint32_t block : control_flow.ReversePostorder())
 		{

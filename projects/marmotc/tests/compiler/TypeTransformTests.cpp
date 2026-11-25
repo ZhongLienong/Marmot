@@ -2,6 +2,7 @@
 
 #include "Compiler/AbstractSyntaxTree/Type.h"
 #include "Compiler/TypeTransform/TypeTransform.h"
+#include "Support/Optional.h"
 
 namespace
 {
@@ -77,7 +78,7 @@ TEST_CASE("Type transformations preserve foreign status and rewrite both forms o
 	{
 		const MarmotType::FunctionType& mapped = result->GetType<MarmotType::FunctionType>();
 		CHECK(mapped.m_is_foreign);
-		CHECK_FALSE(mapped.m_primitive.has_value());
+		CHECK_FALSE(mapped.m_primitive.HasValue());
 		CHECK(mapped.m_constraints[0u].m_type_args[0u]->IsType<MarmotType::IntegerType>());
 		CHECK(mapped.m_constraints[1u].m_equality_lhs->IsType<MarmotType::IntegerType>());
 		CHECK(mapped.m_constraints[1u].m_equality_rhs->IsType<MarmotType::IntegerType>());
@@ -93,7 +94,7 @@ TEST_CASE("Lowering shares unchanged structures and resolves projections after a
 	const TypeRef variable = MarmotType::MakeTypeVariable(42);
 	const TypeRef projection = MarmotType::MakeAssociatedType("Iterable", "Element", { variable });
 	size_t resolutions = 0u;
-	const TypeRef result = TypeTransform::Specialize(projection, { { "T42", array } }, [&](const MarmotType::AssociatedType& associated) -> std::optional<TypeRef>
+	const TypeRef result = TypeTransform::Specialize(projection, { { "T42", array } }, [&](const MarmotType::AssociatedType& associated) -> MarmotCompiler::Optional<TypeRef>
 	{
 		++resolutions;
 		CHECK(associated.m_type_args[0u] == array);
@@ -101,7 +102,7 @@ TEST_CASE("Lowering shares unchanged structures and resolves projections after a
 	});
 	CHECK(result == integer);
 	CHECK(resolutions == 1u);
-	CHECK(TypeTransform::Specialize(projection, {}, [](const MarmotType::AssociatedType&) -> std::optional<TypeRef> { return std::nullopt; }) == projection);
+	CHECK(TypeTransform::Specialize(projection, {}, [](const MarmotType::AssociatedType&) -> MarmotCompiler::Optional<TypeRef> { return MarmotCompiler::None; }) == projection);
 }
 
 TEST_CASE("Freshening correlates parameters and repeated variables while preserving enclosing parameters", "[type-transform]")
@@ -171,7 +172,7 @@ TEST_CASE("Inference substitution resolves associated types in constraints after
 	const TypeRef projection = MarmotType::MakeAssociatedType("Iterable", "Element", { variable });
 	const TypeRef function = MarmotType::MakeFunctionType({}, TypeRef(integer));
 	function->GetType<MarmotType::FunctionType>().m_constraints = { MarmotType::ClassConstraint(TypeRef(projection), TypeRef(variable)) };
-	const TypeRef result = TypeTransform::Apply(function, { { 1, integer } }, [&integer](const MarmotType::AssociatedType& associated) -> std::optional<TypeRef>
+	const TypeRef result = TypeTransform::Apply(function, { { 1, integer } }, [&integer](const MarmotType::AssociatedType& associated) -> MarmotCompiler::Optional<TypeRef>
 	{
 		CHECK(associated.m_type_args[0u] == integer);
 		return integer;

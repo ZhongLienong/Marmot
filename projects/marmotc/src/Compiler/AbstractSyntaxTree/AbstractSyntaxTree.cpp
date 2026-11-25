@@ -1,4 +1,5 @@
 #include "AbstractSyntaxTree.h"
+#include "Support/Optional.h"
 
 #include <charconv>
 #include <limits>
@@ -9,7 +10,7 @@ bool IsPrefixedIntegerLiteral(std::string_view lexeme)
 		&& (lexeme[1u] == 'x' || lexeme[1u] == 'X' || lexeme[1u] == 'b' || lexeme[1u] == 'B');
 }
 
-std::optional<uint64_t> ParseUnsignedLiteral(std::string_view lexeme)
+MarmotCompiler::Optional<uint64_t> ParseUnsignedLiteral(std::string_view lexeme)
 {
 	int base = 10;
 	if (lexeme.size() >= 3u && lexeme[0u] == '0' && (lexeme[1u] == 'x' || lexeme[1u] == 'X'))
@@ -27,36 +28,36 @@ std::optional<uint64_t> ParseUnsignedLiteral(std::string_view lexeme)
 	const std::from_chars_result result = std::from_chars(lexeme.data(), lexeme.data() + lexeme.size(), value, base);
 	if (lexeme.empty() || result.ec != std::errc() || result.ptr != lexeme.data() + lexeme.size())
 	{
-		return std::nullopt;
+		return MarmotCompiler::None;
 	}
 
 	return value;
 }
 
-std::optional<int64_t> ParseIntegerLiteral(std::string_view lexeme)
+MarmotCompiler::Optional<int64_t> ParseIntegerLiteral(std::string_view lexeme)
 {
 	const bool negative = lexeme.starts_with('-');
-	const std::optional<uint64_t> value = ParseUnsignedLiteral(negative ? lexeme.substr(1u) : lexeme);
+	const MarmotCompiler::Optional<uint64_t> value = ParseUnsignedLiteral(negative ? lexeme.substr(1u) : lexeme);
 	constexpr uint64_t max_positive = static_cast<uint64_t>(std::numeric_limits<int64_t>::max());
-	if (!value.has_value() || value.value() > max_positive + negative)
+	if (!value.HasValue() || value.Value() > max_positive + negative)
 	{
-		return std::nullopt;
+		return MarmotCompiler::None;
 	}
-	if (value.value() > max_positive)
+	if (value.Value() > max_positive)
 	{
 		return std::numeric_limits<int64_t>::min();
 	}
-	const int64_t magnitude = static_cast<int64_t>(value.value());
+	const int64_t magnitude = static_cast<int64_t>(value.Value());
 	return negative ? -magnitude : magnitude;
 }
 
-std::optional<double> ParseFloatLiteral(std::string_view lexeme)
+MarmotCompiler::Optional<double> ParseFloatLiteral(std::string_view lexeme)
 {
 	double value = 0.0;
 	const std::from_chars_result result = std::from_chars(lexeme.data(), lexeme.data() + lexeme.size(), value);
 	if (lexeme.empty() || result.ec != std::errc() || result.ptr != lexeme.data() + lexeme.size())
 	{
-		return std::nullopt;
+		return MarmotCompiler::None;
 	}
 
 	return value;
@@ -88,18 +89,18 @@ namespace
 		}
 	};
 
-	std::optional<std::unique_ptr<MarmotExpression>> MakeOptionalExpression(std::unique_ptr<MarmotExpression>&& expr)
+	MarmotCompiler::Optional<std::unique_ptr<MarmotExpression>> MakeOptionalExpression(std::unique_ptr<MarmotExpression>&& expr)
 	{
 		if (expr == nullptr)
 		{
-			return std::nullopt;
+			return MarmotCompiler::None;
 		}
 
-		return std::optional<std::unique_ptr<MarmotExpression>>(std::move(expr));
+		return MarmotCompiler::Optional<std::unique_ptr<MarmotExpression>>(std::move(expr));
 	}
 }
 
-MarmotPattern::Binding::Binding(const Token& name, std::optional<BindingId> binding)
+MarmotPattern::Binding::Binding(const Token& name, MarmotCompiler::Optional<BindingId> binding)
 	: m_name(name),
 	m_binding(std::move(binding))
 {
@@ -129,7 +130,7 @@ MarmotPattern::Array::Rest::Rest(size_t position, std::unique_ptr<MarmotPattern>
 {
 }
 
-MarmotPattern::Array::Array(const Token& left_bracket, std::vector<std::unique_ptr<MarmotPattern>>&& elements, std::optional<Rest>&& rest)
+MarmotPattern::Array::Array(const Token& left_bracket, std::vector<std::unique_ptr<MarmotPattern>>&& elements, MarmotCompiler::Optional<Rest>&& rest)
 	: m_left_bracket(left_bracket),
 	m_elements(std::move(elements)),
 	m_rest(std::move(rest))
@@ -168,7 +169,7 @@ MarmotPattern::Record::Field::Field(const Token& name, std::unique_ptr<MarmotPat
 {
 }
 
-MarmotPattern::Record::Record(const Token& name_token, std::string&& name, std::vector<Field>&& fields, std::optional<Token>&& rest)
+MarmotPattern::Record::Record(const Token& name_token, std::string&& name, std::vector<Field>&& fields, MarmotCompiler::Optional<Token>&& rest)
 	: m_name_token(name_token),
 	m_name(std::move(name)),
 	m_fields(std::move(fields)),
@@ -214,7 +215,7 @@ MarmotExpression::NameAccess::NameAccess(const Token& name, NameContext::Tag&& n
 	{
 		m_value_reference_end = MarmotSource::Position{
 			value_reference_end->m_line,
-			static_cast<size_t>(value_reference_end->m_column.value()) + value_reference_end->m_source_length.value()
+			static_cast<size_t>(value_reference_end->m_column.Value()) + value_reference_end->m_source_length.Value()
 		};
 	}
 }
@@ -347,7 +348,7 @@ MarmotExpression::Case::Case(const Token& keyword, std::unique_ptr<MarmotPattern
 
 bool MarmotExpression::Case::HasGuard() const
 {
-	return m_guard.has_value();
+	return m_guard.HasValue();
 }
 
 MarmotExpression::For::For(const Token& for_keyword, const Token& loop_variable, const Token& in_keyword,
@@ -409,7 +410,7 @@ namespace
 				else if constexpr (std::is_same_v<Node, MarmotPattern::Array>)
 				{
 					children(node.m_elements);
-					if (node.m_rest.has_value())
+					if (node.m_rest.HasValue())
 					{
 						CollectBindings(*node.m_rest->m_pattern, every_alternative, bindings);
 					}
@@ -496,7 +497,7 @@ MarmotStatement::ExpressionStatement::ExpressionStatement(const Token& semicolon
 {
 }
 
-MarmotStatement::VariableDefinition::VariableDefinition(const Token& name, std::unique_ptr<MarmotExpression>&& value, std::optional<std::shared_ptr<MarmotType>>&& annotated_type, std::optional<BindingId>&& binding)
+MarmotStatement::VariableDefinition::VariableDefinition(const Token& name, std::unique_ptr<MarmotExpression>&& value, MarmotCompiler::Optional<std::shared_ptr<MarmotType>>&& annotated_type, MarmotCompiler::Optional<BindingId>&& binding)
 	: m_name(name),
 	m_value(std::move(value)),
 	m_annotated_type(std::move(annotated_type)),
@@ -504,14 +505,14 @@ MarmotStatement::VariableDefinition::VariableDefinition(const Token& name, std::
 {
 }
 
-MarmotStatement::TupleDefinition::TupleDefinition(std::vector<Token>&& names, std::unique_ptr<MarmotExpression>&& value, std::vector<std::optional<BindingId>>&& bindings)
+MarmotStatement::TupleDefinition::TupleDefinition(std::vector<Token>&& names, std::unique_ptr<MarmotExpression>&& value, std::vector<MarmotCompiler::Optional<BindingId>>&& bindings)
 	: m_names(std::move(names)),
 	m_value(std::move(value)),
 	m_bindings(std::move(bindings))
 {
 }
 
-MarmotStatement::ForeignDefinition::ForeignDefinition(const Token& function_name, const std::string& foreign_name, std::shared_ptr<MarmotType>&& type, std::optional<BindingId>&& binding, std::optional<std::string> library)
+MarmotStatement::ForeignDefinition::ForeignDefinition(const Token& function_name, const std::string& foreign_name, std::shared_ptr<MarmotType>&& type, MarmotCompiler::Optional<BindingId>&& binding, MarmotCompiler::Optional<std::string> library)
 	: m_function_name(function_name),
 	m_foreign_name(foreign_name),
 	m_type(std::move(type)),
@@ -520,7 +521,7 @@ MarmotStatement::ForeignDefinition::ForeignDefinition(const Token& function_name
 {
 }
 
-std::optional<MarmotPrimitive> MarmotStatement::ForeignDefinition::DeclaredPrimitive() const
+MarmotCompiler::Optional<MarmotPrimitive> MarmotStatement::ForeignDefinition::DeclaredPrimitive() const
 {
 	return m_type->GetType<MarmotType::FunctionType>().m_primitive;
 }
@@ -542,7 +543,7 @@ MarmotStatement::Union::Union(const Token& name, std::vector<Token>&& generic_pa
 {
 }
 
-MarmotStatement::FunctionDefinition::FunctionDefinition(const Token& name, std::vector<Token>&& generic_params, FunctionParameters&& params, std::vector<std::shared_ptr<MarmotType>>&& param_types, std::shared_ptr<MarmotType>&& return_type, std::unique_ptr<MarmotExpression>&& body, std::optional<BindingId>&& binding, std::vector<MarmotType::ClassConstraint>&& constraints)
+MarmotStatement::FunctionDefinition::FunctionDefinition(const Token& name, std::vector<Token>&& generic_params, FunctionParameters&& params, std::vector<std::shared_ptr<MarmotType>>&& param_types, std::shared_ptr<MarmotType>&& return_type, std::unique_ptr<MarmotExpression>&& body, MarmotCompiler::Optional<BindingId>&& binding, std::vector<MarmotType::ClassConstraint>&& constraints)
 	: m_name(name),
 	m_generic_params(std::move(generic_params)),
 	m_params(std::move(params)),

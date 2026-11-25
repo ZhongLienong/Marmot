@@ -2,10 +2,10 @@
 
 #include "support/CompileHelpers.h"
 #include "support/TempDir.h"
+#include "Support/Expected.h"
 
 #include <chrono>
 #include <cstdlib>
-#include <expected>
 #include <filesystem>
 #include <format>
 #include <string>
@@ -58,14 +58,14 @@ use Concurrency.{WorkerError})";
 IO::PrintLine("join: " ++ Describe(r));
 )";
 
-	const MarmotTest::ExecutedSnippet& RequireExecutedSnippet(const std::expected<MarmotTest::ExecutedSnippet, CompilerError>& run_result)
+	const MarmotTest::ExecutedSnippet& RequireExecutedSnippet(const MarmotCompiler::Expected<MarmotTest::ExecutedSnippet, CompilerError>& run_result)
 	{
-		if (!run_result.has_value())
+		if (!run_result.HasValue())
 		{
-			FAIL(std::string(run_result.error().Rendered()));
+			FAIL(std::string(run_result.Error().Rendered()));
 		}
 
-		return run_result.value();
+		return run_result.Value();
 	}
 }
 
@@ -90,7 +90,7 @@ def r = Concurrency::Join(w);
 		DESCRIBE_JOIN
 	);
 
-	const std::expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
+	const MarmotCompiler::Expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
 		MarmotTest::ExecuteSnippet(source_code, source_file_path.string());
 	const MarmotTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
 
@@ -119,7 +119,7 @@ def r = Concurrency::Join(w);
 		DESCRIBE_JOIN
 	);
 
-	const std::expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
+	const MarmotCompiler::Expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
 		MarmotTest::ExecuteSnippet(source_code, source_file_path.string());
 	const MarmotTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
 
@@ -150,7 +150,7 @@ def r = Concurrency::Join(w);
 		DESCRIBE_JOIN
 	);
 
-	const std::expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
+	const MarmotCompiler::Expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
 		MarmotTest::ExecuteSnippet(source_code, source_file_path.string());
 	const MarmotTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
 
@@ -184,7 +184,7 @@ def r = Concurrency::Join(w);
 	);
 
 	const std::chrono::steady_clock::time_point start_time = std::chrono::steady_clock::now();
-	const std::expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
+	const MarmotCompiler::Expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
 		MarmotTest::ExecuteSnippet(source_code, source_file_path.string());
 	const std::chrono::steady_clock::duration elapsed = std::chrono::steady_clock::now() - start_time;
 	const MarmotTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);

@@ -4,6 +4,7 @@
 #include "Utility/Driver/MarmotDriver.h"
 #include "support/ScopedEnvVar.h"
 #include "support/TempProject.h"
+#include "Support/Optional.h"
 
 TEST_CASE("TempProject and ScopedEnvVar make system import resolution deterministic", "[module][support]")
 {
@@ -18,8 +19,8 @@ TEST_CASE("TempProject and ScopedEnvVar make system import resolution determinis
 	const MarmotTest::ScopedEnvVar marmot_path("MARMOT_PATH", project.Path("stdlib").string());
 
 	const ImportResolver resolver(main_file_path.string(), MarmotDriver::EnvironmentCompilationInputs().SearchPaths());
-	const std::optional<std::string> resolved_import = resolver.Resolve("<Std.IO>");
+	const MarmotCompiler::Optional<std::string> resolved_import = resolver.Resolve("<Std.IO>");
 
-	REQUIRE(resolved_import.has_value());
-	REQUIRE(resolved_import.value() == module_file_path.string());
+	REQUIRE(resolved_import.HasValue());
+	REQUIRE(resolved_import.Value() == module_file_path.string());
 }

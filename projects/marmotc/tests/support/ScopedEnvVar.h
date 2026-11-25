@@ -1,8 +1,9 @@
 #pragma once
 
-#include <optional>
 #include <string>
 #include <string_view>
+
+#include "Support/Optional.h"
 
 namespace MarmotTest
 {
@@ -10,10 +11,10 @@ namespace MarmotTest
 	{
 	private:
 		std::string m_name;
-		std::optional<std::string> m_original_value;
+		MarmotCompiler::Optional<std::string> m_original_value;
 
 	public:
-		ScopedEnvVar(std::string name, std::optional<std::string> value);
+		ScopedEnvVar(std::string name, MarmotCompiler::Optional<std::string> value);
 
 		ScopedEnvVar(std::string name, std::string value);
 
@@ -24,9 +25,9 @@ namespace MarmotTest
 		ScopedEnvVar(ScopedEnvVar&&) = delete;
 		ScopedEnvVar& operator=(ScopedEnvVar&&) = delete;
 
-		[[nodiscard]] static std::optional<std::string> Read(std::string_view name);
+		[[nodiscard]] static MarmotCompiler::Optional<std::string> Read(std::string_view name);
 
 	private:
-		static bool ApplyValue(std::string_view name, const std::optional<std::string>& value) noexcept;
+		static bool ApplyValue(std::string_view name, const MarmotCompiler::Optional<std::string>& value) noexcept;
 	};
 }

@@ -1,10 +1,11 @@
 #include "CompiledModule.h"
+#include "Support/Optional.h"
 
 #include <utility>
 
 CompiledModule::CompiledModule(std::shared_ptr<const ModuleInterface> interface)
 	: m_interface(std::move(interface)),
-	m_bytecode(std::nullopt)
+	m_bytecode(MarmotCompiler::None)
 {
 }
 
@@ -28,15 +29,15 @@ const std::vector<CompilerWarning>& CompiledModule::Warnings() const
 	return m_warnings;
 }
 
-const std::optional<BytecodeModule>& CompiledModule::Bytecode() const &
+const MarmotCompiler::Optional<BytecodeModule>& CompiledModule::Bytecode() const &
 {
 	return m_bytecode;
 }
 
 BytecodeModule CompiledModule::TakeBytecode() &&
 {
-	BytecodeModule bytecode = std::move(m_bytecode).value();
-	m_bytecode.reset();
+	BytecodeModule bytecode = std::move(m_bytecode).Value();
+	m_bytecode.Reset();
 	return bytecode;
 }
 
@@ -76,11 +77,11 @@ CompiledModule CompiledModule::WithAst(std::string ast) &&
 
 CompiledModule CompiledModule::WithDefinitions(ModuleDefinitions definitions) &&
 {
-	m_definitions.emplace(std::move(definitions));
+	m_definitions.Emplace(std::move(definitions));
 	return std::move(*this);
 }
 
 ModuleDefinitions CompiledModule::TakeDefinitions() &&
 {
-	return std::move(m_definitions).value();
+	return std::move(m_definitions).Value();
 }

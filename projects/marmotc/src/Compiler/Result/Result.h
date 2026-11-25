@@ -1,16 +1,15 @@
 #pragma once
 
 #include <algorithm>
-#include <expected>
 #include <iterator>
 #include <memory>
-#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "Compiler/Error/CompilerError.h"
 #include "Compiler/AbstractSyntaxTree/AbstractSyntaxTree.h"
+#include "Support/Expected.h"
 
 namespace MarmotResult
 {
@@ -126,7 +125,7 @@ namespace MarmotResult
 		{
 			const auto warning_file_path = [](const CompilerWarning& warning) -> std::string_view
 			{
-				if (!warning.m_location.has_value() || warning.m_location->m_file_name.empty())
+				if (!warning.m_location.HasValue() || warning.m_location->m_file_name.empty())
 				{
 					return {};
 				}
@@ -187,13 +186,13 @@ namespace MarmotResult
 	};
 
 	template<typename ValueType>
-	using ReportResult = std::expected<ValueType, CompilerReport>;
+	using ReportResult = MarmotCompiler::Expected<ValueType, CompilerReport>;
 
 	template<typename ValueType>
-	using Result = std::expected<ValueType, CompilerError>;
+	using Result = MarmotCompiler::Expected<ValueType, CompilerError>;
 
 	template<typename ValueType>
-	using DiagnosticsResult = std::expected<ValueType, CompilerDiagnostics>;
+	using DiagnosticsResult = MarmotCompiler::Expected<ValueType, CompilerDiagnostics>;
 
 	using TokenResult = Result<Token>;
 	using TokenListResult = Result<std::vector<Token>>;

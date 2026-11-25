@@ -35,6 +35,6 @@ namespace MarmotResult
 		}
 	};
 
-	using CompilerResult = DiagnosticsResult<MarmotExecutable>;
-	using CompilationResult = ReportResult<CompiledProgram>;
+	using ExecutableDiagnosticsResult = DiagnosticsResult<MarmotExecutable>;
+	using CompiledProgramReportResult = ReportResult<CompiledProgram>;
 }

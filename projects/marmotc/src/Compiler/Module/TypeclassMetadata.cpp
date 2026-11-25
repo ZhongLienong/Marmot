@@ -1,5 +1,6 @@
 #include "TypeclassMetadata.h"
 #include "Bytecode/Format/Format.h"
+#include "Support/Optional.h"
 
 #include <algorithm>
 #include <format>
@@ -68,7 +69,7 @@ std::vector<std::string> TypeclassMetadata::InstanceMethods() const
 	return names;
 }
 
-std::optional<std::string> TypeclassImports::Import(const std::string& module_name, const TypeclassMetadataMap& metadata)
+MarmotCompiler::Optional<std::string> TypeclassImports::Import(const std::string& module_name, const TypeclassMetadataMap& metadata)
 {
 	for (const auto& [class_name, incoming] : metadata)
 	{
@@ -110,7 +111,7 @@ std::optional<std::string> TypeclassImports::Import(const std::string& module_na
 			}
 		}
 	}
-	return std::nullopt;
+	return MarmotCompiler::None;
 }
 
 TypeclassMetadataMap TypeclassImports::TakeMetadata() &&

@@ -1,5 +1,6 @@
 #include "Primitive.h"
 #include "Compiler/Operator/Operator.h"
+#include "Support/Optional.h"
 
 #include <algorithm>
 #include <array>
@@ -10,7 +11,7 @@ namespace
 	using PrimitiveSymbol = std::pair<std::string_view, MarmotPrimitive>;
 }
 
-std::optional<MarmotPrimitive> FindPrimitive(std::string_view symbol)
+MarmotCompiler::Optional<MarmotPrimitive> FindPrimitive(std::string_view symbol)
 {
 	constexpr std::string_view prefix = "MARMOT_PRIMITIVE_";
 	if (symbol.starts_with(prefix))
@@ -36,5 +37,5 @@ std::optional<MarmotPrimitive> FindPrimitive(std::string_view symbol)
 	}};
 
 	const auto found = std::ranges::find(s_primitives, symbol, &PrimitiveSymbol::first);
-	return found != s_primitives.cend() ? std::optional<MarmotPrimitive>(found->second) : std::nullopt;
+	return found != s_primitives.cend() ? MarmotCompiler::Optional<MarmotPrimitive>(found->second) : MarmotCompiler::None;
 }

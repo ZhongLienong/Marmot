@@ -4,6 +4,8 @@
 #include "Compiler/Operator/Operator.h"
 #include "Bytecode/Format/Format.h"
 #include "Compiler/Names/SpecialNames.h"
+#include "Support/Expected.h"
+#include "Support/Optional.h"
 
 #include <algorithm>
 #include <format>
@@ -32,7 +34,7 @@ namespace
 	}
 }
 
-LoweredExport::LoweredExport(std::string name, BytecodeModule::SymbolType kind, std::optional<MarmotIRGlobalSlot> slot, std::optional<MarmotIRFunctionId> function, Token token)
+LoweredExport::LoweredExport(std::string name, BytecodeModule::SymbolType kind, MarmotCompiler::Optional<MarmotIRGlobalSlot> slot, MarmotCompiler::Optional<MarmotIRFunctionId> function, Token token)
 	: m_name(std::move(name)),
 	m_kind(kind),
 	m_slot(slot),
@@ -52,7 +54,7 @@ LoweredModule::LoweredModule(MarmotIRModule module)
 {
 }
 
-Lowering::Specialization::Specialization(GenericTypes::TypeEnvironment types, MethodResolutionMap methods, std::optional<std::string> source_module)
+Lowering::Specialization::Specialization(GenericTypes::TypeEnvironment types, MethodResolutionMap methods, MarmotCompiler::Optional<std::string> source_module)
 	: m_types(std::move(types)),
 	m_methods(std::move(methods)),
 	m_source_module(std::move(source_module))
@@ -69,7 +71,7 @@ Lowering::Lowering(MarmotProgramTree& program, std::string_view file_name, const
 	m_generics(module_name, imports.m_generic_functions),
 	m_resolver(imports.m_typeclasses)
 {
-	m_specializations.emplace_back(GenericTypes::TypeEnvironment{}, MethodResolutionMap{}, std::nullopt);
+	m_specializations.emplace_back(GenericTypes::TypeEnvironment{}, MethodResolutionMap{}, MarmotCompiler::None);
 }
 
 MarmotResult::DiagnosticsResult<LoweredModule> Lowering::Lower() &&
@@ -81,14 +83,14 @@ MarmotResult::DiagnosticsResult<LoweredModule> Lowering::Lower() &&
 	std::vector<CompilerError> reservation_errors = ReserveTopLevelNames();
 	if (!reservation_errors.empty())
 	{
-		return std::unexpected(MarmotResult::CompilerDiagnostics(std::move(reservation_errors)));
+		return MarmotCompiler::Failure(MarmotResult::CompilerDiagnostics(std::move(reservation_errors)));
 	}
 
 	FunctionLowering initializer(*this, top_level, module_context, nullptr, nullptr);
 	const Emitted lowered = initializer.LowerTopLevel();
-	if (!lowered.has_value())
+	if (!lowered.HasValue())
 	{
-		return std::unexpected(MarmotResult::CompilerDiagnostics(lowered.error()));
+		return MarmotCompiler::Failure(MarmotResult::CompilerDiagnostics(lowered.Error()));
 	}
 
 	std::ranges::move(m_functions, std::back_inserter(m_module.m_functions));
@@ -118,7 +120,7 @@ CompilerError Lowering::ResolutionError(const MethodResolutionError& error, cons
 MarmotIRFunctionId Lowering::NewFunction(std::string name, TypeRef return_type, const Specialization& specialization)
 {
 	MarmotIRFunction& function = m_functions.emplace_back(std::move(name), std::move(return_type));
-	function.m_source_module = specialization.m_source_module.value_or(std::string());
+	function.m_source_module = specialization.m_source_module.ValueOr(std::string());
 	return MarmotIRFunctionId{ static_cast<uint32_t>(m_functions.size() - 1u) };
 }
 
@@ -139,9 +141,9 @@ std::vector<CompilerError> Lowering::ReserveTopLevelNames()
 	for (std::unique_ptr<MarmotStatement>& statement : m_program)
 	{
 		Emitted reserved = ReserveTopLevelName(*statement);
-		if (!reserved.has_value())
+		if (!reserved.HasValue())
 		{
-			errors.push_back(std::move(reserved.error()));
+			errors.push_back(std::move(reserved.Error()));
 		}
 	}
 	return errors;
@@ -163,7 +165,7 @@ Lowering::Emitted Lowering::ReserveTopLevelName(MarmotStatement& statement)
 			const std::string& name = definition.m_name.m_lexeme;
 			if (!definition.m_value->IsExpression<MarmotExpression::Function>())
 			{
-				m_self.m_top_level_names.emplace(name, TopLevelName{ m_self.m_module.ReserveGlobal(name, definition.m_value->GetType()), std::nullopt });
+				m_self.m_top_level_names.emplace(name, TopLevelName{ m_self.m_module.ReserveGlobal(name, definition.m_value->GetType()), MarmotCompiler::None });
 				return {};
 			}
 
@@ -186,7 +188,7 @@ Lowering::Emitted Lowering::ReserveTopLevelName(MarmotStatement& statement)
 					continue;
 				}
 				const std::string& name = definition.m_names[index].m_lexeme;
-				m_self.m_top_level_names.emplace(name, TopLevelName{ m_self.m_module.ReserveGlobal(name, element_types[index]), std::nullopt });
+				m_self.m_top_level_names.emplace(name, TopLevelName{ m_self.m_module.ReserveGlobal(name, element_types[index]), MarmotCompiler::None });
 			}
 			return {};
 		}
@@ -203,7 +205,7 @@ Lowering::Emitted Lowering::ReserveTopLevelName(MarmotStatement& statement)
 
 		Emitted operator()(MarmotStatement::ForeignDefinition& foreign) const
 		{
-			if (foreign.DeclaredPrimitive().has_value())
+			if (foreign.DeclaredPrimitive().HasValue())
 			{
 				return {};
 			}
@@ -241,7 +243,7 @@ Lowering::Emitted Lowering::ReserveTopLevelName(MarmotStatement& statement)
 				}
 
 				const Emitted reserved = m_self.ReserveFunction(method.m_name.m_lexeme, MarmotType::MakeFunctionType(method.m_param_types, TypeRef(method.m_return_type)));
-				if (!reserved.has_value())
+				if (!reserved.HasValue())
 				{
 					return reserved;
 				}
@@ -285,49 +287,49 @@ Lowering::Emitted Lowering::ReserveFunction(const std::string& name, const TypeR
 Lowering::Emitted Lowering::ReserveForeign(const MarmotStatement::ForeignDefinition& foreign)
 {
 	return ForeignName(foreign)
-		.transform
+		.Transform
 		(
 			[this, &foreign](const std::string&)
 			{
 				const std::string& name = foreign.m_function_name.m_lexeme;
-				m_top_level_names.emplace(name, TopLevelName{ m_module.ReserveGlobal(name, TextType()), std::nullopt });
+				m_top_level_names.emplace(name, TopLevelName{ m_module.ReserveGlobal(name, TextType()), MarmotCompiler::None });
 			}
 		);
 }
 
-std::expected<std::string, CompilerError> Lowering::ForeignName(const MarmotStatement::ForeignDefinition& foreign)
+MarmotResult::Result<std::string> Lowering::ForeignName(const MarmotStatement::ForeignDefinition& foreign)
 {
 	const Token& name = foreign.m_function_name;
 	const MarmotType::FunctionType& signature = foreign.m_type->GetType<MarmotType::FunctionType>();
 	const TypeRef& return_type = signature.m_return_type;
 	const bool is_supported_return = return_type->IsType<MarmotType::IntegerType>() || return_type->IsType<MarmotType::FloatType>() || return_type->IsType<MarmotType::BoolType>() || return_type->IsType<MarmotType::UnitType>() || return_type->IsType<MarmotType::TextType>() || return_type->IsType<MarmotType::ArrayType>() || return_type->IsType<MarmotType::ByteType>() || return_type->IsType<MarmotType::WordType>();
-	if (!is_supported_return && !(signature.m_intrinsic.has_value() && return_type->IsType<MarmotType::NeverType>()))
+	if (!is_supported_return && !(signature.m_intrinsic.HasValue() && return_type->IsType<MarmotType::NeverType>()))
 	{
-		return std::unexpected(Error(CompilerErrorCode::LoweringUnsupportedConstruct, "Unsupported return type for foreign function", name));
+		return MarmotCompiler::Failure(Error(CompilerErrorCode::LoweringUnsupportedConstruct, "Unsupported return type for foreign function", name));
 	}
 
 	// Native code builds an array out of bits, so it can return one of texts or of
 	// scalars; one of other objects would hand the VM bits to take as pointers.
-	if (foreign.m_library.has_value() && return_type->IsType<MarmotType::ArrayType>())
+	if (foreign.m_library.HasValue() && return_type->IsType<MarmotType::ArrayType>())
 	{
 		const TypeRef& element = return_type->GetType<MarmotType::ArrayType>().m_element_type;
 		if (!element->IsType<MarmotType::TextType>() && GenericTypes::IsPointer(element))
 		{
-			return std::unexpected(Error(CompilerErrorCode::LoweringUnsupportedConstruct, std::format("A native function cannot return {}: native code can return an array of Text or of scalars, not of other values", return_type->DisplayString()), name));
+			return MarmotCompiler::Failure(Error(CompilerErrorCode::LoweringUnsupportedConstruct, std::format("A native function cannot return {}: native code can return an array of Text or of scalars, not of other values", return_type->DisplayString()), name));
 		}
 	}
 
-	if (foreign.m_library.has_value())
+	if (foreign.m_library.HasValue())
 	{
-		m_native_imports[foreign.m_library.value()].insert(foreign.m_foreign_name);
-		return foreign.m_library.value() + NATIVE_SYMBOL_SEPARATOR + foreign.m_foreign_name;
+		m_native_imports[foreign.m_library.Value()].insert(foreign.m_foreign_name);
+		return foreign.m_library.Value() + NATIVE_SYMBOL_SEPARATOR + foreign.m_foreign_name;
 	}
 
-	if (!signature.m_intrinsic.has_value())
+	if (!signature.m_intrinsic.HasValue())
 	{
-		return std::unexpected(Error(CompilerErrorCode::LoweringUnknownForeignFunction, std::format("Unknown foreign function '{}': it is not a Marmot builtin. Name the library that exports it: foreign \"{}\" ... from \"library\";", foreign.m_foreign_name, foreign.m_foreign_name), name));
+		return MarmotCompiler::Failure(Error(CompilerErrorCode::LoweringUnknownForeignFunction, std::format("Unknown foreign function '{}': it is not a Marmot builtin. Name the library that exports it: foreign \"{}\" ... from \"library\";", foreign.m_foreign_name, foreign.m_foreign_name), name));
 	}
-	const MarmotIntrinsicSignature& intrinsic = MarmotIntrinsics::At(signature.m_intrinsic.value());
+	const MarmotIntrinsicSignature& intrinsic = MarmotIntrinsics::At(signature.m_intrinsic.Value());
 	const MarmotType* element_type = nullptr;
 	const auto matches = [&element_type](const TypeRef& actual, std::string_view expected)
 	{
@@ -361,7 +363,7 @@ std::expected<std::string, CompilerError> Lowering::ForeignName(const MarmotStat
 	if (!matches_signature || !matches(return_type, intrinsic.m_result))
 	{
 		const std::string parameters = intrinsic.m_parameters | std::views::join_with(std::string_view(", ")) | std::ranges::to<std::string>();
-		return std::unexpected(Error(CompilerErrorCode::LoweringUnsupportedConstruct, std::format("Intrinsic '{}' requires fn({}) -> {}", intrinsic.m_name, parameters, intrinsic.m_result), name));
+		return MarmotCompiler::Failure(Error(CompilerErrorCode::LoweringUnsupportedConstruct, std::format("Intrinsic '{}' requires fn({}) -> {}", intrinsic.m_name, parameters, intrinsic.m_result), name));
 	}
 	return foreign.m_foreign_name;
 }
@@ -379,8 +381,8 @@ void Lowering::RegisterGeneric(const std::string& name, const FunctionParameters
 bool Lowering::IsGenericMethod(const MarmotStatement::Instance& instance, const MarmotStatement::FunctionDefinition& method) const
 {
 	const bool intrinsic = method.m_body->IsExpression<MarmotExpression::Call>()
-		&& method.m_body->GetExpression<MarmotExpression::Call>().m_primitive.has_value()
-		&& PrimitiveOperator(method.m_body->GetExpression<MarmotExpression::Call>().m_primitive.value()) != nullptr;
+		&& method.m_body->GetExpression<MarmotExpression::Call>().m_primitive.HasValue()
+		&& PrimitiveOperator(method.m_body->GetExpression<MarmotExpression::Call>().m_primitive.Value()) != nullptr;
 	return intrinsic || !method.m_generic_params.empty() || GenericTypes::IsGenericInstanceHead(instance.m_type_args);
 }
 
@@ -394,8 +396,8 @@ std::vector<LoweredExport> Lowering::CollectExports() const
 			return;
 		}
 		const std::unordered_map<std::string, TopLevelName>::const_iterator name = m_top_level_names.find(token.m_lexeme);
-		const std::optional<MarmotIRGlobalSlot> slot = name == m_top_level_names.cend() ? std::nullopt : std::optional<MarmotIRGlobalSlot>(name->second.m_slot);
-		const std::optional<MarmotIRFunctionId> function = name == m_top_level_names.cend() ? std::nullopt : name->second.m_function;
+		const MarmotCompiler::Optional<MarmotIRGlobalSlot> slot = name == m_top_level_names.cend() ? MarmotCompiler::None : MarmotCompiler::Optional<MarmotIRGlobalSlot>(name->second.m_slot);
+		const MarmotCompiler::Optional<MarmotIRFunctionId> function = name == m_top_level_names.cend() ? MarmotCompiler::None : name->second.m_function;
 		exports.emplace_back(token.m_lexeme, kind, slot, function, token);
 	};
 
@@ -409,7 +411,7 @@ std::vector<LoweredExport> Lowering::CollectExports() const
 				export_name(name, BytecodeModule::SymbolType::GLOBAL_VARIABLE);
 			}
 		}
-		else if (statement->IsStatement<MarmotStatement::ForeignDefinition>() && !statement->GetStatement<MarmotStatement::ForeignDefinition>().DeclaredPrimitive().has_value())
+		else if (statement->IsStatement<MarmotStatement::ForeignDefinition>() && !statement->GetStatement<MarmotStatement::ForeignDefinition>().DeclaredPrimitive().HasValue())
 		{
 			export_name(statement->GetStatement<MarmotStatement::ForeignDefinition>().m_function_name, BytecodeModule::SymbolType::FOREIGN_FUNCTION);
 		}

@@ -8,34 +8,35 @@
 
 #include "Bytecode/Artifact/BinaryArtifact.h"
 #include "Compiler/Compiler.h"
+#include "Support/Expected.h"
 
 namespace
 {
 	emscripten::val CompileMarmotCode(const std::string& source)
 	{
 		const CompilationInputs inputs = CompilationInputs().WithSearchPaths({std::filesystem::path("/MarmotPrelude")});
-		MarmotResult::CompilationResult compiled = Compiler(std::string(source), std::string("/playground.mmt"), inputs).CompileWithReport();
+		MarmotResult::CompiledProgramReportResult compiled = Compiler(std::string(source), std::string("/playground.mmt"), inputs).CompileWithReport();
 		emscripten::val result = emscripten::val::object();
 		result.set("version", 1);
-		result.set("success", compiled.has_value());
-		result.set("exitCode", compiled.has_value() ? 0 : 1);
+		result.set("success", compiled.HasValue());
+		result.set("exitCode", compiled.HasValue() ? 0 : 1);
 		result.set("bytes", emscripten::val::global("Uint8Array").new_(0));
-		const MarmotResult::CompilerReport& report = compiled.has_value() ? compiled->Report() : compiled.error();
+		const MarmotResult::CompilerReport& report = compiled.HasValue() ? compiled->Report() : compiled.Error();
 		result.set("report", emscripten::val::global("JSON").call<emscripten::val>("parse", report.MachineReadableJson()));
 		result.set("output", report.RenderedWarnings());
 		result.set("error", report.m_errors.Rendered());
-		if (!compiled.has_value())
+		if (!compiled.HasValue())
 		{
 			return result;
 		}
 
 		std::ostringstream artifact(std::ios::out | std::ios::binary);
-		const std::expected<void, std::string> written = MarmotBinaryArtifact::WriteExecutable(compiled->m_executable, artifact, true);
-		if (!written.has_value())
+		const MarmotCompiler::Expected<void, std::string> written = MarmotBinaryArtifact::WriteExecutable(compiled->m_executable, artifact, true);
+		if (!written.HasValue())
 		{
 			result.set("success", false);
 			result.set("exitCode", 1);
-			result.set("error", written.error());
+			result.set("error", written.Error());
 			return result;
 		}
 		const std::string bytes = artifact.str();

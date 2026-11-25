@@ -5,9 +5,9 @@
 #include "Utility/Driver/MarmotDriver.h"
 #include "support/ScopedEnvVar.h"
 #include "support/TempProject.h"
+#include "Support/Optional.h"
 
 #include <filesystem>
-#include <optional>
 #include <string>
 #include <vector>
 
@@ -32,10 +32,10 @@ TEST_CASE("ImportResolver resolves relative path imports against the current fil
 	const std::filesystem::path helper_file_path = std::filesystem::weakly_canonical(project.Path("src/lib/Helper.mmt"));
 
 	const ImportResolver resolver(main_file_path.string(), {});
-	const std::optional<std::string> resolved_import = resolver.Resolve("./lib/Helper.mmt");
+	const MarmotCompiler::Optional<std::string> resolved_import = resolver.Resolve("./lib/Helper.mmt");
 
-	REQUIRE(resolved_import.has_value());
-	CHECK(resolved_import.value() == helper_file_path.string());
+	REQUIRE(resolved_import.HasValue());
+	CHECK(resolved_import.Value() == helper_file_path.string());
 }
 
 TEST_CASE("ImportResolver resolves dotted system imports from explicit search paths", "[module][import]")
@@ -50,10 +50,10 @@ TEST_CASE("ImportResolver resolves dotted system imports from explicit search pa
 	const std::filesystem::path io_module_path = std::filesystem::weakly_canonical(project.Path("stdlib/Std/IO.mmt"));
 
 	const ImportResolver resolver(main_file_path.string(), { project.Path("stdlib") });
-	const std::optional<std::string> resolved_import = resolver.Resolve("<Std.IO>");
+	const MarmotCompiler::Optional<std::string> resolved_import = resolver.Resolve("<Std.IO>");
 
-	REQUIRE(resolved_import.has_value());
-	CHECK(resolved_import.value() == io_module_path.string());
+	REQUIRE(resolved_import.HasValue());
+	CHECK(resolved_import.Value() == io_module_path.string());
 }
 
 TEST_CASE("MARMOT_PATH entries become canonical search paths and missing directories are dropped", "[module][import]")
@@ -76,9 +76,9 @@ TEST_CASE("MARMOT_PATH entries become canonical search paths and missing directo
 	CHECK(inputs.SearchPaths().front() == stdlib_path);
 
 	const ImportResolver resolver(main_file_path.string(), inputs.SearchPaths());
-	const std::optional<std::string> resolved_import = resolver.Resolve("<Std.Math>");
-	REQUIRE(resolved_import.has_value());
-	CHECK(resolved_import.value() == math_module_path.string());
+	const MarmotCompiler::Optional<std::string> resolved_import = resolver.Resolve("<Std.Math>");
+	REQUIRE(resolved_import.HasValue());
+	CHECK(resolved_import.Value() == math_module_path.string());
 }
 
 TEST_CASE("The compiler's inputs ignore MARMOT_PATH unless the caller reads it", "[module][import]")
@@ -103,6 +103,6 @@ TEST_CASE("ImportResolver returns nullopt for missing imports", "[module][import
 
 	const ImportResolver resolver(main_file_path.string(), { project.Root() / "stdlib" });
 
-	CHECK_FALSE(resolver.Resolve("./Missing.mmt").has_value());
-	CHECK_FALSE(resolver.Resolve("<Std.Missing>").has_value());
+	CHECK_FALSE(resolver.Resolve("./Missing.mmt").HasValue());
+	CHECK_FALSE(resolver.Resolve("<Std.Missing>").HasValue());
 }

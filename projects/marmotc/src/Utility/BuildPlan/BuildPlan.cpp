@@ -1,6 +1,7 @@
 #include "Utility/BuildPlan/BuildPlan.h"
 
 #include "Compiler/Json/JsonReader.h"
+#include "Support/Expected.h"
 
 #include <cmath>
 #include <format>
@@ -14,9 +15,9 @@ namespace
 	using CompilerJson::JsonValue;
 
 	template<typename T>
-	using PlanResult = std::expected<T, std::string>;
+	using FieldResult = MarmotCompiler::Expected<T, std::string>;
 
-	PlanResult<void> RequireOnlyMembers(const JsonValue& object, std::string_view where, std::initializer_list<std::string_view> allowed)
+	FieldResult<void> RequireOnlyMembers(const JsonValue& object, std::string_view where, std::initializer_list<std::string_view> allowed)
 	{
 		for (const std::pair<std::string, JsonValue>& member : object.AsObject())
 		{
@@ -32,29 +33,29 @@ namespace
 
 			if (!known)
 			{
-				return std::unexpected(std::format("{}: unknown member \"{}\"", where, member.first));
+				return MarmotCompiler::Failure(std::format("{}: unknown member \"{}\"", where, member.first));
 			}
 		}
 
 		return {};
 	}
 
-	PlanResult<const JsonValue*> RequireMember(const JsonValue& object, std::string_view where, std::string_view name)
+	FieldResult<const JsonValue*> RequireMember(const JsonValue& object, std::string_view where, std::string_view name)
 	{
 		const JsonValue* value = object.Find(name);
 		if (value == nullptr)
 		{
-			return std::unexpected(std::format("{}: missing \"{}\"", where, name));
+			return MarmotCompiler::Failure(std::format("{}: missing \"{}\"", where, name));
 		}
 
 		return value;
 	}
 
-	PlanResult<std::string> RequireString(const JsonValue& value, std::string_view where)
+	FieldResult<std::string> RequireString(const JsonValue& value, std::string_view where)
 	{
 		if (!value.IsString())
 		{
-			return std::unexpected(std::format("{}: expected a string, found {}", where, value.KindName()));
+			return MarmotCompiler::Failure(std::format("{}: expected a string, found {}", where, value.KindName()));
 		}
 
 		return value.AsString();
@@ -66,7 +67,7 @@ namespace
 		return path.is_absolute() ? path : base_directory / path;
 	}
 
-	PlanResult<std::vector<std::filesystem::path>> ReadDirectories(const JsonValue* value, std::string_view member, const std::filesystem::path& base_directory)
+	FieldResult<std::vector<std::filesystem::path>> ReadDirectories(const JsonValue* value, std::string_view member, const std::filesystem::path& base_directory)
 	{
 		std::vector<std::filesystem::path> search_paths;
 		if (value == nullptr)
@@ -76,23 +77,23 @@ namespace
 
 		if (!value->IsArray())
 		{
-			return std::unexpected(std::format("{}: expected an array, found {}", member, value->KindName()));
+			return MarmotCompiler::Failure(std::format("{}: expected an array, found {}", member, value->KindName()));
 		}
 
 		for (size_t index = 0uz; index < value->AsArray().size(); index += 1uz)
 		{
 			const std::string where = std::format("{}[{}]", member, index);
-			PlanResult<std::string> text = RequireString(value->AsArray()[index], where);
-			if (!text.has_value())
+			FieldResult<std::string> text = RequireString(value->AsArray()[index], where);
+			if (!text.HasValue())
 			{
-				return std::unexpected(text.error());
+				return MarmotCompiler::Failure(text.Error());
 			}
 
-			const std::filesystem::path path = Resolve(base_directory, text.value());
+			const std::filesystem::path path = Resolve(base_directory, text.Value());
 			std::error_code error;
 			if (!std::filesystem::is_directory(path, error))
 			{
-				return std::unexpected(std::format("{}: not a directory: {}", where, path.string()));
+				return MarmotCompiler::Failure(std::format("{}: not a directory: {}", where, path.string()));
 			}
 			search_paths.push_back(path);
 		}
@@ -100,55 +101,55 @@ namespace
 		return search_paths;
 	}
 
-	PlanResult<std::pair<std::string, NativeLibraryPolicy>> ReadNativeLibrary(const JsonValue& value, std::string_view where)
+	FieldResult<std::pair<std::string, NativeLibraryPolicy>> ReadNativeLibrary(const JsonValue& value, std::string_view where)
 	{
 		if (!value.IsObject())
 		{
-			return std::unexpected(std::format("{}: expected an object, found {}", where, value.KindName()));
+			return MarmotCompiler::Failure(std::format("{}: expected an object, found {}", where, value.KindName()));
 		}
 
-		PlanResult<void> members = RequireOnlyMembers(value, where, { "name", "checksum", "thread_safe" });
-		if (!members.has_value())
+		FieldResult<void> members = RequireOnlyMembers(value, where, { "name", "checksum", "thread_safe" });
+		if (!members.HasValue())
 		{
-			return std::unexpected(members.error());
+			return MarmotCompiler::Failure(members.Error());
 		}
 
-		PlanResult<const JsonValue*> name = RequireMember(value, where, "name");
-		if (!name.has_value())
+		FieldResult<const JsonValue*> name = RequireMember(value, where, "name");
+		if (!name.HasValue())
 		{
-			return std::unexpected(name.error());
+			return MarmotCompiler::Failure(name.Error());
 		}
-		PlanResult<std::string> name_text = RequireString(*name.value(), std::format("{}.name", where));
-		if (!name_text.has_value())
+		FieldResult<std::string> name_text = RequireString(*name.Value(), std::format("{}.name", where));
+		if (!name_text.HasValue())
 		{
-			return std::unexpected(name_text.error());
+			return MarmotCompiler::Failure(name_text.Error());
 		}
 
 		NativeLibraryPolicy settings;
 
 		if (const JsonValue* checksum = value.Find("checksum"); checksum != nullptr)
 		{
-			PlanResult<std::string> text = RequireString(*checksum, std::format("{}.checksum", where));
-			if (!text.has_value())
+			FieldResult<std::string> text = RequireString(*checksum, std::format("{}.checksum", where));
+			if (!text.HasValue())
 			{
-				return std::unexpected(text.error());
+				return MarmotCompiler::Failure(text.Error());
 			}
-			settings.m_checksum = text.value();
+			settings.m_checksum = text.Value();
 		}
 
 		if (const JsonValue* thread_safe = value.Find("thread_safe"); thread_safe != nullptr)
 		{
 			if (!thread_safe->IsBool())
 			{
-				return std::unexpected(std::format("{}.thread_safe: expected a boolean, found {}", where, thread_safe->KindName()));
+				return MarmotCompiler::Failure(std::format("{}.thread_safe: expected a boolean, found {}", where, thread_safe->KindName()));
 			}
 			settings.m_thread_safe = thread_safe->AsBool();
 		}
 
-		return std::pair<std::string, NativeLibraryPolicy>(name_text.value(), std::move(settings));
+		return std::pair<std::string, NativeLibraryPolicy>(name_text.Value(), std::move(settings));
 	}
 
-	PlanResult<std::unordered_map<std::string, NativeLibraryPolicy>> ReadNativeLibraries(const JsonValue* value)
+	FieldResult<std::unordered_map<std::string, NativeLibraryPolicy>> ReadNativeLibraries(const JsonValue* value)
 	{
 		std::unordered_map<std::string, NativeLibraryPolicy> libraries;
 		if (value == nullptr)
@@ -158,20 +159,20 @@ namespace
 
 		if (!value->IsArray())
 		{
-			return std::unexpected(std::format("native_libraries: expected an array, found {}", value->KindName()));
+			return MarmotCompiler::Failure(std::format("native_libraries: expected an array, found {}", value->KindName()));
 		}
 
 		for (size_t index = 0uz; index < value->AsArray().size(); index += 1uz)
 		{
-			PlanResult<std::pair<std::string, NativeLibraryPolicy>> library = ReadNativeLibrary(value->AsArray()[index], std::format("native_libraries[{}]", index));
-			if (!library.has_value())
+			FieldResult<std::pair<std::string, NativeLibraryPolicy>> library = ReadNativeLibrary(value->AsArray()[index], std::format("native_libraries[{}]", index));
+			if (!library.HasValue())
 			{
-				return std::unexpected(library.error());
+				return MarmotCompiler::Failure(library.Error());
 			}
 
 			if (!libraries.emplace(library->first, std::move(library->second)).second)
 			{
-				return std::unexpected(std::format("native_libraries[{}]: a second library named \"{}\"", index, library->first));
+				return MarmotCompiler::Failure(std::format("native_libraries[{}]: a second library named \"{}\"", index, library->first));
 			}
 		}
 
@@ -181,83 +182,83 @@ namespace
 
 namespace MarmotBuildPlan
 {
-	std::expected<BuildPlan, std::string> Parse(std::string_view json, const std::filesystem::path& base_directory)
+	PlanResult Parse(std::string_view json, const std::filesystem::path& base_directory)
 	{
-		const std::expected<JsonValue, std::string> document = CompilerJson::Parse(json);
-		if (!document.has_value())
+		const MarmotCompiler::Expected<JsonValue, std::string> document = CompilerJson::Parse(json);
+		if (!document.HasValue())
 		{
-			return std::unexpected(document.error());
+			return MarmotCompiler::Failure(document.Error());
 		}
 
-		return Parse(document.value(), base_directory);
+		return Parse(document.Value(), base_directory);
 	}
 
-	std::expected<BuildPlan, std::string> Parse(const JsonValue& root, const std::filesystem::path& base_directory)
+	PlanResult Parse(const JsonValue& root, const std::filesystem::path& base_directory)
 	{
 		if (!root.IsObject())
 		{
-			return std::unexpected(std::format("the plan must be a JSON object, found {}", root.KindName()));
+			return MarmotCompiler::Failure(std::format("the plan must be a JSON object, found {}", root.KindName()));
 		}
 
-		PlanResult<void> members = RequireOnlyMembers(root, "plan", { "version", "entry", "search_paths", "native_libraries" });
-		if (!members.has_value())
+		FieldResult<void> members = RequireOnlyMembers(root, "plan", { "version", "entry", "search_paths", "native_libraries" });
+		if (!members.HasValue())
 		{
-			return std::unexpected(members.error());
+			return MarmotCompiler::Failure(members.Error());
 		}
 
-		PlanResult<const JsonValue*> version = RequireMember(root, "plan", "version");
-		if (!version.has_value())
+		FieldResult<const JsonValue*> version = RequireMember(root, "plan", "version");
+		if (!version.HasValue())
 		{
-			return std::unexpected(version.error());
+			return MarmotCompiler::Failure(version.Error());
 		}
-		const JsonValue& version_value = *version.value();
+		const JsonValue& version_value = *version.Value();
 		if (!version_value.IsNumber() || version_value.AsNumber() != static_cast<double>(BuildPlan::VERSION))
 		{
-			return std::unexpected(std::format("version: this compiler reads plan version {}; the plan says {}",
+			return MarmotCompiler::Failure(std::format("version: this compiler reads plan version {}; the plan says {}",
 				BuildPlan::VERSION, version_value.IsNumber() ? std::format("{}", version_value.AsNumber()) : std::string(version_value.KindName())));
 		}
 
 		BuildPlan plan;
 		if (const JsonValue* entry = root.Find("entry"); entry != nullptr)
 		{
-			PlanResult<std::string> entry_text = RequireString(*entry, "entry");
-			if (!entry_text.has_value())
+			FieldResult<std::string> entry_text = RequireString(*entry, "entry");
+			if (!entry_text.HasValue())
 			{
-				return std::unexpected(entry_text.error());
+				return MarmotCompiler::Failure(entry_text.Error());
 			}
 
-			plan.m_entry = Resolve(base_directory, entry_text.value());
+			plan.m_entry = Resolve(base_directory, entry_text.Value());
 			std::error_code error;
-			if (!std::filesystem::is_regular_file(plan.m_entry.value(), error))
+			if (!std::filesystem::is_regular_file(plan.m_entry.Value(), error))
 			{
-				return std::unexpected(std::format("entry: no such file: {}", plan.m_entry->string()));
+				return MarmotCompiler::Failure(std::format("entry: no such file: {}", plan.m_entry->string()));
 			}
 		}
 
-		PlanResult<std::vector<std::filesystem::path>> search_paths = ReadDirectories(root.Find("search_paths"), "search_paths", base_directory);
-		if (!search_paths.has_value())
+		FieldResult<std::vector<std::filesystem::path>> search_paths = ReadDirectories(root.Find("search_paths"), "search_paths", base_directory);
+		if (!search_paths.HasValue())
 		{
-			return std::unexpected(search_paths.error());
+			return MarmotCompiler::Failure(search_paths.Error());
 		}
 
-		PlanResult<std::unordered_map<std::string, NativeLibraryPolicy>> native_libraries = ReadNativeLibraries(root.Find("native_libraries"));
-		if (!native_libraries.has_value())
+		FieldResult<std::unordered_map<std::string, NativeLibraryPolicy>> native_libraries = ReadNativeLibraries(root.Find("native_libraries"));
+		if (!native_libraries.HasValue())
 		{
-			return std::unexpected(native_libraries.error());
+			return MarmotCompiler::Failure(native_libraries.Error());
 		}
 
 		plan.m_inputs = CompilationInputs()
-			.WithSearchPaths(search_paths.value())
-			.WithNativeLibraryPolicies(std::move(native_libraries.value()));
+			.WithSearchPaths(search_paths.Value())
+			.WithNativeLibraryPolicies(std::move(native_libraries.Value()));
 		return plan;
 	}
 
-	std::expected<BuildPlan, std::string> ReadFile(const std::filesystem::path& plan_path)
+	PlanResult ReadFile(const std::filesystem::path& plan_path)
 	{
 		std::ifstream file(plan_path, std::ios::binary);
 		if (!file.is_open())
 		{
-			return std::unexpected(std::format("cannot open build plan: {}", plan_path.string()));
+			return MarmotCompiler::Failure(std::format("cannot open build plan: {}", plan_path.string()));
 		}
 
 		std::ostringstream contents;
@@ -265,10 +266,10 @@ namespace MarmotBuildPlan
 
 		std::error_code error;
 		const std::filesystem::path absolute = std::filesystem::absolute(plan_path, error);
-		std::expected<BuildPlan, std::string> plan = Parse(contents.str(), (error ? plan_path : absolute).parent_path());
-		if (!plan.has_value())
+		PlanResult plan = Parse(contents.str(), (error ? plan_path : absolute).parent_path());
+		if (!plan.HasValue())
 		{
-			return std::unexpected(std::format("{}: {}", plan_path.string(), plan.error()));
+			return MarmotCompiler::Failure(std::format("{}: {}", plan_path.string(), plan.Error()));
 		}
 
 		return plan;

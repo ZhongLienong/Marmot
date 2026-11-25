@@ -2,8 +2,8 @@
 
 #include "Compiler/MarmotIR/MarmotIR.h"
 #include "Compiler/MarmotIR/Verifier/MarmotIRVerifier.h"
+#include "Support/Expected.h"
 
-#include <expected>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -50,7 +50,7 @@ public:
 	MarmotIROptimizer();
 	explicit MarmotIROptimizer(std::vector<MarmotIRPass> passes);
 
-	std::expected<void, MarmotIROptimizationFailure> Optimize(MarmotIRModule& module);
+	MarmotCompiler::Expected<void, MarmotIROptimizationFailure> Optimize(MarmotIRModule& module);
 
 #if MARMOT_ENABLE_OPTIMIZER_STATS
 	// One line for each pass that changed the module, with instruction counts.

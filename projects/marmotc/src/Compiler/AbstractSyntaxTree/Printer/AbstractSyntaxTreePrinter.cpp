@@ -512,7 +512,7 @@ void PrintAbstractSyntaxTree::operator()(const MarmotExpression::Block& block, i
 			Visit(stmt, depth + 2);
 		}
 	);
-	if (block.m_final_expr.has_value())
+	if (block.m_final_expr.HasValue())
 	{
 		PrintWithIndentation(depth + 1, "Expression: ");
 		Visit(*block.m_final_expr, depth + 2);
@@ -545,7 +545,7 @@ void PrintAbstractSyntaxTree::operator()(const MarmotExpression::Case& case_expr
 	if (case_expr.HasGuard())
 	{
 		PrintWithIndentation(depth + 1, "Guard: ");
-		Visit(case_expr.m_guard.value(), depth + 2);
+		Visit(case_expr.m_guard.Value(), depth + 2);
 	}
 	PrintWithIndentation(depth + 1, "Value {");
 	Visit(case_expr.m_expr, depth + 2);
@@ -567,7 +567,7 @@ void PrintAbstractSyntaxTree::operator()(const MarmotExpression::For& for_expr, 
 void PrintAbstractSyntaxTree::operator()(const MarmotPattern::Binding& binding, int depth) const
 {
 	PrintWithIndentation(depth, "BindingPattern {");
-	PrintWithIndentation(depth + 1, binding.m_is_generated ? std::format("%local{}", binding.m_binding.value()->m_index) : binding.m_name.m_lexeme);
+	PrintWithIndentation(depth + 1, binding.m_is_generated ? std::format("%local{}", binding.m_binding.Value()->m_index) : binding.m_name.m_lexeme);
 	PrintWithIndentation(depth, "}");
 }
 
@@ -610,7 +610,7 @@ void PrintAbstractSyntaxTree::operator()(const MarmotPattern::Array& array, int 
 			Visit(elem, depth + 1);
 		}
 	);
-	if (array.m_rest.has_value())
+	if (array.m_rest.HasValue())
 	{
 		PrintWithIndentation(depth + 1, std::format("Rest after {} element(s) {{", array.m_rest->m_position));
 		Visit(array.m_rest->m_pattern, depth + 2);
@@ -662,7 +662,7 @@ void PrintAbstractSyntaxTree::operator()(const MarmotPattern::Record& record, in
 		PrintWithIndentation(depth + 1, std::format("{} =", field.m_name.m_lexeme));
 		Visit(field.m_pattern, depth + 2);
 	}
-	if (record.m_rest.has_value())
+	if (record.m_rest.HasValue())
 	{
 		PrintWithIndentation(depth + 1, "..");
 	}

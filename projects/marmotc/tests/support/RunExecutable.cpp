@@ -61,7 +61,7 @@ namespace MarmotTest
 		}
 		const TempDir temporary("marmot-integration");
 		const std::filesystem::path artifact = temporary.Path() / "program.mmc";
-		MarmotBinaryArtifact::WriteExecutableToFile(executable, artifact, true).value();
+		MarmotBinaryArtifact::WriteExecutableToFile(executable, artifact, true).Value();
 		std::string command = QuoteArgument(vm) + " run " + QuoteArgument(artifact.string());
 		for (const std::string& argument : arguments)
 		{

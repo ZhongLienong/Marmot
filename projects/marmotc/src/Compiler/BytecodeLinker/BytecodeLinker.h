@@ -3,8 +3,8 @@
 #include "Bytecode/Executable/Executable.h"
 #include "Compiler/BytecodeModule/BytecodeModule.h"
 #include "Compiler/Result/Result.h"
+#include "Support/Optional.h"
 
-#include <expected>
 #include <map>
 #include <string>
 #include <string_view>
@@ -86,9 +86,9 @@ private:
 	// one at the end of the chain.
 	const BytecodeModule* DefiningModule(const std::string& module_name, const std::string& symbol_name) const;
 
-	std::optional<size_t> FindSymbolInExports(const BytecodeModule& module, const std::string& symbol_name) const;
+	MarmotCompiler::Optional<size_t> FindSymbolInExports(const BytecodeModule& module, const std::string& symbol_name) const;
 
-	std::optional<size_t> FindSymbolInGlobals(const BytecodeModule& module, const std::string& symbol_name, size_t base_global_offset) const;
+	MarmotCompiler::Optional<size_t> FindSymbolInGlobals(const BytecodeModule& module, const std::string& symbol_name, size_t base_global_offset) const;
 
 	MarmotResult::VoidResult ValidateImport(const BytecodeModule& module, const BytecodeModule::ImportedSymbol& import) const;
 

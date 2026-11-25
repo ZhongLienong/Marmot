@@ -18,16 +18,16 @@ namespace
 	void RequireCheckedAndLowered(MarmotTest::ParsedSnippet& parsed)
 	{
 		MarmotResult::TypeCheckerResult checked = TypeChecker(std::move(parsed.m_program), parsed.m_source.FileName(), parsed.m_source.SourceLines()).TypeCheck();
-		if (!checked.has_value())
+		if (!checked.HasValue())
 		{
-			FAIL(checked.error().Rendered());
+			FAIL(checked.Error().Rendered());
 		}
-		const std::vector<CompilerWarning> warnings = StaticAnalyzerManager({}).Analyze(checked.value(), parsed.m_source.FileName(), parsed.m_source.SourceLines());
+		const std::vector<CompilerWarning> warnings = StaticAnalyzerManager({}).Analyze(checked.Value(), parsed.m_source.FileName(), parsed.m_source.SourceLines());
 		CHECK(warnings.empty());
-		MarmotResult::DiagnosticsResult<LoweredModule> lowered = Lowering(checked.value(), parsed.m_source.FileName(), parsed.m_source.SourceLines(), "GeneratedBindings", {}, {}).Lower();
-		if (!lowered.has_value())
+		MarmotResult::DiagnosticsResult<LoweredModule> lowered = Lowering(checked.Value(), parsed.m_source.FileName(), parsed.m_source.SourceLines(), "GeneratedBindings", {}, {}).Lower();
+		if (!lowered.HasValue())
 		{
-			FAIL(lowered.error().Rendered());
+			FAIL(lowered.Error().Rendered());
 		}
 		CHECK(MarmotIRVerifier(lowered->m_module).Verify().empty());
 	}
@@ -35,10 +35,10 @@ namespace
 
 TEST_CASE("Generated parameters resolve by identity through checking and lowering", "[typechecker][generated-bindings]")
 {
-	std::expected<MarmotTest::ParsedSnippet, CompilerError> parsed = MarmotTest::ParseSnippet("module GeneratedBindings\ndef choose = fn(left: Int, right: Text) -> Text => right;\n", "GeneratedBindings.mmt");
-	if (!parsed.has_value())
+	MarmotResult::Result<MarmotTest::ParsedSnippet> parsed = MarmotTest::ParseSnippet("module GeneratedBindings\ndef choose = fn(left: Int, right: Text) -> Text => right;\n", "GeneratedBindings.mmt");
+	if (!parsed.HasValue())
 	{
-		FAIL(parsed.error().Rendered());
+		FAIL(parsed.Error().Rendered());
 	}
 	MarmotExpression::Function& function = FunctionIn(*parsed);
 	const GeneratedBinding left(7, function.m_function_keyword, function.m_params.Function());
@@ -53,10 +53,10 @@ TEST_CASE("Generated parameters resolve by identity through checking and lowerin
 
 TEST_CASE("Generated pattern bindings use identities independent of source tokens", "[typechecker][generated-bindings]")
 {
-	std::expected<MarmotTest::ParsedSnippet, CompilerError> parsed = MarmotTest::ParseSnippet("module GeneratedBindings\ndef choose = fn(input: (Int, Text)) -> Text => match input with case (left, right) => right;\n", "GeneratedBindings.mmt");
-	if (!parsed.has_value())
+	MarmotResult::Result<MarmotTest::ParsedSnippet> parsed = MarmotTest::ParseSnippet("module GeneratedBindings\ndef choose = fn(input: (Int, Text)) -> Text => match input with case (left, right) => right;\n", "GeneratedBindings.mmt");
+	if (!parsed.HasValue())
 	{
-		FAIL(parsed.error().Rendered());
+		FAIL(parsed.Error().Rendered());
 	}
 	MarmotExpression::Function& function = FunctionIn(*parsed);
 	const GeneratedBinding input(7, function.m_function_keyword, function.m_params.Function());

@@ -1,6 +1,7 @@
 #include "Compiler/MarmotIROptimizer/Analysis/MarmotIRAnalysis.h"
 #include "Compiler/MarmotIROptimizer/Analysis/MarmotIRModuleFacts.h"
 #include "Compiler/MarmotIROptimizer/MarmotIRPasses.h"
+#include "Support/Optional.h"
 
 #include <ranges>
 #include <utility>
@@ -9,20 +10,20 @@ namespace
 {
 	// The arguments of a tail call of `function` itself, or nothing when it
 	// calls something else.
-	std::optional<std::vector<MarmotIRValueId>> SelfCallArguments(const MarmotIRModuleFacts& facts, MarmotIRFunctionId function, const MarmotIRFunction& body, const std::vector<std::optional<MarmotIRSite>>& sites, const MarmotIRInstruction& tail_call)
+	MarmotCompiler::Optional<std::vector<MarmotIRValueId>> SelfCallArguments(const MarmotIRModuleFacts& facts, MarmotIRFunctionId function, const MarmotIRFunction& body, const std::vector<MarmotCompiler::Optional<MarmotIRSite>>& sites, const MarmotIRInstruction& tail_call)
 	{
 		if (std::holds_alternative<MarmotIRFunctionId>(tail_call.m_immediate))
 		{
-			return std::get<MarmotIRFunctionId>(tail_call.m_immediate) == function ? std::optional(tail_call.m_operands) : std::nullopt;
+			return std::get<MarmotIRFunctionId>(tail_call.m_immediate) == function ? MarmotCompiler::Optional(tail_call.m_operands) : MarmotCompiler::None;
 		}
 		if (std::holds_alternative<MarmotIRGlobalSlot>(tail_call.m_immediate))
 		{
-			return facts.GlobalFunction(std::get<MarmotIRGlobalSlot>(tail_call.m_immediate)) == function ? std::optional(tail_call.m_operands) : std::nullopt;
+			return facts.GlobalFunction(std::get<MarmotIRGlobalSlot>(tail_call.m_immediate)) == function ? MarmotCompiler::Optional(tail_call.m_operands) : MarmotCompiler::None;
 		}
 		const MarmotIRInstruction* callee = MarmotIRAnalysis::Definition(body, sites, tail_call.m_operands.front());
 		if (callee == nullptr || callee->m_op != MarmotIROp::GetCapture || !facts.IsSelfCapture(function, std::get<MarmotIRIndex>(callee->m_immediate).m_value))
 		{
-			return std::nullopt;
+			return MarmotCompiler::None;
 		}
 		return std::vector<MarmotIRValueId>(tail_call.m_operands.begin() + 1, tail_call.m_operands.end());
 	}
@@ -31,7 +32,7 @@ namespace
 	// takes them as its own, which the loop jumps back to.
 	bool MakeLoop(const MarmotIRModuleFacts& facts, MarmotIRFunctionId function_id, MarmotIRFunction& function)
 	{
-		const std::vector<std::optional<MarmotIRSite>> sites = MarmotIRAnalysis::DefinitionSites(function);
+		const std::vector<MarmotCompiler::Optional<MarmotIRSite>> sites = MarmotIRAnalysis::DefinitionSites(function);
 		std::vector<std::pair<MarmotIRSite, std::vector<MarmotIRValueId>>> self_calls;
 		for (uint32_t block = 0u; block < function.m_blocks.size(); block += 1u)
 		{
@@ -40,10 +41,10 @@ namespace
 			{
 				continue;
 			}
-			std::optional<std::vector<MarmotIRValueId>> arguments = SelfCallArguments(facts, function_id, function, sites, terminator);
-			if (arguments.has_value())
+			MarmotCompiler::Optional<std::vector<MarmotIRValueId>> arguments = SelfCallArguments(facts, function_id, function, sites, terminator);
+			if (arguments.HasValue())
 			{
-				self_calls.emplace_back(MarmotIRSite{ block, static_cast<uint32_t>(function.m_blocks[block].m_instructions.size() - 1u) }, std::move(arguments).value());
+				self_calls.emplace_back(MarmotIRSite{ block, static_cast<uint32_t>(function.m_blocks[block].m_instructions.size() - 1u) }, std::move(arguments).Value());
 			}
 		}
 		if (self_calls.empty())
@@ -53,7 +54,7 @@ namespace
 
 		const MarmotIRBlockId header = MarmotIRAnalysis::InsertBlock(function, 1u);
 		MarmotIRBlock& entry = function.Block(MarmotIRFunction::s_entry_block);
-		std::vector<std::optional<MarmotIRValueId>> replacements(function.m_values.size());
+		std::vector<MarmotCompiler::Optional<MarmotIRValueId>> replacements(function.m_values.size());
 		std::vector<MarmotIRValueId> header_parameters;
 		for (const MarmotIRValueId parameter : std::vector<MarmotIRValueId>(entry.m_parameters))
 		{

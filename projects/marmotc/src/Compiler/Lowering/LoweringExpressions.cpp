@@ -1,5 +1,7 @@
 #include "FunctionLowering.h"
 #include "Compiler/Operator/Ordering.h"
+#include "Support/Expected.h"
+#include "Support/Optional.h"
 
 #include <algorithm>
 #include <array>
@@ -11,7 +13,7 @@ namespace
 {
 	using TypeRef = std::shared_ptr<MarmotType>;
 
-	std::optional<MarmotIRScalar> ScalarOf(const TypeRef& type)
+	MarmotCompiler::Optional<MarmotIRScalar> ScalarOf(const TypeRef& type)
 	{
 		const TypeRef representation = GenericTypes::RepresentationOf(type);
 		if (representation->IsType<MarmotType::IntegerType>())
@@ -38,57 +40,57 @@ namespace
 		{
 			return MarmotIRScalar::Text;
 		}
-		return std::nullopt;
+		return MarmotCompiler::None;
 	}
 
 	// One op per scalar type, in the order Int, Float, Byte, Word, Bool, Text;
 	// nothing where the operator does not apply to that type.
-	using ScalarOps = std::array<std::optional<MarmotIROp>, 6u>;
+	using ScalarOps = std::array<MarmotCompiler::Optional<MarmotIROp>, 6u>;
 
-	std::optional<MarmotIROp> SelectOp(const ScalarOps& ops, MarmotIRScalar scalar)
+	MarmotCompiler::Optional<MarmotIROp> SelectOp(const ScalarOps& ops, MarmotIRScalar scalar)
 	{
 		return ops[static_cast<size_t>(scalar)];
 	}
 
-	std::optional<ScalarOps> BinaryOps(Token::Name op)
+	MarmotCompiler::Optional<ScalarOps> BinaryOps(Token::Name op)
 	{
 		using enum MarmotIROp;
 		switch (op)
 		{
 		case Token::Name::SINGLE_PLUS:
-			return ScalarOps{ AddInt, AddFloat, AddByte, AddWord, std::nullopt, std::nullopt };
+			return ScalarOps{ AddInt, AddFloat, AddByte, AddWord, MarmotCompiler::None, MarmotCompiler::None };
 		case Token::Name::SINGLE_MINUS:
-			return ScalarOps{ SubInt, SubFloat, SubByte, SubWord, std::nullopt, std::nullopt };
+			return ScalarOps{ SubInt, SubFloat, SubByte, SubWord, MarmotCompiler::None, MarmotCompiler::None };
 		case Token::Name::STAR:
-			return ScalarOps{ MulInt, MulFloat, MulByte, MulWord, std::nullopt, std::nullopt };
+			return ScalarOps{ MulInt, MulFloat, MulByte, MulWord, MarmotCompiler::None, MarmotCompiler::None };
 		case Token::Name::SLASH:
-			return ScalarOps{ DivInt, DivFloat, DivByte, DivWord, std::nullopt, std::nullopt };
+			return ScalarOps{ DivInt, DivFloat, DivByte, DivWord, MarmotCompiler::None, MarmotCompiler::None };
 		case Token::Name::PERCENT:
-			return ScalarOps{ ModInt, ModFloat, ModByte, ModWord, std::nullopt, std::nullopt };
+			return ScalarOps{ ModInt, ModFloat, ModByte, ModWord, MarmotCompiler::None, MarmotCompiler::None };
 		case Token::Name::LEFT_SHIFT:
-			return ScalarOps{ ShlInt, std::nullopt, ShlByte, ShlWord, std::nullopt, std::nullopt };
+			return ScalarOps{ ShlInt, MarmotCompiler::None, ShlByte, ShlWord, MarmotCompiler::None, MarmotCompiler::None };
 		case Token::Name::RIGHT_SHIFT:
-			return ScalarOps{ ShrInt, std::nullopt, ShrByte, ShrWord, std::nullopt, std::nullopt };
+			return ScalarOps{ ShrInt, MarmotCompiler::None, ShrByte, ShrWord, MarmotCompiler::None, MarmotCompiler::None };
 		case Token::Name::SINGLE_AMPERSAND:
-			return ScalarOps{ BitAndInt, std::nullopt, BitAndByte, BitAndWord, std::nullopt, std::nullopt };
+			return ScalarOps{ BitAndInt, MarmotCompiler::None, BitAndByte, BitAndWord, MarmotCompiler::None, MarmotCompiler::None };
 		case Token::Name::SINGLE_BAR:
-			return ScalarOps{ BitOrInt, std::nullopt, BitOrByte, BitOrWord, std::nullopt, std::nullopt };
+			return ScalarOps{ BitOrInt, MarmotCompiler::None, BitOrByte, BitOrWord, MarmotCompiler::None, MarmotCompiler::None };
 		case Token::Name::CARET:
-			return ScalarOps{ BitXorInt, std::nullopt, BitXorByte, BitXorWord, std::nullopt, std::nullopt };
+			return ScalarOps{ BitXorInt, MarmotCompiler::None, BitXorByte, BitXorWord, MarmotCompiler::None, MarmotCompiler::None };
 		case Token::Name::LEFT_ANGLE:
-			return ScalarOps{ LtInt, LtFloat, LtByte, LtWord, std::nullopt, std::nullopt };
+			return ScalarOps{ LtInt, LtFloat, LtByte, LtWord, MarmotCompiler::None, MarmotCompiler::None };
 		case Token::Name::LESS_EQUAL:
-			return ScalarOps{ LeInt, LeFloat, LeByte, LeWord, std::nullopt, std::nullopt };
+			return ScalarOps{ LeInt, LeFloat, LeByte, LeWord, MarmotCompiler::None, MarmotCompiler::None };
 		case Token::Name::RIGHT_ANGLE:
-			return ScalarOps{ GtInt, GtFloat, GtByte, GtWord, std::nullopt, std::nullopt };
+			return ScalarOps{ GtInt, GtFloat, GtByte, GtWord, MarmotCompiler::None, MarmotCompiler::None };
 		case Token::Name::GREATER_EQUAL:
-			return ScalarOps{ GeInt, GeFloat, GeByte, GeWord, std::nullopt, std::nullopt };
+			return ScalarOps{ GeInt, GeFloat, GeByte, GeWord, MarmotCompiler::None, MarmotCompiler::None };
 		case Token::Name::DOUBLE_EQUAL:
 			return ScalarOps{ EqInt, EqFloat, EqByte, EqWord, EqBool, EqText };
 		case Token::Name::BANG_EQUAL:
 			return ScalarOps{ NeInt, NeFloat, NeByte, NeWord, NeBool, NeText };
 		default:
-			return std::nullopt;
+			return MarmotCompiler::None;
 		}
 	}
 
@@ -275,7 +277,7 @@ Lowering::Lowered Lowering::FunctionLowering::Lower(const MarmotExpression& expr
 	return std::visit(ExpressionLowering{ *this }, *expression);
 }
 
-std::optional<MarmotIRImmediate> Lowering::FunctionLowering::ConstantOf(const MarmotLiteral& literal) const
+MarmotCompiler::Optional<MarmotIRImmediate> Lowering::FunctionLowering::ConstantOf(const MarmotLiteral& literal) const
 {
 	const std::string& lexeme = literal.m_token.m_lexeme;
 	switch (literal.m_kind)
@@ -285,22 +287,22 @@ std::optional<MarmotIRImmediate> Lowering::FunctionLowering::ConstantOf(const Ma
 	case MarmotLiteralKind::Bool:
 		return MarmotIRImmediate(lexeme == Token::Spelling(Token::Name::TRUE));
 	case MarmotLiteralKind::Float:
-		return MarmotIRImmediate(literal.m_float_value.value());
+		return MarmotIRImmediate(literal.m_float_value.Value());
 	case MarmotLiteralKind::Unit:
 		return MarmotIRImmediate();
 	case MarmotLiteralKind::Integer:
-		return ParseIntegerLiteral(lexeme).transform([](int64_t value) { return MarmotIRImmediate(value); });
+		return ParseIntegerLiteral(lexeme).Transform([](int64_t value) { return MarmotIRImmediate(value); });
 	case MarmotLiteralKind::Byte:
 	{
-		const std::optional<uint64_t> value = ParseUnsignedLiteral(lexeme);
-		if (!value.has_value() || value.value() > 0xFFu)
+		const MarmotCompiler::Optional<uint64_t> value = ParseUnsignedLiteral(lexeme);
+		if (!value.HasValue() || value.Value() > 0xFFu)
 		{
-			return std::nullopt;
+			return MarmotCompiler::None;
 		}
-		return MarmotIRImmediate(MarmotIRByte{ static_cast<uint8_t>(value.value()) });
+		return MarmotIRImmediate(MarmotIRByte{ static_cast<uint8_t>(value.Value()) });
 	}
 	case MarmotLiteralKind::Word:
-		return ParseUnsignedLiteral(lexeme).transform([](uint64_t value) { return MarmotIRImmediate(MarmotIRWord{ value }); });
+		return ParseUnsignedLiteral(lexeme).Transform([](uint64_t value) { return MarmotIRImmediate(MarmotIRWord{ value }); });
 	}
 	std::unreachable();
 }
@@ -308,17 +310,17 @@ std::optional<MarmotIRImmediate> Lowering::FunctionLowering::ConstantOf(const Ma
 Lowering::Lowered Lowering::FunctionLowering::LowerLiteral(const MarmotExpression::Literal& literal)
 {
 	const Token& token = literal.m_token;
-	const std::optional<MarmotIRImmediate> constant = ConstantOf(literal);
-	if (!constant.has_value())
+	const MarmotCompiler::Optional<MarmotIRImmediate> constant = ConstantOf(literal);
+	if (!constant.HasValue())
 	{
 		switch (literal.m_kind)
 		{
 		case MarmotLiteralKind::Integer:
-			return std::unexpected(m_owner.Error(CompilerErrorCode::None, "Integer literal '" + token.m_lexeme + "' is out of range. Maximum value is 9223372036854775807 (2^63 - 1), minimum value is -9223372036854775808 (-2^63).", token));
+			return MarmotCompiler::Failure(m_owner.Error(CompilerErrorCode::None, "Integer literal '" + token.m_lexeme + "' is out of range. Maximum value is 9223372036854775807 (2^63 - 1), minimum value is -9223372036854775808 (-2^63).", token));
 		case MarmotLiteralKind::Byte:
-			return std::unexpected(m_owner.Error(CompilerErrorCode::None, "Byte literal '" + token.m_lexeme + "' is out of range. Maximum value is 255 (0xFF).", token));
+			return MarmotCompiler::Failure(m_owner.Error(CompilerErrorCode::None, "Byte literal '" + token.m_lexeme + "' is out of range. Maximum value is 255 (0xFF).", token));
 		case MarmotLiteralKind::Word:
-			return std::unexpected(m_owner.Error(CompilerErrorCode::None, "Word literal '" + token.m_lexeme + "' is out of range. Maximum value is 18446744073709551615 (0xFFFFFFFFFFFFFFFF).", token));
+			return MarmotCompiler::Failure(m_owner.Error(CompilerErrorCode::None, "Word literal '" + token.m_lexeme + "' is out of range. Maximum value is 18446744073709551615 (0xFFFFFFFFFFFFFFFF).", token));
 		default:
 			std::unreachable();
 		}
@@ -326,7 +328,7 @@ Lowering::Lowered Lowering::FunctionLowering::LowerLiteral(const MarmotExpressio
 
 	static constexpr std::array<MarmotIRScalar, 6u> s_scalars = { MarmotIRScalar::Bool, MarmotIRScalar::Int, MarmotIRScalar::Byte, MarmotIRScalar::Word, MarmotIRScalar::Float, MarmotIRScalar::Text };
 	const TypeRef& type = literal.m_kind == MarmotLiteralKind::Unit ? UnitType() : MarmotIRScalarType(s_scalars[static_cast<size_t>(literal.m_kind)]);
-	return m_builder.AtLine(token.m_line).Emit(MarmotIROp::Const, type, {}, constant.value());
+	return m_builder.AtLine(token.m_line).Emit(MarmotIROp::Const, type, {}, constant.Value());
 }
 
 Lowering::Lowered Lowering::FunctionLowering::LowerBinary(const MarmotExpression::Binary& binary)
@@ -338,15 +340,15 @@ Lowering::Lowered Lowering::FunctionLowering::LowerBinary(const MarmotExpression
 	}
 
 	return Lower(*binary.m_left)
-		.and_then
+		.AndThen
 		(
 			[this, &binary](MarmotIRValueId left)
 			{
 				return Lower(*binary.m_right)
-					.transform([left](MarmotIRValueId right) { return std::pair{ left, right }; });
+					.Transform([left](MarmotIRValueId right) { return std::pair{ left, right }; });
 			}
 		)
-		.and_then
+		.AndThen
 		(
 			[this, &binary, &op](std::pair<MarmotIRValueId, MarmotIRValueId> operands) -> Lowered
 			{
@@ -360,7 +362,7 @@ Lowering::Lowered Lowering::FunctionLowering::LowerBinary(const MarmotExpression
 					m_builder.AtLine(op.m_line).Emit(MarmotIROp::CellWrite, m_function.TypeOf(right), { left, right });
 					return m_builder.ConstUnit();
 				}
-				if (binary.m_uses_concatenable || binary.m_uses_equatable || binary.m_ordering.has_value())
+				if (binary.m_uses_concatenable || binary.m_uses_equatable || binary.m_ordering.HasValue())
 				{
 					return LowerClassOperator(binary, left, right);
 				}
@@ -377,20 +379,20 @@ Lowering::Lowered Lowering::FunctionLowering::LowerBinary(const MarmotExpression
 Lowering::Lowered Lowering::FunctionLowering::LowerScalarBinary(const Token& op, MarmotIRValueId left, MarmotIRValueId right)
 {
 	const TypeRef& operand_type = m_function.TypeOf(left);
-	const std::optional<MarmotIRScalar> scalar = ScalarOf(operand_type);
-	const std::optional<ScalarOps> ops = BinaryOps(op.m_token_name);
-	const std::optional<MarmotIROp> ir_op = (scalar.has_value() && ops.has_value()) ? SelectOp(ops.value(), scalar.value()) : std::nullopt;
-	if (!ir_op.has_value())
+	const MarmotCompiler::Optional<MarmotIRScalar> scalar = ScalarOf(operand_type);
+	const MarmotCompiler::Optional<ScalarOps> ops = BinaryOps(op.m_token_name);
+	const MarmotCompiler::Optional<MarmotIROp> ir_op = (scalar.HasValue() && ops.HasValue()) ? SelectOp(ops.Value(), scalar.Value()) : MarmotCompiler::None;
+	if (!ir_op.HasValue())
 	{
-		return std::unexpected(m_owner.Unsupported(std::format("'{}' on {}", op.m_lexeme, operand_type->DisplayString()), op));
+		return MarmotCompiler::Failure(m_owner.Unsupported(std::format("'{}' on {}", op.m_lexeme, operand_type->DisplayString()), op));
 	}
 
 	m_builder.AtLine(op.m_line);
-	if (GetMarmotIROpInfo(ir_op.value()).m_arity == MarmotIRArity::Binary)
+	if (GetMarmotIROpInfo(ir_op.Value()).m_arity == MarmotIRArity::Binary)
 	{
-		return m_builder.Binary(ir_op.value(), left, right);
+		return m_builder.Binary(ir_op.Value(), left, right);
 	}
-	return m_builder.Emit(ir_op.value(), MarmotIRScalarType(scalar.value()), { left, right });
+	return m_builder.Emit(ir_op.Value(), MarmotIRScalarType(scalar.Value()), { left, right });
 }
 
 // `a && b` is `b` when `a` holds and `a` otherwise; `a || b` the other way.
@@ -398,7 +400,7 @@ Lowering::Lowered Lowering::FunctionLowering::LowerShortCircuit(const MarmotExpr
 {
 	const bool is_and = binary.m_op.m_token_name == Token::Name::DOUBLE_AMPERSAND;
 	return Lower(*binary.m_left)
-		.and_then
+		.AndThen
 		(
 			[this, &binary, is_and](MarmotIRValueId left) -> Lowered
 			{
@@ -412,7 +414,7 @@ Lowering::Lowered Lowering::FunctionLowering::LowerShortCircuit(const MarmotExpr
 
 				PositionAt(right_block);
 				return Lower(*binary.m_right)
-					.transform
+					.Transform
 					(
 						[this, join, result](MarmotIRValueId right)
 						{
@@ -438,37 +440,37 @@ Lowering::Lowered Lowering::FunctionLowering::LowerClassOperator(const MarmotExp
 	if (binary.m_uses_concatenable)
 	{
 		const MethodResolution<ResolvedInstanceName> resolved = m_owner.m_resolver.ResolveConcat(methods, operand_type);
-		if (!resolved.has_value())
+		if (!resolved.HasValue())
 		{
-			return std::unexpected(m_owner.ResolutionError(resolved.error(), op));
+			return MarmotCompiler::Failure(m_owner.ResolutionError(resolved.Error(), op));
 		}
-		return CallResolved(resolved.value(), { left, right }, argument_types, operand_type, op);
+		return CallResolved(resolved.Value(), { left, right }, argument_types, operand_type, op);
 	}
 
 	if (binary.m_uses_equatable)
 	{
 		const MethodResolution<ResolvedInstanceName> resolved = m_owner.m_resolver.ResolveEquals(operand_type);
-		if (!resolved.has_value())
+		if (!resolved.HasValue())
 		{
-			return std::unexpected(m_owner.ResolutionError(resolved.error(), op));
+			return MarmotCompiler::Failure(m_owner.ResolutionError(resolved.Error(), op));
 		}
-		return CallResolved(resolved.value(), { left, right }, argument_types, bool_type, op)
-			.transform([this, &op](MarmotIRValueId equal)
+		return CallResolved(resolved.Value(), { left, right }, argument_types, bool_type, op)
+			.Transform([this, &op](MarmotIRValueId equal)
 			{
 				return op.m_token_name == Token::Name::BANG_EQUAL ? m_builder.AtLine(op.m_line).Unary(MarmotIROp::NotBool, equal) : equal;
 			});
 	}
 
 	const MethodResolution<ResolvedInstanceName> resolved = m_owner.m_resolver.ResolveCompare(operand_type);
-	if (!resolved.has_value())
+	if (!resolved.HasValue())
 	{
-		return std::unexpected(m_owner.ResolutionError(resolved.error(), op));
+		return MarmotCompiler::Failure(m_owner.ResolutionError(resolved.Error(), op));
 	}
-	const OrderingType& ordering = binary.m_ordering.value();
+	const OrderingType& ordering = binary.m_ordering.Value();
 	const bool is_less = op.m_token_name == Token::Name::LEFT_ANGLE || op.m_token_name == Token::Name::LESS_EQUAL;
 	const bool includes_equal = op.m_token_name == Token::Name::LESS_EQUAL || op.m_token_name == Token::Name::GREATER_EQUAL;
-	return CallResolved(resolved.value(), { left, right }, argument_types, ordering.m_type, op)
-		.transform
+	return CallResolved(resolved.Value(), { left, right }, argument_types, ordering.m_type, op)
+		.Transform
 		(
 			[this, &op, &ordering, is_less, includes_equal](MarmotIRValueId value)
 			{
@@ -498,7 +500,7 @@ Lowering::Lowered Lowering::FunctionLowering::LowerConcat(const MarmotExpression
 	const TypeRef type = GenericTypes::RepresentationOf(m_function.TypeOf(left));
 	if (!type->IsType<MarmotType::TextType>() && !type->IsType<MarmotType::ArrayType>())
 	{
-		return std::unexpected(m_owner.Error(CompilerErrorCode::None, std::format("Concatenation operator '++' requires Text or Array type (got {})", type->ToString()), binary.m_op));
+		return MarmotCompiler::Failure(m_owner.Error(CompilerErrorCode::None, std::format("Concatenation operator '++' requires Text or Array type (got {})", type->ToString()), binary.m_op));
 	}
 	const MarmotIROp op = IsFreshConcatTemporary(*binary.m_left) ? MarmotIROp::Extend : MarmotIROp::Concat;
 	return m_builder.AtLine(binary.m_op.m_line).Emit(op, type, { left, right });
@@ -513,7 +515,7 @@ Lowering::Lowered Lowering::FunctionLowering::LowerUnary(const MarmotExpression:
 	}
 
 	return Lower(*unary.m_expr)
-		.and_then
+		.AndThen
 		(
 			[this, &unary, &op](MarmotIRValueId operand) -> Lowered
 			{
@@ -555,46 +557,46 @@ Lowering::Lowered Lowering::FunctionLowering::LowerScalarUnary(const Token& op, 
 		const MarmotIRValueId zero = m_builder.Emit(MarmotIROp::Const, operand_type, {}, byte ? MarmotIRImmediate(MarmotIRByte{ 0u }) : MarmotIRImmediate(MarmotIRWord{ 0u }));
 		return m_builder.Binary(byte ? MarmotIROp::SubByte : MarmotIROp::SubWord, zero, operand);
 	}
-	const std::optional<MarmotIRScalar> scalar = ScalarOf(operand_type);
-	const std::optional<MarmotIROp> ir_op = [&]() -> std::optional<MarmotIROp>
+	const MarmotCompiler::Optional<MarmotIRScalar> scalar = ScalarOf(operand_type);
+	const MarmotCompiler::Optional<MarmotIROp> ir_op = [&]() -> MarmotCompiler::Optional<MarmotIROp>
 	{
-		if (!scalar.has_value())
+		if (!scalar.HasValue())
 		{
-			return std::nullopt;
+			return MarmotCompiler::None;
 		}
 		using enum MarmotIROp;
 		switch (op.m_token_name)
 		{
 		case Token::Name::SINGLE_MINUS:
-			return SelectOp(ScalarOps{ NegInt, NegFloat, std::nullopt, std::nullopt, std::nullopt, std::nullopt }, scalar.value());
+			return SelectOp(ScalarOps{ NegInt, NegFloat, MarmotCompiler::None, MarmotCompiler::None, MarmotCompiler::None, MarmotCompiler::None }, scalar.Value());
 		case Token::Name::BANG:
-			return SelectOp(ScalarOps{ std::nullopt, std::nullopt, std::nullopt, std::nullopt, NotBool, std::nullopt }, scalar.value());
+			return SelectOp(ScalarOps{ MarmotCompiler::None, MarmotCompiler::None, MarmotCompiler::None, MarmotCompiler::None, NotBool, MarmotCompiler::None }, scalar.Value());
 		case Token::Name::TILDE:
-			return SelectOp(ScalarOps{ BitNotInt, std::nullopt, BitNotByte, BitNotWord, std::nullopt, std::nullopt }, scalar.value());
+			return SelectOp(ScalarOps{ BitNotInt, MarmotCompiler::None, BitNotByte, BitNotWord, MarmotCompiler::None, MarmotCompiler::None }, scalar.Value());
 		default:
-			return std::nullopt;
+			return MarmotCompiler::None;
 		}
 	}();
-	if (!ir_op.has_value())
+	if (!ir_op.HasValue())
 	{
-		return std::unexpected(m_owner.Unsupported(std::format("'{}' on {}", op.m_lexeme, operand_type->DisplayString()), op));
+		return MarmotCompiler::Failure(m_owner.Unsupported(std::format("'{}' on {}", op.m_lexeme, operand_type->DisplayString()), op));
 	}
-	return m_builder.AtLine(op.m_line).Unary(ir_op.value(), operand);
+	return m_builder.AtLine(op.m_line).Unary(ir_op.Value(), operand);
 }
 
 Lowering::Lowered Lowering::FunctionLowering::LowerCount(const MarmotExpression::UnaryPrefix& unary, MarmotIRValueId operand)
 {
 	const TypeRef operand_type = NominalType(*unary.m_expr, operand);
-	const MethodResolution<std::optional<ResolvedInstanceName>> resolved = m_owner.m_resolver.ResolveCount(m_specialization.m_methods, operand_type, unary.m_uses_countable);
-	if (!resolved.has_value())
+	const MethodResolution<MarmotCompiler::Optional<ResolvedInstanceName>> resolved = m_owner.m_resolver.ResolveCount(m_specialization.m_methods, operand_type, unary.m_uses_countable);
+	if (!resolved.HasValue())
 	{
-		return std::unexpected(m_owner.ResolutionError(resolved.error(), unary.m_op));
+		return MarmotCompiler::Failure(m_owner.ResolutionError(resolved.Error(), unary.m_op));
 	}
-	if (!resolved.value().has_value())
+	if (!resolved.Value().HasValue())
 	{
-		return std::unexpected(m_owner.Unsupported(std::format("'#' on {}", operand_type->DisplayString()), unary.m_op));
+		return MarmotCompiler::Failure(m_owner.Unsupported(std::format("'#' on {}", operand_type->DisplayString()), unary.m_op));
 	}
-	return CallResolved(resolved.value().value(), { operand }, { operand_type }, IntType(), unary.m_op);
+	return CallResolved(resolved.Value().Value(), { operand }, { operand_type }, IntType(), unary.m_op);
 }
 
 // An instance a program writes wins over a builtin conversion; a conversion
@@ -604,7 +606,7 @@ Lowering::Lowered Lowering::FunctionLowering::LowerAs(const MarmotExpression::As
 	const Token& keyword = as.m_as_keyword;
 	const TypeRef to_type = Concrete(as.m_to_type);
 	return Lower(*as.m_expr)
-		.and_then
+		.AndThen
 		(
 			[this, &as, &keyword, &to_type](MarmotIRValueId value) -> Lowered
 			{
@@ -614,14 +616,14 @@ Lowering::Lowered Lowering::FunctionLowering::LowerAs(const MarmotExpression::As
 				}
 
 				const TypeRef from_type = NominalType(*as.m_expr, value);
-				const MethodResolution<std::optional<ResolvedInstanceName>> resolved = m_owner.m_resolver.ResolveConvert(m_specialization.m_methods, from_type, from_type, to_type, as.m_uses_convertible);
-				if (!resolved.has_value())
+				const MethodResolution<MarmotCompiler::Optional<ResolvedInstanceName>> resolved = m_owner.m_resolver.ResolveConvert(m_specialization.m_methods, from_type, from_type, to_type, as.m_uses_convertible);
+				if (!resolved.HasValue())
 				{
-					return std::unexpected(m_owner.ResolutionError(resolved.error(), keyword));
+					return MarmotCompiler::Failure(m_owner.ResolutionError(resolved.Error(), keyword));
 				}
-				if (resolved.value().has_value())
+				if (resolved.Value().HasValue())
 				{
-					return CallResolved(resolved.value().value(), { value }, { from_type }, to_type, keyword);
+					return CallResolved(resolved.Value().Value(), { value }, { from_type }, to_type, keyword);
 				}
 				if (MarmotIRSameType(from_type, to_type))
 				{
@@ -634,17 +636,17 @@ Lowering::Lowered Lowering::FunctionLowering::LowerAs(const MarmotExpression::As
 					return m_builder.ConstUnit();
 				}
 
-				const std::optional<MarmotIRScalar> from = ScalarOf(from_type);
-				const std::optional<MarmotIRScalar> to = ScalarOf(to_type);
+				const MarmotCompiler::Optional<MarmotIRScalar> from = ScalarOf(from_type);
+				const MarmotCompiler::Optional<MarmotIRScalar> to = ScalarOf(to_type);
 				if (from == MarmotIRScalar::Bool && to == MarmotIRScalar::Text)
 				{
 					return LowerBoolToText(value, keyword.m_line);
 				}
 
-				const std::vector<MarmotIROp> ops = (from.has_value() && to.has_value()) ? ConversionOps(from.value(), to.value()) : std::vector<MarmotIROp>{};
+				const std::vector<MarmotIROp> ops = (from.HasValue() && to.HasValue()) ? ConversionOps(from.Value(), to.Value()) : std::vector<MarmotIROp>{};
 				if (ops.empty())
 				{
-					return std::unexpected(m_owner.Unsupported(std::format("a conversion from {} to {}", from_type->DisplayString(), to_type->DisplayString()), keyword));
+					return MarmotCompiler::Failure(m_owner.Unsupported(std::format("a conversion from {} to {}", from_type->DisplayString(), to_type->DisplayString()), keyword));
 				}
 				return std::ranges::fold_left(ops, value, [this](MarmotIRValueId operand, MarmotIROp op) { return m_builder.Unary(op, operand); });
 			}
@@ -675,11 +677,11 @@ Lowering::Lowered Lowering::FunctionLowering::LowerOperation(MarmotIROp op, cons
 	for (const MarmotExpression* operand : operands)
 	{
 		const Lowered value = Lower(*operand);
-		if (!value.has_value())
+		if (!value.HasValue())
 		{
 			return value;
 		}
-		values.push_back(value.value());
+		values.push_back(value.Value());
 	}
 	if (IsDead())
 	{
@@ -712,15 +714,15 @@ Lowering::Lowered Lowering::FunctionLowering::LowerIndex(const MarmotExpression:
 	const Token& op = index.m_op;
 	const TypeRef result_type = Concrete(index.m_type_data);
 	return Lower(*index.m_arr_var)
-		.and_then
+		.AndThen
 		(
 			[this, &index](MarmotIRValueId container)
 			{
 				return Lower(*index.m_index)
-					.transform([container](MarmotIRValueId position) { return std::pair{ container, position }; });
+					.Transform([container](MarmotIRValueId position) { return std::pair{ container, position }; });
 			}
 		)
-		.and_then
+		.AndThen
 		(
 			[this, &index, &op, &result_type](std::pair<MarmotIRValueId, MarmotIRValueId> operands) -> Lowered
 			{
@@ -734,11 +736,11 @@ Lowering::Lowered Lowering::FunctionLowering::LowerIndex(const MarmotExpression:
 				{
 					const std::vector<TypeRef> argument_types = { NominalType(*index.m_arr_var, container), NominalType(*index.m_index, position) };
 					const MethodResolution<ResolvedInstanceName> resolved = m_owner.m_resolver.ResolveIndex(m_specialization.m_methods, argument_types[0u], argument_types[1u]);
-					if (!resolved.has_value())
+					if (!resolved.HasValue())
 					{
-						return std::unexpected(m_owner.ResolutionError(resolved.error(), op));
+						return MarmotCompiler::Failure(m_owner.ResolutionError(resolved.Error(), op));
 					}
-					return CallResolved(resolved.value(), { container, position }, argument_types, result_type, op);
+					return CallResolved(resolved.Value(), { container, position }, argument_types, result_type, op);
 				}
 				const TypeRef& element_type = GenericTypes::RepresentationOf(container_type)->GetType<MarmotType::ArrayType>().m_element_type;
 				return m_builder.AtLine(op.m_line).Emit(MarmotIROp::ArrayGet, element_type, { container, position });
@@ -772,7 +774,7 @@ Lowering::Lowered Lowering::FunctionLowering::LowerRecordUpdate(const MarmotExpr
 		| std::views::transform([](const MarmotExpression::RecordUpdate::FieldUpdate& update) { return &update; })
 		| std::ranges::to<std::vector>();
 	return Lower(*record_update.m_source)
-		.and_then
+		.AndThen
 		(
 			[&](MarmotIRValueId source) -> Lowered
 			{
@@ -806,11 +808,11 @@ Lowering::Lowered Lowering::FunctionLowering::LowerUpdatedRecord(MarmotIRValueId
 			const MarmotIRValueId old_member = m_builder.AtLine(line).Emit(MarmotIROp::GetMember, member_types[slot], { source }, MarmotIRIndex{ static_cast<uint32_t>(slot) });
 			return here.empty() ? Lowered(old_member) : LowerUpdatedRecord(old_member, member_types[slot], here, depth + 1u, line);
 		}();
-		if (!value.has_value())
+		if (!value.HasValue())
 		{
 			return value;
 		}
-		members.push_back(value.value());
+		members.push_back(value.Value());
 	}
 	if (IsDead())
 	{
@@ -823,7 +825,7 @@ Lowering::Lowered Lowering::FunctionLowering::LowerMemberAccess(const MarmotExpr
 {
 	const int line = member.m_member_name.m_line;
 	return Lower(*member.m_struct)
-		.transform
+		.Transform
 		(
 			[this, &member, line](MarmotIRValueId record)
 			{
@@ -843,20 +845,20 @@ Lowering::Lowered Lowering::FunctionLowering::LowerRange(const MarmotExpression&
 {
 	const bool is_float = range_type->GetType<MarmotType::RangeType>().m_element_type->IsType<MarmotType::FloatType>();
 	return Lower(start)
-		.and_then
+		.AndThen
 		(
 			[&](MarmotIRValueId first) -> LoweredValues
 			{
 				const Lowered stride = step == nullptr
 					? Lowered(is_float ? m_builder.AtLine(line).ConstFloat(1.0) : m_builder.AtLine(line).ConstInt(1))
 					: Lower(*step);
-				return stride.and_then([&](MarmotIRValueId by)
+				return stride.AndThen([&](MarmotIRValueId by)
 				{
-					return Lower(end).transform([first, by](MarmotIRValueId last) { return std::vector<MarmotIRValueId>{ first, by, last }; });
+					return Lower(end).Transform([first, by](MarmotIRValueId last) { return std::vector<MarmotIRValueId>{ first, by, last }; });
 				});
 			}
 		)
-		.transform
+		.Transform
 		(
 			[&](std::vector<MarmotIRValueId> bounds)
 			{
@@ -879,7 +881,7 @@ Lowering::Lowered Lowering::FunctionLowering::LowerSpawn(const MarmotExpression:
 	const MarmotExpression& function = *spawn.m_arguments[1u];
 	const size_t arity = Concrete(function.GetType())->GetType<MarmotType::FunctionType>().m_param_types.size();
 	return Lower(*spawn.m_arguments[0u])
-		.and_then
+		.AndThen
 		(
 			[&](MarmotIRValueId argument) -> Lowered
 			{
@@ -898,7 +900,7 @@ Lowering::Lowered Lowering::FunctionLowering::LowerSpawn(const MarmotExpression:
 				}
 
 				return Lower(function)
-					.transform
+					.Transform
 					(
 						[&](MarmotIRValueId callee)
 						{

@@ -1,5 +1,7 @@
 #include "Parser.h"
 #include "Compiler/Names/SpecialNames.h"
+#include "Support/Expected.h"
+#include "Support/Optional.h"
 #include <algorithm>
 #include <format>
 #include <fstream>
@@ -357,7 +359,7 @@ void Parser::RecordTopLevelReference(const Token& name)
 // called. So a statement may use a definition only if it, and everything the
 // functions it reaches go on to read, is defined above the statement. That is
 // what makes naming a later definition from inside a function safe.
-std::optional<CompilerError> Parser::CheckDefinitionOrder()
+MarmotCompiler::Optional<CompilerError> Parser::CheckDefinitionOrder()
 {
 	std::unordered_map<int, std::vector<const TopLevelReference*>> references_by_statement;
 	for (const TopLevelReference& reference : m_state.m_top_level_references)
@@ -434,7 +436,7 @@ std::optional<CompilerError> Parser::CheckDefinitionOrder()
 		}
 	}
 
-	return std::nullopt;
+	return MarmotCompiler::None;
 }
 
 std::string Parser::CurrentModuleName() const
@@ -622,7 +624,7 @@ MarmotResult::TokenResult Parser::Consume(Token::Name type, std::string_view mes
 	}
 	else
 	{
-		return std::unexpected(GenerateParserError(std::string(message), Peek(0)));
+		return MarmotCompiler::Failure(GenerateParserError(std::string(message), Peek(0)));
 	}
 }
 
@@ -676,7 +678,7 @@ MarmotResult::TokenResult Parser::DefineName(Token& name, bool is_variable)
 
 	if (m_state.m_scopes.back().m_defined_names.contains(name.m_lexeme))
 	{
-		return std::unexpected(GenerateParserError("Name already exists in the current scope", name));
+		return MarmotCompiler::Failure(GenerateParserError("Name already exists in the current scope", name));
 	}
 
 	m_state.m_scopes.back().m_defined_names.emplace(name.m_lexeme);
@@ -697,11 +699,11 @@ MarmotResult::TokenResult Parser::DefineBinding(Token& name)
 	return DefineName(name, true);
 }
 
-std::optional<BindingId> Parser::RegisterLocalBinding(const std::string& name)
+MarmotCompiler::Optional<BindingId> Parser::RegisterLocalBinding(const std::string& name)
 {
 	if (IsAtGlobalScope() || name == "_")
 	{
-		return std::nullopt;
+		return MarmotCompiler::None;
 	}
 	const BindingId binding = std::make_shared<BindingIdentity>(m_state.m_function, m_state.m_next_binding_index++);
 	m_state.m_scopes.back().m_variables[name] = binding;
@@ -745,23 +747,23 @@ MarmotResult::ParserResult Parser::Parse()
 
 		m_state.m_statement_index = static_cast<int>(programTree.size());
 		MarmotResult::StatementResult result = ParseDeclaration();
-		if (result.has_value())
+		if (result.HasValue())
 		{
-			RecordTopLevelDefinition(*result.value(), m_state.m_statement_index);
-			programTree.emplace_back(std::move(result.value()));
+			RecordTopLevelDefinition(*result.Value(), m_state.m_statement_index);
+			programTree.emplace_back(std::move(result.Value()));
 		}
 		else
 		{
 			// Phase 2 recovery policy: Parse() is the single recovery boundary for hard parser errors.
 			// The parser still stops at the first hard error after synchronizing to the next declaration starter.
 			Synchronize();
-			return std::unexpected(MarmotResult::CompilerDiagnostics(std::move(result.error())));
+			return MarmotCompiler::Failure(MarmotResult::CompilerDiagnostics(std::move(result.Error())));
 		}
 	}
 
-	if (std::optional<CompilerError> instantiation_error = FillDeferredInstantiations())
+	if (MarmotCompiler::Optional<CompilerError> instantiation_error = FillDeferredInstantiations())
 	{
-		return std::unexpected(MarmotResult::CompilerDiagnostics(std::move(instantiation_error.value())));
+		return MarmotCompiler::Failure(MarmotResult::CompilerDiagnostics(std::move(instantiation_error.Value())));
 	}
 
 	// A derived instance can precede the class and its result union.
@@ -771,27 +773,27 @@ MarmotResult::ParserResult Parser::Parse()
 		const auto methods = m_state.m_typeclass_method_types.find(target.m_lexeme);
 		if (methods == m_state.m_typeclass_method_types.end())
 		{
-			return std::unexpected(MarmotResult::CompilerDiagnostics(GenerateParserError("Deriving Orderable requires a visible Orderable class.", target)));
+			return MarmotCompiler::Failure(MarmotResult::CompilerDiagnostics(GenerateParserError("Deriving Orderable requires a visible Orderable class.", target)));
 		}
-		const std::optional<OrderingType> ordering = OrderingType::Resolve(methods->second);
-		if (!ordering.has_value())
+		const MarmotCompiler::Optional<OrderingType> ordering = OrderingType::Resolve(methods->second);
+		if (!ordering.HasValue())
 		{
-			return std::unexpected(MarmotResult::CompilerDiagnostics(GenerateParserError(std::string(OrderingType::s_required_result), target)));
+			return MarmotCompiler::Failure(MarmotResult::CompilerDiagnostics(GenerateParserError(std::string(OrderingType::s_required_result), target)));
 		}
 		for (const auto& [index, derivation] : deferred_ordering)
 		{
 			MarmotResult::StatementResult generated = GenerateDerivedStatement(derivation.m_generator, &*ordering);
-			if (!generated.has_value())
+			if (!generated.HasValue())
 			{
-				return std::unexpected(MarmotResult::CompilerDiagnostics(std::move(generated.error())));
+				return MarmotCompiler::Failure(MarmotResult::CompilerDiagnostics(std::move(generated.Error())));
 			}
-			programTree[index] = std::move(generated.value());
+			programTree[index] = std::move(generated.Value());
 		}
 	}
 
-	if (std::optional<CompilerError> order_error = CheckDefinitionOrder())
+	if (MarmotCompiler::Optional<CompilerError> order_error = CheckDefinitionOrder())
 	{
-		return std::unexpected(MarmotResult::CompilerDiagnostics(std::move(order_error.value())));
+		return MarmotCompiler::Failure(MarmotResult::CompilerDiagnostics(std::move(order_error.Value())));
 	}
 
 	return MarmotResult::ParserResult(std::move(programTree));
@@ -827,7 +829,7 @@ MarmotResult::TokenResult Parser::MatchNameResolution()
 		// We found the separator, now we must have an identifier
 		if (!Match(Token::Name::IDENTIFIER_LITERAL))
 		{
-			return std::unexpected(GenerateParserError(std::format("Expected identifier after '{}'.", NameSeparator), Previous()));
+			return MarmotCompiler::Failure(GenerateParserError(std::format("Expected identifier after '{}'.", NameSeparator), Previous()));
 		}
 
 		resolved_name_str.append(NameSeparator).append(Previous().m_lexeme);

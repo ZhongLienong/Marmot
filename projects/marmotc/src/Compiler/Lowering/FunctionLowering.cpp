@@ -2,6 +2,8 @@
 #include "Bytecode/Intrinsics/IntrinsicTable.h"
 #include "Compiler/Names/SpecialNames.h"
 #include "Compiler/Operator/Operator.h"
+#include "Support/Expected.h"
+#include "Support/Optional.h"
 
 #include <algorithm>
 #include <array>
@@ -78,7 +80,7 @@ Lowering::FunctionLowering::JoinPoint::JoinPoint(MarmotIRBlockId block, TypeRef 
 {
 }
 
-Lowering::FunctionLowering::FunctionLowering(Lowering& owner, MarmotIRFunctionId id, const Specialization& specialization, FunctionLowering* parent, LexicalFunctionId identity, std::optional<ActiveGenericLambda> generic_lambda)
+Lowering::FunctionLowering::FunctionLowering(Lowering& owner, MarmotIRFunctionId id, const Specialization& specialization, FunctionLowering* parent, LexicalFunctionId identity, MarmotCompiler::Optional<ActiveGenericLambda> generic_lambda)
 	: m_owner(owner),
 	m_id(id),
 	m_function(owner.m_functions[id.m_index]),
@@ -103,7 +105,7 @@ Lowering::Emitted Lowering::FunctionLowering::LowerTopLevel()
 	for (const std::unique_ptr<MarmotStatement>& statement : m_owner.m_program)
 	{
 		const Emitted lowered = LowerTopLevelStatement(*statement);
-		if (!lowered.has_value())
+		if (!lowered.HasValue())
 		{
 			return lowered;
 		}
@@ -180,11 +182,11 @@ Lowering::Emitted Lowering::FunctionLowering::LowerTopLevelStatement(const Marmo
 	if (statement.IsStatement<MarmotStatement::ForeignDefinition>())
 	{
 		const MarmotStatement::ForeignDefinition& foreign = statement.GetStatement<MarmotStatement::ForeignDefinition>();
-		if (foreign.DeclaredPrimitive().has_value())
+		if (foreign.DeclaredPrimitive().HasValue())
 		{
 			return {};
 		}
-		const std::string value = foreign.m_library.has_value() ? foreign.m_library.value() + NATIVE_SYMBOL_SEPARATOR + foreign.m_foreign_name : foreign.m_foreign_name;
+		const std::string value = foreign.m_library.HasValue() ? foreign.m_library.Value() + NATIVE_SYMBOL_SEPARATOR + foreign.m_foreign_name : foreign.m_foreign_name;
 		m_builder.AtLine(foreign.m_function_name.m_line);
 		m_builder.Emit(MarmotIROp::GlobalDefine, UnitType(), { m_builder.ConstText(value) }, m_owner.m_top_level_names.at(foreign.m_function_name.m_lexeme).m_slot);
 		return {};
@@ -206,12 +208,12 @@ Lowering::Emitted Lowering::FunctionLowering::LowerTopLevelStatement(const Marmo
 		for (const MarmotStatement::Instance::Method& instance_method : instance.m_methods)
 		{
 			const MarmotStatement::FunctionDefinition& method = instance_method.m_definition;
-			if (m_owner.m_generics.KeyIn(m_owner.m_module_name, method.m_name.m_lexeme).has_value())
+			if (m_owner.m_generics.KeyIn(m_owner.m_module_name, method.m_name.m_lexeme).HasValue())
 			{
 				continue;
 			}
 			const Emitted lowered = LowerTopLevelFunction(method.m_name.m_lexeme, method.m_params, *method.m_body, method.m_name.m_line);
-			if (!lowered.has_value())
+			if (!lowered.HasValue())
 			{
 				return lowered;
 			}
@@ -251,7 +253,7 @@ Lowering::Emitted Lowering::FunctionLowering::LowerTopLevelStatement(const Marmo
 	}
 
 	const int line = definition.m_name.m_line;
-	if (name->second.m_function.has_value())
+	if (name->second.m_function.HasValue())
 	{
 		const MarmotExpression::Function& function = definition.m_value->GetExpression<MarmotExpression::Function>();
 		return LowerTopLevelFunction(definition.m_name.m_lexeme, function.m_params, *function.m_body, line);
@@ -259,7 +261,7 @@ Lowering::Emitted Lowering::FunctionLowering::LowerTopLevelStatement(const Marmo
 
 	const MarmotIRGlobalSlot slot = name->second.m_slot;
 	return Lower(*definition.m_value)
-		.transform([this, slot, line](MarmotIRValueId value)
+		.Transform([this, slot, line](MarmotIRValueId value)
 		{
 			m_builder.AtLine(line).Emit(MarmotIROp::GlobalDefine, UnitType(), { value }, slot);
 		});
@@ -269,11 +271,11 @@ Lowering::Emitted Lowering::FunctionLowering::LowerTopLevelFunction(const std::s
 {
 	const TopLevelName& top_level_name = m_owner.m_top_level_names.at(name);
 	const TypeRef closure_type = m_owner.m_module.m_globals[top_level_name.m_slot.m_value].m_type;
-	const MarmotIRFunctionId id = top_level_name.m_function.value();
+	const MarmotIRFunctionId id = top_level_name.m_function.Value();
 	FunctionLowering child(m_owner, id, m_owner.m_specializations.front(), this, params.Function());
 	return child.LowerBody(closure_type->GetType<MarmotType::FunctionType>().m_param_types, params, body)
-		.and_then([&]() { return MakeClosure(child, closure_type, line, name); })
-		.transform([this, &top_level_name, line](MarmotIRValueId closure)
+		.AndThen([&]() { return MakeClosure(child, closure_type, line, name); })
+		.Transform([this, &top_level_name, line](MarmotIRValueId closure)
 		{
 			m_builder.AtLine(line).Emit(MarmotIROp::GlobalDefine, UnitType(), { closure }, top_level_name.m_slot);
 		});
@@ -287,7 +289,7 @@ Lowering::Emitted Lowering::FunctionLowering::LowerStatement(const MarmotStateme
 
 		Emitted operator()(const MarmotStatement::ExpressionStatement& expression_statement) const
 		{
-			return m_self.Lower(*expression_statement.m_expr).transform([](MarmotIRValueId) {});
+			return m_self.Lower(*expression_statement.m_expr).Transform([](MarmotIRValueId) {});
 		}
 
 		Emitted operator()(const MarmotStatement::VariableDefinition& definition) const
@@ -302,19 +304,19 @@ Lowering::Emitted Lowering::FunctionLowering::LowerStatement(const MarmotStateme
 
 		Emitted operator()(const MarmotStatement::FunctionDefinition& definition) const
 		{
-			return std::unexpected(m_self.m_owner.Unsupported("a local function definition", definition.m_name));
+			return MarmotCompiler::Failure(m_self.m_owner.Unsupported("a local function definition", definition.m_name));
 		}
 
 		Emitted operator()(const MarmotStatement::ForeignDefinition& foreign) const
 		{
-			if (foreign.DeclaredPrimitive().has_value())
+			if (foreign.DeclaredPrimitive().HasValue())
 			{
 				return {};
 			}
 			return m_self.m_owner.ForeignName(foreign)
-				.transform([this, &foreign](const std::string& value)
+				.Transform([this, &foreign](const std::string& value)
 				{
-					m_self.DefineLocal(foreign.m_binding.value(), m_self.m_builder.AtLine(foreign.m_function_name.m_line).ConstText(value));
+					m_self.DefineLocal(foreign.m_binding.Value(), m_self.m_builder.AtLine(foreign.m_function_name.m_line).ConstText(value));
 				});
 		}
 
@@ -352,21 +354,21 @@ Lowering::Emitted Lowering::FunctionLowering::LowerLocalDefinition(const MarmotS
 {
 	if (definition.m_name.IsDiscard())
 	{
-		return Lower(*definition.m_value).transform([](MarmotIRValueId) {});
+		return Lower(*definition.m_value).Transform([](MarmotIRValueId) {});
 	}
 	if (definition.m_is_elided)
 	{
 		return {};
 	}
 
-	const BindingId& binding = definition.m_binding.value();
+	const BindingId& binding = definition.m_binding.Value();
 	if (definition.m_value->IsExpression<MarmotExpression::Function>() && !definition.m_value->GetExpression<MarmotExpression::Function>().m_generic_params.empty())
 	{
 		m_local_generics.emplace(binding, &definition.m_value->GetExpression<MarmotExpression::Function>());
 		return {};
 	}
 	return Lower(*definition.m_value)
-		.transform([this, binding](MarmotIRValueId value)
+		.Transform([this, binding](MarmotIRValueId value)
 		{
 			DefineLocal(binding, value);
 		});
@@ -378,7 +380,7 @@ Lowering::Emitted Lowering::FunctionLowering::LowerTupleDefinition(const MarmotS
 {
 	const int line = definition.m_names.front().m_line;
 	return Lower(*definition.m_value)
-		.transform
+		.Transform
 		(
 			[this, &definition, line](MarmotIRValueId tuple)
 			{
@@ -393,10 +395,10 @@ Lowering::Emitted Lowering::FunctionLowering::LowerTupleDefinition(const MarmotS
 					const MarmotIRValueId element = is_dead
 						? Placeholder(UnitType())
 						: m_builder.Emit(MarmotIROp::TupleGet, GenericTypes::RepresentationOf(m_function.TypeOf(tuple))->GetType<MarmotType::TupleType>().m_element_types[index], { tuple }, MarmotIRIndex{ static_cast<uint32_t>(index) }, definition.m_names[index].m_lexeme);
-					const std::optional<BindingId>& binding = definition.m_bindings[index];
-					if (binding.has_value())
+					const MarmotCompiler::Optional<BindingId>& binding = definition.m_bindings[index];
+					if (binding.HasValue())
 					{
-						DefineLocal(binding.value(), element);
+						DefineLocal(binding.Value(), element);
 					}
 					else if (!is_dead)
 					{
@@ -538,12 +540,12 @@ Lowering::Lowered Lowering::FunctionLowering::LowerFunction(const MarmotExpressi
 	const MarmotIRFunctionId id = m_owner.NewFunction(std::format("Anonymous Function at line: {}", line), signature.m_return_type, m_specialization);
 	FunctionLowering child(m_owner, id, m_specialization, this, function.m_params.Function());
 	return child.LowerBody(signature.m_param_types, function.m_params, *function.m_body)
-		.and_then([&]() { return MakeClosure(child, closure_type, line); });
+		.AndThen([&]() { return MakeClosure(child, closure_type, line); });
 }
 
 // A generic lambda's closure for the types `type` gives its parameters, with
 // the enclosing function's types and the methods its constraints resolve to.
-Lowering::Lowered Lowering::FunctionLowering::LowerGenericLambda(const MarmotExpression::Function& function, const TypeRef& type, std::string name, int line, std::optional<ActiveGenericLambda> generic_lambda)
+Lowering::Lowered Lowering::FunctionLowering::LowerGenericLambda(const MarmotExpression::Function& function, const TypeRef& type, std::string name, int line, MarmotCompiler::Optional<ActiveGenericLambda> generic_lambda)
 {
 	const MarmotType::FunctionType& instance = type->GetType<MarmotType::FunctionType>();
 	GenericTypes::TypeEnvironment types = m_specialization.m_types;
@@ -565,7 +567,7 @@ Lowering::Lowered Lowering::FunctionLowering::LowerGenericLambda(const MarmotExp
 	const MarmotIRFunctionId id = m_owner.NewFunction(std::move(name), signature.m_return_type, specialization);
 	FunctionLowering child(m_owner, id, specialization, this, function.m_params.Function(), std::move(generic_lambda));
 	return child.LowerBody(signature.m_param_types, function.m_params, *function.m_body)
-		.and_then([&]() { return MakeClosure(child, closure_type, line); });
+		.AndThen([&]() { return MakeClosure(child, closure_type, line); });
 }
 
 Lowering::Lowered Lowering::FunctionLowering::LowerLocalGeneric(const MarmotExpression::Function& function, const TypeRef& type, const Token& name)
@@ -573,9 +575,9 @@ Lowering::Lowered Lowering::FunctionLowering::LowerLocalGeneric(const MarmotExpr
 	const std::string signature = type->ToString();
 	for (const FunctionLowering* owner = this; owner != nullptr; owner = owner->m_parent)
 	{
-		if (owner->m_generic_lambda.has_value())
+		if (owner->m_generic_lambda.HasValue())
 		{
-			const ActiveGenericLambda& active = owner->m_generic_lambda.value();
+			const ActiveGenericLambda& active = owner->m_generic_lambda.Value();
 			if (active.m_function == &function && active.m_signature == signature)
 			{
 				return CaptureFor(active.m_self, ClosureType(type));
@@ -585,7 +587,7 @@ Lowering::Lowered Lowering::FunctionLowering::LowerLocalGeneric(const MarmotExpr
 
 	const LocalKey self{ this, std::make_shared<BindingIdentity>(m_identity, -1) };
 	return LowerGenericLambda(function, type, name.m_lexeme, name.m_line, ActiveGenericLambda(&function, signature, self))
-		.transform
+		.Transform
 		(
 			[this, &self](MarmotIRValueId value)
 			{
@@ -597,7 +599,7 @@ Lowering::Lowered Lowering::FunctionLowering::LowerLocalGeneric(const MarmotExpr
 
 // One function per generic and set of argument types. Its types come from the
 // arguments', and from the call's where only the result names a type parameter.
-std::expected<MarmotIRFunctionId, CompilerError> Lowering::FunctionLowering::Specialize(const std::string& key, const std::vector<TypeRef>& argument_types, const TypeRef& call_type)
+MarmotCompiler::Expected<MarmotIRFunctionId, CompilerError> Lowering::FunctionLowering::Specialize(const std::string& key, const std::vector<TypeRef>& argument_types, const TypeRef& call_type)
 {
 	const GenericFunctionInfo& info = m_owner.m_generics.At(key);
 	GenericTypes::TypeEnvironment types;
@@ -639,7 +641,7 @@ std::expected<MarmotIRFunctionId, CompilerError> Lowering::FunctionLowering::Spe
 	}
 
 	const bool is_foreign = !info.m_defining_module.empty() && info.m_defining_module != m_owner.m_module_name;
-	const std::optional<std::string> source_module = is_foreign ? std::optional<std::string>(info.m_defining_module) : std::nullopt;
+	const MarmotCompiler::Optional<std::string> source_module = is_foreign ? MarmotCompiler::Optional<std::string>(info.m_defining_module) : MarmotCompiler::None;
 	MethodResolutionMap methods = m_owner.m_resolver.ResolveConstraints(info.m_constraints, types);
 	const Specialization& specialization = m_owner.m_specializations.emplace_back(std::move(types), std::move(methods), source_module);
 
@@ -650,7 +652,7 @@ std::expected<MarmotIRFunctionId, CompilerError> Lowering::FunctionLowering::Spe
 	const std::shared_ptr<const MarmotExpression> body = info.m_body;
 	const FunctionParameters params = info.m_params;
 	return child.LowerBody(argument_types, params, *body)
-		.transform([id]() { return id; });
+		.Transform([id]() { return id; });
 }
 
 bool Lowering::FunctionLowering::IsForeignFunction(const TypeRef& type) const
@@ -663,7 +665,7 @@ bool Lowering::FunctionLowering::IsForeignFunction(const TypeRef& type) const
 bool Lowering::FunctionLowering::IsForeignDeclaration(const std::string& name)
 {
 	const std::unordered_map<std::string, TopLevelName>::const_iterator own = m_owner.m_top_level_names.find(name);
-	const bool is_own = !m_specialization.m_source_module.has_value() && own != m_owner.m_top_level_names.cend();
+	const bool is_own = !m_specialization.m_source_module.HasValue() && own != m_owner.m_top_level_names.cend();
 	return !is_own || m_owner.m_module.m_globals[own->second.m_slot.m_value].m_type->IsType<MarmotType::TextType>();
 }
 
@@ -683,18 +685,18 @@ Lowering::Lowered Lowering::FunctionLowering::LowerForeignValue(const MarmotExpr
 
 	child.m_builder.AtLine(name.m_line);
 	MarmotIRImmediate target;
-	if (declaration.m_intrinsic.has_value())
+	if (declaration.m_intrinsic.HasValue())
 	{
-		target = MarmotIRForeign{ std::string(MarmotIntrinsics::At(declaration.m_intrinsic.value()).m_name) };
+		target = MarmotIRForeign{ std::string(MarmotIntrinsics::At(declaration.m_intrinsic.Value()).m_name) };
 	}
 	else
 	{
-		const std::expected<MarmotIRGlobalSlot, CompilerError> slot = child.GlobalFor(name, TextType());
-		if (!slot.has_value())
+		const MarmotCompiler::Expected<MarmotIRGlobalSlot, CompilerError> slot = child.GlobalFor(name, TextType());
+		if (!slot.HasValue())
 		{
-			return std::unexpected(slot.error());
+			return MarmotCompiler::Failure(slot.Error());
 		}
-		arguments.insert(arguments.begin(), child.m_builder.Emit(MarmotIROp::GlobalGet, TextType(), {}, slot.value()));
+		arguments.insert(arguments.begin(), child.m_builder.Emit(MarmotIROp::GlobalGet, TextType(), {}, slot.Value()));
 	}
 	const MarmotIRValueId result = child.m_builder.Emit(MarmotIROp::CallForeign, signature.m_return_type, std::move(arguments), target);
 	if (IsNever(signature.m_return_type))
@@ -711,7 +713,7 @@ Lowering::Lowered Lowering::FunctionLowering::LowerForeignValue(const MarmotExpr
 Lowering::Lowered Lowering::FunctionLowering::LowerName(const MarmotExpression::NameAccess& name)
 {
 	const Token& token = name.m_name;
-	if (name.m_intrinsic.has_value())
+	if (name.m_intrinsic.HasValue())
 	{
 		return LowerForeignValue(name, Concrete(name.m_type_data));
 	}
@@ -737,22 +739,22 @@ Lowering::Lowered Lowering::FunctionLowering::LowerName(const MarmotExpression::
 	{
 		const TypeRef type = Concrete(name.m_type_data);
 		const MarmotType::FunctionType& signature = type->GetType<MarmotType::FunctionType>();
-		const MethodResolution<std::optional<ResolvedInstanceName>> resolved = m_owner.m_resolver.ResolveConcreteCall(lexeme, signature.m_param_types, signature.m_return_type);
-		if (!resolved.has_value())
+		const MethodResolution<MarmotCompiler::Optional<ResolvedInstanceName>> resolved = m_owner.m_resolver.ResolveConcreteCall(lexeme, signature.m_param_types, signature.m_return_type);
+		if (!resolved.HasValue())
 		{
-			return std::unexpected(m_owner.ResolutionError(resolved.error(), token));
+			return MarmotCompiler::Failure(m_owner.ResolutionError(resolved.Error(), token));
 		}
-		return LoadResolved(resolved.value().value(), type, token);
+		return LoadResolved(resolved.Value().Value(), type, token);
 	}
 	// A generic function used as a value is its specialization for the types
 	// the value has.
-	const std::optional<std::string> generic_key = m_owner.m_top_level_names.contains(lexeme) ? std::nullopt : m_owner.m_generics.FindKey(lexeme, specialization.m_source_module);
-	if (generic_key.has_value())
+	const MarmotCompiler::Optional<std::string> generic_key = m_owner.m_top_level_names.contains(lexeme) ? MarmotCompiler::None : m_owner.m_generics.FindKey(lexeme, specialization.m_source_module);
+	if (generic_key.HasValue())
 	{
 		const TypeRef type = Concrete(name.m_type_data);
 		const MarmotType::FunctionType& instance = type->GetType<MarmotType::FunctionType>();
-		return Specialize(generic_key.value(), instance.m_param_types, instance.m_return_type)
-			.transform([this, &type, &token](MarmotIRFunctionId function)
+		return Specialize(generic_key.Value(), instance.m_param_types, instance.m_return_type)
+			.Transform([this, &type, &token](MarmotIRFunctionId function)
 			{
 				return m_builder.AtLine(token.m_line).Emit(MarmotIROp::MakeClosure, ClosureType(type), {}, function, token.m_lexeme);
 			});
@@ -763,7 +765,7 @@ Lowering::Lowered Lowering::FunctionLowering::LowerName(const MarmotExpression::
 	}
 
 	return GlobalFor(token, Concrete(name.m_type_data))
-		.transform
+		.Transform
 		(
 			[this, &token](MarmotIRGlobalSlot slot)
 			{
@@ -775,15 +777,15 @@ Lowering::Lowered Lowering::FunctionLowering::LowerName(const MarmotExpression::
 
 // A bare name inside a specialization of another module's generic is one of
 // that module's, whatever this module defines.
-std::expected<MarmotIRGlobalSlot, CompilerError> Lowering::FunctionLowering::GlobalFor(const Token& name, const TypeRef& type)
+MarmotCompiler::Expected<MarmotIRGlobalSlot, CompilerError> Lowering::FunctionLowering::GlobalFor(const Token& name, const TypeRef& type)
 {
 	const std::string& lexeme = name.m_lexeme;
 	const TypeRef import_type = type->IsType<MarmotType::FunctionType>() ? ClosureType(type) : type;
 	const size_t separator = lexeme.find(NameSeparator);
-	const std::optional<std::string>& source_module = m_specialization.m_source_module;
-	if (source_module.has_value() && separator == std::string::npos)
+	const MarmotCompiler::Optional<std::string>& source_module = m_specialization.m_source_module;
+	if (source_module.HasValue() && separator == std::string::npos)
 	{
-		return ImportGlobal(source_module.value(), lexeme, import_type, name);
+		return ImportGlobal(source_module.Value(), lexeme, import_type, name);
 	}
 
 	const std::unordered_map<std::string, TopLevelName>::const_iterator own = m_owner.m_top_level_names.find(lexeme);
@@ -793,20 +795,20 @@ std::expected<MarmotIRGlobalSlot, CompilerError> Lowering::FunctionLowering::Glo
 	}
 	if (separator == std::string::npos)
 	{
-		return std::unexpected(m_owner.Unsupported(std::format("'{}'", lexeme), name));
+		return MarmotCompiler::Failure(m_owner.Unsupported(std::format("'{}'", lexeme), name));
 	}
 	return ImportGlobal(lexeme.substr(0u, separator), lexeme.substr(separator + NameSeparator.length()), import_type, name);
 }
 
 // A selected instance's declaring module determines its global, independently
 // of the source module of a generic currently being specialized.
-std::expected<MarmotIRGlobalSlot, CompilerError> Lowering::FunctionLowering::GlobalForResolved(const ResolvedInstanceName& name, const TypeRef& type, const Token& at)
+MarmotCompiler::Expected<MarmotIRGlobalSlot, CompilerError> Lowering::FunctionLowering::GlobalForResolved(const ResolvedInstanceName& name, const TypeRef& type, const Token& at)
 {
 	if (name.m_declaring_module != m_owner.m_module_name)
 	{
-		if (m_owner.m_generics.KeyIn(name.m_declaring_module, name.m_symbol).has_value())
+		if (m_owner.m_generics.KeyIn(name.m_declaring_module, name.m_symbol).HasValue())
 		{
-			return std::unexpected(m_owner.Error(CompilerErrorCode::LoweringUnresolvedMethodResolution, std::format("Constrained instance method '{}' from module '{}' is monomorphised at each call site, so it has no address to take. Call it directly instead of using it through an operator or as a value.", name.m_symbol, name.m_declaring_module), at));
+			return MarmotCompiler::Failure(m_owner.Error(CompilerErrorCode::LoweringUnresolvedMethodResolution, std::format("Constrained instance method '{}' from module '{}' is monomorphised at each call site, so it has no address to take. Call it directly instead of using it through an operator or as a value.", name.m_symbol, name.m_declaring_module), at));
 		}
 		return ImportGlobal(name.m_declaring_module, name.m_symbol, type, at);
 	}
@@ -814,7 +816,7 @@ std::expected<MarmotIRGlobalSlot, CompilerError> Lowering::FunctionLowering::Glo
 	const std::unordered_map<std::string, TopLevelName>::const_iterator own = m_owner.m_top_level_names.find(name.m_symbol);
 	if (own == m_owner.m_top_level_names.cend())
 	{
-		return std::unexpected(m_owner.Error(CompilerErrorCode::None, std::format("Resolved symbol '{}' not found in globals.", name.m_symbol), at));
+		return MarmotCompiler::Failure(m_owner.Error(CompilerErrorCode::None, std::format("Resolved symbol '{}' not found in globals.", name.m_symbol), at));
 	}
 	return own->second.m_slot;
 }
@@ -836,10 +838,10 @@ MarmotIRGlobalSlot Lowering::FunctionLowering::ImportGlobal(const std::string& m
 
 Lowering::Lowered Lowering::FunctionLowering::LoadResolved(const ResolvedInstanceName& resolved_name, const TypeRef& type, const Token& at)
 {
-	if (const std::optional<std::string> key = m_owner.m_generics.KeyIn(resolved_name.m_declaring_module, resolved_name.m_symbol))
+	if (const MarmotCompiler::Optional<std::string> key = m_owner.m_generics.KeyIn(resolved_name.m_declaring_module, resolved_name.m_symbol))
 	{
 		const MarmotType::FunctionType& signature = type->GetType<MarmotType::FunctionType>();
-		return Specialize(key.value(), signature.m_param_types, signature.m_return_type).transform
+		return Specialize(key.Value(), signature.m_param_types, signature.m_return_type).Transform
 		(
 			[&](MarmotIRFunctionId function)
 			{
@@ -848,7 +850,7 @@ Lowering::Lowered Lowering::FunctionLowering::LoadResolved(const ResolvedInstanc
 		);
 	}
 	return GlobalForResolved(resolved_name, type, at)
-		.transform
+		.Transform
 		(
 			[this, &at](MarmotIRGlobalSlot slot)
 			{
@@ -863,11 +865,11 @@ Lowering::Lowered Lowering::FunctionLowering::LoadResolved(const ResolvedInstanc
 // its global.
 Lowering::Lowered Lowering::FunctionLowering::CallResolved(const ResolvedInstanceName& name, std::vector<MarmotIRValueId> arguments, const std::vector<TypeRef>& argument_types, const TypeRef& result_type, const Token& at)
 {
-	const std::optional<std::string> generic_key = m_owner.m_generics.KeyIn(name.m_declaring_module, name.m_symbol);
-	if (generic_key.has_value())
+	const MarmotCompiler::Optional<std::string> generic_key = m_owner.m_generics.KeyIn(name.m_declaring_module, name.m_symbol);
+	if (generic_key.HasValue())
 	{
-		return Specialize(generic_key.value(), argument_types, result_type)
-			.transform([&](MarmotIRFunctionId function)
+		return Specialize(generic_key.Value(), argument_types, result_type)
+			.Transform([&](MarmotIRFunctionId function)
 			{
 				return m_builder.AtLine(at.m_line).Emit(MarmotIROp::Call, m_owner.m_functions[function.m_index].m_return_type, std::move(arguments), function);
 			});
@@ -876,15 +878,15 @@ Lowering::Lowered Lowering::FunctionLowering::CallResolved(const ResolvedInstanc
 	if (name.m_declaring_module == m_owner.m_module_name)
 	{
 		const std::unordered_map<std::string, TopLevelName>::const_iterator own = m_owner.m_top_level_names.find(name.m_symbol);
-		if (own != m_owner.m_top_level_names.cend() && own->second.m_function.has_value())
+		if (own != m_owner.m_top_level_names.cend() && own->second.m_function.HasValue())
 		{
-			const MarmotIRFunctionId function = own->second.m_function.value();
+			const MarmotIRFunctionId function = own->second.m_function.Value();
 			return m_builder.AtLine(at.m_line).Emit(MarmotIROp::Call, m_owner.m_functions[function.m_index].m_return_type, std::move(arguments), function);
 		}
 	}
 
 	return GlobalForResolved(name, MarmotType::MakeFunctionType(argument_types, TypeRef(result_type)), at)
-		.transform([&](MarmotIRGlobalSlot slot)
+		.Transform([&](MarmotIRGlobalSlot slot)
 		{
 			return m_builder.AtLine(at.m_line).Emit(MarmotIROp::CallGlobal, result_type, std::move(arguments), slot);
 		});
@@ -893,7 +895,7 @@ Lowering::Lowered Lowering::FunctionLowering::CallResolved(const ResolvedInstanc
 // A primitive is its instruction, whichever module declared it.
 Lowering::Lowered Lowering::FunctionLowering::LowerPrimitive(const MarmotExpression::Call& call)
 {
-	const MarmotPrimitive primitive = call.m_primitive.value();
+	const MarmotPrimitive primitive = call.m_primitive.Value();
 	if (primitive == MarmotPrimitive::Spawn)
 	{
 		return LowerSpawn(call);
@@ -901,7 +903,7 @@ Lowering::Lowered Lowering::FunctionLowering::LowerPrimitive(const MarmotExpress
 
 	if (const MarmotOperator* operation = PrimitiveOperator(primitive))
 	{
-		return LowerArguments(call.m_arguments).and_then
+		return LowerArguments(call.m_arguments).AndThen
 		(
 			[&](std::vector<MarmotIRValueId> arguments) -> Lowered
 			{
@@ -922,7 +924,7 @@ Lowering::Lowered Lowering::FunctionLowering::LowerPrimitive(const MarmotExpress
 
 Lowering::Lowered Lowering::FunctionLowering::LowerCall(const MarmotExpression::Call& call)
 {
-	if (call.m_primitive.has_value())
+	if (call.m_primitive.HasValue())
 	{
 		return LowerPrimitive(call);
 	}
@@ -930,7 +932,7 @@ Lowering::Lowered Lowering::FunctionLowering::LowerCall(const MarmotExpression::
 	const TypeRef call_type = Concrete(call.m_type_data);
 	const int line = call.m_paren.m_line;
 	return LowerArguments(call.m_arguments)
-		.and_then
+		.AndThen
 		(
 			[&](std::vector<MarmotIRValueId> arguments) -> Lowered
 			{
@@ -939,7 +941,7 @@ Lowering::Lowered Lowering::FunctionLowering::LowerCall(const MarmotExpression::
 					return Placeholder(call_type);
 				}
 				return ResolveCallee(call, arguments, call_type)
-					.transform([&](Callee callee)
+					.Transform([&](Callee callee)
 					{
 						return EmitCall(callee, std::move(arguments), call_type, line);
 					});
@@ -952,10 +954,10 @@ Lowering::Lowered Lowering::FunctionLowering::LowerCall(const MarmotExpression::
 // and a call whose result is not the function's is not one it can return.
 Lowering::Emitted Lowering::FunctionLowering::LowerTailCall(const MarmotExpression::Call& call)
 {
-	if (call.m_is_foreign || call.m_primitive.has_value())
+	if (call.m_is_foreign || call.m_primitive.HasValue())
 	{
 		return LowerCall(call)
-			.transform([this](MarmotIRValueId value)
+			.Transform([this](MarmotIRValueId value)
 			{
 				m_builder.Return(value);
 			});
@@ -964,7 +966,7 @@ Lowering::Emitted Lowering::FunctionLowering::LowerTailCall(const MarmotExpressi
 	const TypeRef call_type = Concrete(call.m_type_data);
 	const int line = call.m_paren.m_line;
 	return LowerArguments(call.m_arguments)
-		.and_then
+		.AndThen
 		(
 			[&](std::vector<MarmotIRValueId> arguments) -> Emitted
 			{
@@ -974,7 +976,7 @@ Lowering::Emitted Lowering::FunctionLowering::LowerTailCall(const MarmotExpressi
 					return {};
 				}
 				return ResolveCallee(call, arguments, call_type)
-					.transform
+					.Transform
 					(
 						[&](Callee callee)
 						{
@@ -984,9 +986,9 @@ Lowering::Emitted Lowering::FunctionLowering::LowerTailCall(const MarmotExpressi
 								m_builder.Return(EmitCall(callee, std::move(arguments), call_type, line));
 								return;
 							}
-							if (callee.m_value.has_value())
+							if (callee.m_value.HasValue())
 							{
-								arguments.insert(arguments.begin(), callee.m_value.value());
+								arguments.insert(arguments.begin(), callee.m_value.Value());
 							}
 							m_builder.AtLine(line).TailCall(callee.m_target, std::move(arguments));
 						}
@@ -1011,9 +1013,9 @@ Lowering::TypeRef Lowering::FunctionLowering::ResultTypeOf(const Callee& callee,
 	{
 		return returned_by(m_owner.m_module.m_globals[std::get<MarmotIRGlobalSlot>(callee.m_target).m_value].m_type);
 	}
-	if (callee.m_value.has_value())
+	if (callee.m_value.HasValue())
 	{
-		return returned_by(m_function.TypeOf(callee.m_value.value()));
+		return returned_by(m_function.TypeOf(callee.m_value.Value()));
 	}
 	return call_type;
 }
@@ -1021,10 +1023,10 @@ Lowering::TypeRef Lowering::FunctionLowering::ResultTypeOf(const Callee& callee,
 MarmotIRValueId Lowering::FunctionLowering::EmitCall(const Callee& callee, std::vector<MarmotIRValueId> arguments, const TypeRef& call_type, int line)
 {
 	const TypeRef result_type = ResultTypeOf(callee, call_type);
-	const bool is_foreign = std::holds_alternative<MarmotIRForeign>(callee.m_target) || (callee.m_value.has_value() && !m_function.TypeOf(callee.m_value.value())->IsType<MarmotType::FunctionType>());
-	if (callee.m_value.has_value())
+	const bool is_foreign = std::holds_alternative<MarmotIRForeign>(callee.m_target) || (callee.m_value.HasValue() && !m_function.TypeOf(callee.m_value.Value())->IsType<MarmotType::FunctionType>());
+	if (callee.m_value.HasValue())
 	{
-		arguments.insert(arguments.begin(), callee.m_value.value());
+		arguments.insert(arguments.begin(), callee.m_value.Value());
 	}
 	const MarmotIROp op = std::holds_alternative<MarmotIRFunctionId>(callee.m_target) ? MarmotIROp::Call
 		: std::holds_alternative<MarmotIRGlobalSlot>(callee.m_target) ? MarmotIROp::CallGlobal
@@ -1042,7 +1044,7 @@ MarmotIRValueId Lowering::FunctionLowering::EmitCall(const Callee& callee, std::
 // global holds, the specialization of a generic, the instance
 // method a class method resolves to, this module's function, a global, or the
 // closure its callee evaluates to, after the arguments.
-std::expected<Lowering::FunctionLowering::Callee, CompilerError> Lowering::FunctionLowering::ResolveCallee(const MarmotExpression::Call& call, const std::vector<MarmotIRValueId>& arguments, const TypeRef& call_type)
+MarmotCompiler::Expected<Lowering::FunctionLowering::Callee, CompilerError> Lowering::FunctionLowering::ResolveCallee(const MarmotExpression::Call& call, const std::vector<MarmotIRValueId>& arguments, const TypeRef& call_type)
 {
 	const MarmotExpression::NameAccess* name = GlobalName(*call.m_callee);
 	const Specialization& specialization = m_specialization;
@@ -1051,14 +1053,14 @@ std::expected<Lowering::FunctionLowering::Callee, CompilerError> Lowering::Funct
 	if (call.m_is_foreign)
 	{
 		const MarmotExpression::NameAccess& foreign = call.m_callee->GetExpression<MarmotExpression::NameAccess>();
-		if (foreign.m_intrinsic.has_value())
+		if (foreign.m_intrinsic.HasValue())
 		{
-			return Callee{ MarmotIRForeign{ std::string(MarmotIntrinsics::At(foreign.m_intrinsic.value()).m_name) }, std::nullopt };
+			return Callee{ MarmotIRForeign{ std::string(MarmotIntrinsics::At(foreign.m_intrinsic.Value()).m_name) }, MarmotCompiler::None };
 		}
 		if (name != nullptr && IsForeignDeclaration(name->m_name.m_lexeme))
 		{
 			return GlobalFor(name->m_name, TextType())
-				.transform
+				.Transform
 				(
 					[this, &paren](MarmotIRGlobalSlot slot)
 					{
@@ -1072,7 +1074,7 @@ std::expected<Lowering::FunctionLowering::Callee, CompilerError> Lowering::Funct
 	if (name == nullptr)
 	{
 		return Lower(*call.m_callee)
-			.transform([](MarmotIRValueId closure) { return Callee{ std::monostate{}, closure }; });
+			.Transform([](MarmotIRValueId closure) { return Callee{ std::monostate{}, closure }; });
 	}
 
 	const std::string& lexeme = name->m_name.m_lexeme;
@@ -1081,58 +1083,58 @@ std::expected<Lowering::FunctionLowering::Callee, CompilerError> Lowering::Funct
 	{
 		argument_types.push_back(NominalType(*call.m_arguments[index], arguments[index]));
 	}
-	std::optional<ResolvedInstanceName> resolved;
+	MarmotCompiler::Optional<ResolvedInstanceName> resolved;
 	if (specialization.m_methods.contains(lexeme))
 	{
-		const MethodResolution<std::optional<ResolvedInstanceName>> method = m_owner.m_resolver.ResolveConstrainedCall(specialization.m_methods, lexeme, argument_types, call_type);
-		if (!method.has_value())
+		const MethodResolution<MarmotCompiler::Optional<ResolvedInstanceName>> method = m_owner.m_resolver.ResolveConstrainedCall(specialization.m_methods, lexeme, argument_types, call_type);
+		if (!method.HasValue())
 		{
-			return std::unexpected(m_owner.ResolutionError(method.error(), paren));
+			return MarmotCompiler::Failure(m_owner.ResolutionError(method.Error(), paren));
 		}
-		resolved = method.value();
+		resolved = method.Value();
 	}
-	if (!resolved.has_value() && lexeme.find(NameSeparator) != std::string::npos)
+	if (!resolved.HasValue() && lexeme.find(NameSeparator) != std::string::npos)
 	{
-		const MethodResolution<std::optional<ResolvedInstanceName>> method = m_owner.m_resolver.ResolveConcreteCall(lexeme, argument_types, call_type);
-		if (!method.has_value())
+		const MethodResolution<MarmotCompiler::Optional<ResolvedInstanceName>> method = m_owner.m_resolver.ResolveConcreteCall(lexeme, argument_types, call_type);
+		if (!method.HasValue())
 		{
-			return std::unexpected(m_owner.ResolutionError(method.error(), paren));
+			return MarmotCompiler::Failure(m_owner.ResolutionError(method.Error(), paren));
 		}
-		resolved = method.value();
+		resolved = method.Value();
 	}
 
-	const std::optional<std::string> generic_key = resolved.has_value()
+	const MarmotCompiler::Optional<std::string> generic_key = resolved.HasValue()
 		? m_owner.m_generics.KeyIn(resolved->m_declaring_module, resolved->m_symbol)
 		: m_owner.m_generics.FindKey(lexeme, specialization.m_source_module);
-	if (generic_key.has_value())
+	if (generic_key.HasValue())
 	{
-		return Specialize(generic_key.value(), argument_types, call_type)
-			.transform([](MarmotIRFunctionId function) { return Callee{ function, std::nullopt }; });
+		return Specialize(generic_key.Value(), argument_types, call_type)
+			.Transform([](MarmotIRFunctionId function) { return Callee{ function, MarmotCompiler::None }; });
 	}
 
-	if (resolved.has_value())
+	if (resolved.HasValue())
 	{
-		const ResolvedInstanceName& instance = resolved.value();
+		const ResolvedInstanceName& instance = resolved.Value();
 		const std::unordered_map<std::string, TopLevelName>::const_iterator own = instance.m_declaring_module != m_owner.m_module_name ? m_owner.m_top_level_names.cend() : m_owner.m_top_level_names.find(instance.m_symbol);
-		if (own != m_owner.m_top_level_names.cend() && own->second.m_function.has_value())
+		if (own != m_owner.m_top_level_names.cend() && own->second.m_function.HasValue())
 		{
-			return Callee{ own->second.m_function.value(), std::nullopt };
+			return Callee{ own->second.m_function.Value(), MarmotCompiler::None };
 		}
-		return GlobalForResolved(resolved.value(), MarmotType::MakeFunctionType(argument_types, TypeRef(call_type)), paren)
-			.transform([](MarmotIRGlobalSlot slot) { return Callee{ slot, std::nullopt }; });
+		return GlobalForResolved(resolved.Value(), MarmotType::MakeFunctionType(argument_types, TypeRef(call_type)), paren)
+			.Transform([](MarmotIRGlobalSlot slot) { return Callee{ slot, MarmotCompiler::None }; });
 	}
 
-	if (!specialization.m_source_module.has_value())
+	if (!specialization.m_source_module.HasValue())
 	{
 		const std::unordered_map<std::string, TopLevelName>::const_iterator own = m_owner.m_top_level_names.find(lexeme);
-		if (own != m_owner.m_top_level_names.cend() && own->second.m_function.has_value())
+		if (own != m_owner.m_top_level_names.cend() && own->second.m_function.HasValue())
 		{
-			return Callee{ own->second.m_function.value(), std::nullopt };
+			return Callee{ own->second.m_function.Value(), MarmotCompiler::None };
 		}
 	}
 
 	return GlobalFor(name->m_name, Concrete(name->m_type_data))
-		.transform([](MarmotIRGlobalSlot slot) { return Callee{ slot, std::nullopt }; });
+		.Transform([](MarmotIRGlobalSlot slot) { return Callee{ slot, MarmotCompiler::None }; });
 }
 
 Lowering::LoweredValues Lowering::FunctionLowering::LowerArguments(const std::vector<std::unique_ptr<MarmotExpression>>& arguments)
@@ -1142,11 +1144,11 @@ Lowering::LoweredValues Lowering::FunctionLowering::LowerArguments(const std::ve
 	for (const std::unique_ptr<MarmotExpression>& argument : arguments)
 	{
 		const Lowered value = Lower(*argument);
-		if (!value.has_value())
+		if (!value.HasValue())
 		{
-			return std::unexpected(value.error());
+			return MarmotCompiler::Failure(value.Error());
 		}
-		values.push_back(value.value());
+		values.push_back(value.Value());
 	}
 	return values;
 }

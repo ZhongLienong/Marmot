@@ -27,11 +27,11 @@ namespace
 	{
 		const std::vector<std::string> source_lines;
 		MarmotResult::BytecodeBackendResult bytecode = BytecodeBackend(lowered, "Test.mmt", source_lines).Emit();
-		if (!bytecode.has_value())
+		if (!bytecode.HasValue())
 		{
-			FAIL(bytecode.error().Rendered());
+			FAIL(bytecode.Error().Rendered());
 		}
-		return std::move(bytecode).value();
+		return std::move(bytecode).Value();
 	}
 
 	std::vector<OpCode> Opcodes(const BytecodeStream& procedure)
@@ -51,12 +51,12 @@ namespace
 		std::vector<BytecodeModule> modules;
 		modules.push_back(std::move(module));
 		MarmotResult::BytecodeLinkerResult linked = BytecodeLinker(std::move(modules), name).Link();
-		if (!linked.has_value())
+		if (!linked.HasValue())
 		{
-			FAIL(linked.error().Rendered());
+			FAIL(linked.Error().Rendered());
 		}
 
-		const std::pair<int, MarmotTest::CapturedOutput> run = MarmotTest::RunExecutable(linked.value());
+		const std::pair<int, MarmotTest::CapturedOutput> run = MarmotTest::RunExecutable(linked.Value());
 		REQUIRE(run.first == 0);
 		return run.second;
 	}
@@ -103,7 +103,7 @@ TEST_CASE("A frame of more than 255 slots pushes its placeholders in several ins
 		| std::views::transform([](int index) { return std::format("v{}", index); })
 		| std::views::join_with(std::string_view(" + "))
 		| std::ranges::to<std::string>();
-	std::expected<LoweredModule, MarmotResult::CompilerDiagnostics> lowered = MarmotTest::LowerSnippetWithDiagnostics(std::format
+	MarmotResult::DiagnosticsResult<LoweredModule> lowered = MarmotTest::LowerSnippetWithDiagnostics(std::format
 	(
 		R"(module Wide
 foreign "MARMOT_FFI_Print" Print: fn(Text) -> Unit from "marmotstdlib";
@@ -115,9 +115,9 @@ Print(Total(1) as Text);
 		definitions,
 		sum
 	));
-	REQUIRE(lowered.has_value());
+	REQUIRE(lowered.HasValue());
 
-	BytecodeModule bytecode = RequireBytecode(lowered.value());
+	BytecodeModule bytecode = RequireBytecode(lowered.Value());
 	REQUIRE(bytecode.m_procedure_names[1u] == "Total@Wide");
 	const BytecodeStream& total = bytecode.m_procedures[1u];
 	REQUIRE(total.ReadByteCode(0) == OpCode::PUSH_PLACEHOLDER);

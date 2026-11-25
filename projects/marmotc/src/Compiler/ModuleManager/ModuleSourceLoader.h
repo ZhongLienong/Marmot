@@ -1,6 +1,8 @@
 #pragma once
 
 #include "Compiler/Result/Result.h"
+#include "Support/Expected.h"
+#include "Support/Optional.h"
 
 #include <condition_variable>
 #include <deque>
@@ -27,7 +29,7 @@ class ModuleSourceLoader
 {
 public:
 	enum class OpenFailure { File };
-	using LoadResult = std::expected<ImportedSource, std::variant<OpenFailure, CompilerError>>;
+	using LoadResult = MarmotCompiler::Expected<ImportedSource, std::variant<OpenFailure, CompilerError>>;
 	using Reader = std::function<LoadResult(const std::string&)>;
 
 	ModuleSourceLoader(size_t jobs, const CompilationInputs& inputs);
@@ -54,7 +56,7 @@ private:
 
 	static LoadResult Read(const std::string& file_path);
 	static LoadResult Lex(std::string source, const std::string& file_path);
-	std::optional<LoadTask> TakeReady();
+	MarmotCompiler::Optional<LoadTask> TakeReady();
 	LoadResult Await(std::future<LoadResult> result);
 	void WorkerLoop();
 };

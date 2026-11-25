@@ -1,5 +1,6 @@
 #include "MarmotIRVerifier.h"
 #include "Compiler/Lowering/GenericTypes.h"
+#include "Support/Optional.h"
 
 #include <algorithm>
 #include <format>
@@ -54,10 +55,10 @@ namespace
 		const MarmotIRModule& m_module;
 		const MarmotIRFunction& m_function;
 		std::vector<MarmotIRViolation>& m_violations;
-		std::vector<std::optional<Definition>> m_definitions;
+		std::vector<MarmotCompiler::Optional<Definition>> m_definitions;
 		std::vector<std::vector<uint32_t>> m_predecessors;
 		// The immediate dominator of each block reachable from the entry.
-		std::vector<std::optional<uint32_t>> m_dominators;
+		std::vector<MarmotCompiler::Optional<uint32_t>> m_dominators;
 
 	public:
 		FunctionVerifier(const MarmotIRModule& module, const MarmotIRFunction& function, std::vector<MarmotIRViolation>& violations)
@@ -74,7 +75,7 @@ namespace
 		{
 			if (m_function.m_blocks.empty())
 			{
-				Report(MarmotIRRule::Terminator, std::nullopt, "has no blocks");
+				Report(MarmotIRRule::Terminator, MarmotCompiler::None, "has no blocks");
 				return;
 			}
 
@@ -102,7 +103,7 @@ namespace
 		}
 
 	private:
-		void Report(MarmotIRRule rule, std::optional<MarmotIRBlockId> block, std::string message)
+		void Report(MarmotIRRule rule, MarmotCompiler::Optional<MarmotIRBlockId> block, std::string message)
 		{
 			m_violations.emplace_back(rule, m_function.m_name, block, std::move(message));
 		}
@@ -123,7 +124,7 @@ namespace
 
 		bool AllValuesExist(const MarmotIRInstruction& instruction) const
 		{
-			const bool results_exist = !instruction.m_result.has_value() || IsValue(instruction.m_result.value());
+			const bool results_exist = !instruction.m_result.HasValue() || IsValue(instruction.m_result.Value());
 			const bool operands_exist = std::ranges::all_of(instruction.m_operands, [this](MarmotIRValueId value) { return IsValue(value); });
 			const bool arguments_exist = std::ranges::all_of(instruction.m_successors, [this](const MarmotIRSuccessor& successor)
 			{
@@ -189,7 +190,7 @@ namespace
 				Report(MarmotIRRule::Dominance, definition.m_block, std::format("defines %{}, which is not a value of this function", value.m_index));
 				return;
 			}
-			if (m_definitions[value.m_index].has_value())
+			if (m_definitions[value.m_index].HasValue())
 			{
 				Report(MarmotIRRule::Dominance, definition.m_block, std::format("defines %{} a second time", value.m_index));
 				return;
@@ -208,10 +209,10 @@ namespace
 				}
 				for (size_t position = 0u; position < current.m_instructions.size(); position += 1u)
 				{
-					const std::optional<MarmotIRValueId>& result = current.m_instructions[position].m_result;
-					if (result.has_value())
+					const MarmotCompiler::Optional<MarmotIRValueId>& result = current.m_instructions[position].m_result;
+					if (result.HasValue())
 					{
-						Define(result.value(), Definition{ MarmotIRBlockId{ block }, static_cast<int>(position) });
+						Define(result.Value(), Definition{ MarmotIRBlockId{ block }, static_cast<int>(position) });
 					}
 				}
 			}
@@ -262,11 +263,11 @@ namespace
 				{
 					while (postorder_number[left] < postorder_number[right])
 					{
-						left = m_dominators[left].value();
+						left = m_dominators[left].Value();
 					}
 					while (postorder_number[right] < postorder_number[left])
 					{
-						right = m_dominators[right].value();
+						right = m_dominators[right].Value();
 					}
 				}
 				return left;
@@ -279,14 +280,14 @@ namespace
 				changed = false;
 				for (const uint32_t block : postorder | std::views::reverse | std::views::drop(1))
 				{
-					std::optional<uint32_t> dominator = std::nullopt;
+					MarmotCompiler::Optional<uint32_t> dominator = MarmotCompiler::None;
 					for (const uint32_t predecessor : m_predecessors[block])
 					{
-						if (!m_dominators[predecessor].has_value())
+						if (!m_dominators[predecessor].HasValue())
 						{
 							continue;
 						}
-						dominator = dominator.has_value() ? intersect(predecessor, dominator.value()) : predecessor;
+						dominator = dominator.HasValue() ? intersect(predecessor, dominator.Value()) : predecessor;
 					}
 					if (dominator != m_dominators[block])
 					{
@@ -299,7 +300,7 @@ namespace
 
 		bool IsReachable(uint32_t block) const
 		{
-			return m_dominators[block].has_value();
+			return m_dominators[block].HasValue();
 		}
 
 		bool Dominates(uint32_t dominator, uint32_t block) const
@@ -310,7 +311,7 @@ namespace
 				{
 					return false;
 				}
-				block = m_dominators[block].value();
+				block = m_dominators[block].Value();
 			}
 			return true;
 		}
@@ -350,8 +351,8 @@ namespace
 				Report(MarmotIRRule::Dominance, MarmotIRBlockId{ block }, std::format("uses %{}, which is not a value of this function", value.m_index));
 				return;
 			}
-			const std::optional<Definition>& definition = m_definitions[value.m_index];
-			if (!definition.has_value())
+			const MarmotCompiler::Optional<Definition>& definition = m_definitions[value.m_index];
+			if (!definition.HasValue())
 			{
 				Report(MarmotIRRule::Dominance, MarmotIRBlockId{ block }, std::format("uses %{}, which nothing defines", value.m_index));
 				return;
@@ -369,8 +370,8 @@ namespace
 
 		bool IsConstant(MarmotIRValueId value) const
 		{
-			const std::optional<Definition>& definition = m_definitions[value.m_index];
-			return definition.has_value() && definition->m_position >= 0
+			const MarmotCompiler::Optional<Definition>& definition = m_definitions[value.m_index];
+			return definition.HasValue() && definition->m_position >= 0
 				&& m_function.m_blocks[definition->m_block.m_index].m_instructions[static_cast<size_t>(definition->m_position)].m_op == MarmotIROp::Const;
 		}
 
@@ -380,7 +381,7 @@ namespace
 			const std::vector<MarmotIRInstruction>& instructions = m_function.Block(block).m_instructions;
 			for (size_t position = 0u; position + 1u < instructions.size(); position += 1u)
 			{
-				const bool returns_never = instructions[position].m_result.has_value() && IsNever(instructions[position].m_type);
+				const bool returns_never = instructions[position].m_result.HasValue() && IsNever(instructions[position].m_type);
 				if (returns_never && instructions[position + 1u].m_op != MarmotIROp::Unreachable)
 				{
 					Report(MarmotIRRule::Terminator, block, std::format("{} returns Never, but {} follows it", GetMarmotIROpInfo(instructions[position].m_op).m_name, GetMarmotIROpInfo(instructions[position + 1u].m_op).m_name));
@@ -480,11 +481,11 @@ namespace
 		{
 			const MarmotIROpInfo& info = GetMarmotIROpInfo(instruction.m_op);
 			const bool is_terminator = info.m_arity == MarmotIRArity::Terminator;
-			if (!Expect(instruction.m_result.has_value() != is_terminator, block, instruction, is_terminator ? "a terminator defines no value" : "defines no value"))
+			if (!Expect(instruction.m_result.HasValue() != is_terminator, block, instruction, is_terminator ? "a terminator defines no value" : "defines no value"))
 			{
 				return;
 			}
-			if (!is_terminator && !Expect(SameType(instruction.m_type, TypeOf(instruction.m_result.value())), block, instruction, "its type is not its value's type"))
+			if (!is_terminator && !Expect(SameType(instruction.m_type, TypeOf(instruction.m_result.Value())), block, instruction, "its type is not its value's type"))
 			{
 				return;
 			}
@@ -504,12 +505,12 @@ namespace
 			{
 				if (operand_count(info.m_arity == MarmotIRArity::Unary ? 1u : 2u))
 				{
-					const TypeRef& operand_type = MarmotIRScalarType(info.m_operand.value());
+					const TypeRef& operand_type = MarmotIRScalarType(info.m_operand.Value());
 					for (const MarmotIRValueId operand : operands)
 					{
 						Expect(SameType(TypeOf(operand), operand_type), block, instruction, std::format("takes {}, not {}", operand_type->ToString(), TypeOf(operand)->ToString()));
 					}
-					Expect(SameType(result, MarmotIRScalarType(info.m_result.value())), block, instruction, std::format("gives {}, not {}", MarmotIRScalarType(info.m_result.value())->ToString(), result->ToString()));
+					Expect(SameType(result, MarmotIRScalarType(info.m_result.Value())), block, instruction, std::format("gives {}, not {}", MarmotIRScalarType(info.m_result.Value())->ToString(), result->ToString()));
 				}
 				return;
 			}
@@ -868,7 +869,7 @@ namespace
 	};
 }
 
-MarmotIRViolation::MarmotIRViolation(MarmotIRRule rule, std::string function, std::optional<MarmotIRBlockId> block, std::string message)
+MarmotIRViolation::MarmotIRViolation(MarmotIRRule rule, std::string function, MarmotCompiler::Optional<MarmotIRBlockId> block, std::string message)
 	: m_rule(rule),
 	m_function(std::move(function)),
 	m_block(block),
@@ -878,7 +879,7 @@ MarmotIRViolation::MarmotIRViolation(MarmotIRRule rule, std::string function, st
 
 std::string MarmotIRViolation::ToString() const
 {
-	const std::string where = m_block.has_value() ? std::format("{} bb{}", m_function, m_block->m_index) : m_function;
+	const std::string where = m_block.HasValue() ? std::format("{} bb{}", m_function, m_block->m_index) : m_function;
 	return std::format("rule {}: {}: {}", static_cast<int>(m_rule), where, m_message);
 }
 

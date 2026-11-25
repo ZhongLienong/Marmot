@@ -4,11 +4,11 @@
 #include "Compiler/AbstractSyntaxTree/Type.h"
 #include "Compiler/Lowering/GenericTypes.h"
 #include "Compiler/Module/TypeclassMetadata.h"
+#include "Support/Expected.h"
+#include "Support/Optional.h"
 
-#include <expected>
 #include <functional>
 #include <memory>
-#include <optional>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -25,7 +25,7 @@ struct MethodResolutionError
 };
 
 template<typename T>
-using MethodResolution = std::expected<T, MethodResolutionError>;
+using MethodResolution = MarmotCompiler::Expected<T, MethodResolutionError>;
 
 // A selected instance keeps its origin even when it belongs to this module:
 // a surrounding imported generic's source module must not reinterpret it.
@@ -45,9 +45,9 @@ struct ResolvedMethodCandidate
 {
 	std::string m_first_type_name;
 	std::string m_second_type_name;
-	std::optional<ResolvedInstanceName> m_resolved_name;
+	MarmotCompiler::Optional<ResolvedInstanceName> m_resolved_name;
 
-	ResolvedMethodCandidate(std::string first_type_name, std::string second_type_name, std::optional<ResolvedInstanceName> resolved_name);
+	ResolvedMethodCandidate(std::string first_type_name, std::string second_type_name, MarmotCompiler::Optional<ResolvedInstanceName> resolved_name);
 };
 
 // `Class::Method` to the candidates the constraints in scope give it.
@@ -69,10 +69,10 @@ public:
 
 	bool IsClassMethod(const std::string& qualified_name) const;
 
-	std::optional<ResolvedInstanceName> ResolveInstanceName(const std::string& class_name, const std::string& base_name) const;
+	MarmotCompiler::Optional<ResolvedInstanceName> ResolveInstanceName(const std::string& class_name, const std::string& base_name) const;
 	// What the instance its concrete type arguments select binds a projection to.
-	std::optional<std::shared_ptr<MarmotType>> ResolveAssociatedType(const MarmotType::AssociatedType& projection) const;
-	std::optional<ResolvedInstanceName> ResolveInstanceNameForTypeArgs(const std::string& class_name, const std::string& method_name, const std::vector<std::shared_ptr<MarmotType>>& concrete_type_args) const;
+	MarmotCompiler::Optional<std::shared_ptr<MarmotType>> ResolveAssociatedType(const MarmotType::AssociatedType& projection) const;
+	MarmotCompiler::Optional<ResolvedInstanceName> ResolveInstanceNameForTypeArgs(const std::string& class_name, const std::string& method_name, const std::vector<std::shared_ptr<MarmotType>>& concrete_type_args) const;
 
 	// The candidates a specialization's constraints give each of their
 	// classes' methods, once `substitutions` makes their type arguments concrete.
@@ -80,26 +80,26 @@ public:
 
 	// A call of a method a constraint in scope provides; nothing when no
 	// constraint is on the first argument's type, a call at a concrete type.
-	MethodResolution<std::optional<ResolvedInstanceName>> ResolveConstrainedCall(const MethodResolutionMap& resolutions, const std::string& callee_name, const std::vector<std::shared_ptr<MarmotType>>& argument_types, const std::shared_ptr<MarmotType>& return_type) const;
+	MethodResolution<MarmotCompiler::Optional<ResolvedInstanceName>> ResolveConstrainedCall(const MethodResolutionMap& resolutions, const std::string& callee_name, const std::vector<std::shared_ptr<MarmotType>>& argument_types, const std::shared_ptr<MarmotType>& return_type) const;
 	// A call of `Class::Method` with concrete arguments; nothing when the name
 	// is no class method.
-	MethodResolution<std::optional<ResolvedInstanceName>> ResolveConcreteCall(const std::string& callee_name, const std::vector<std::shared_ptr<MarmotType>>& argument_types, const std::shared_ptr<MarmotType>& return_type) const;
+	MethodResolution<MarmotCompiler::Optional<ResolvedInstanceName>> ResolveConcreteCall(const std::string& callee_name, const std::vector<std::shared_ptr<MarmotType>>& argument_types, const std::shared_ptr<MarmotType>& return_type) const;
 
 	MethodResolution<ResolvedInstanceName> ResolveConcat(const MethodResolutionMap& resolutions, const std::shared_ptr<MarmotType>& operand_type) const;
 	MethodResolution<ResolvedInstanceName> ResolveEquals(const std::shared_ptr<MarmotType>& operand_type) const;
 	MethodResolution<ResolvedInstanceName> ResolveCompare(const std::shared_ptr<MarmotType>& operand_type) const;
 	MethodResolution<ResolvedInstanceName> ResolveOperandInstance(const std::string& class_name, const std::string& method_name, const std::shared_ptr<MarmotType>& operand_type) const;
 	// Nothing when `#` does not need Countable.
-	MethodResolution<std::optional<ResolvedInstanceName>> ResolveCount(const MethodResolutionMap& resolutions, const std::shared_ptr<MarmotType>& operand_type, bool uses_countable) const;
+	MethodResolution<MarmotCompiler::Optional<ResolvedInstanceName>> ResolveCount(const MethodResolutionMap& resolutions, const std::shared_ptr<MarmotType>& operand_type, bool uses_countable) const;
 	MethodResolution<ResolvedInstanceName> ResolveIndex(const MethodResolutionMap& resolutions, const std::shared_ptr<MarmotType>& container_type, const std::shared_ptr<MarmotType>& index_type) const;
 	// Nothing when the conversion is a builtin one or erases a newtype. A
 	// constraint in scope is looked up by `concrete_from_type`, the operand's
 	// type once the specialization being emitted substitutes it.
-	MethodResolution<std::optional<ResolvedInstanceName>> ResolveConvert(const MethodResolutionMap& resolutions, const std::shared_ptr<MarmotType>& concrete_from_type, const std::shared_ptr<MarmotType>& from_type, const std::shared_ptr<MarmotType>& to_type, bool uses_convertible) const;
+	MethodResolution<MarmotCompiler::Optional<ResolvedInstanceName>> ResolveConvert(const MethodResolutionMap& resolutions, const std::shared_ptr<MarmotType>& concrete_from_type, const std::shared_ptr<MarmotType>& from_type, const std::shared_ptr<MarmotType>& to_type, bool uses_convertible) const;
 	MethodResolution<ResolvedInstanceName> ResolveIterableNext(const MethodResolutionMap& resolutions, const std::shared_ptr<MarmotType>& iterator_type, const std::shared_ptr<MarmotType>& item_type) const;
 
 private:
 	// The one instance of `class_name` whose type arguments match, through
 	// `matches`; an error names `description` when two do.
-	MethodResolution<std::optional<ResolvedInstanceName>> MatchSingleInstance(const std::string& class_name, const std::string& method_name, const std::function<bool(const std::vector<std::shared_ptr<MarmotType>>&)>& matches, const std::string& ambiguity_message) const;
+	MethodResolution<MarmotCompiler::Optional<ResolvedInstanceName>> MatchSingleInstance(const std::string& class_name, const std::string& method_name, const std::function<bool(const std::vector<std::shared_ptr<MarmotType>>&)>& matches, const std::string& ambiguity_message) const;
 };

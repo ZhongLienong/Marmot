@@ -120,7 +120,7 @@ void MarmotAbstractSyntaxTreeWalker::operator()(MarmotPattern::Array& array)
 	{
 		VisitPattern(element);
 	}
-	if (array.m_rest.has_value())
+	if (array.m_rest.HasValue())
 	{
 		VisitPattern(array.m_rest->m_pattern);
 	}
@@ -267,9 +267,9 @@ void MarmotAbstractSyntaxTreeWalker::operator()(MarmotExpression::Block& block)
 		VisitStatement(statement);
 	}
 
-	if (block.m_final_expr.has_value())
+	if (block.m_final_expr.HasValue())
 	{
-		VisitExpression(block.m_final_expr.value());
+		VisitExpression(block.m_final_expr.Value());
 	}
 }
 
@@ -287,7 +287,7 @@ void MarmotAbstractSyntaxTreeWalker::operator()(MarmotExpression::Case& case_exp
 	VisitPattern(case_expr.m_pattern);
 	if (case_expr.HasGuard())
 	{
-		VisitExpression(case_expr.m_guard.value());
+		VisitExpression(case_expr.m_guard.Value());
 	}
 	VisitExpression(case_expr.m_expr);
 }

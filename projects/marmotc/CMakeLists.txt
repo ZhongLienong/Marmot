@@ -33,22 +33,24 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # the failure otherwise surfaces as a missing header deep in the build.
 include(CheckCXXSourceCompiles)
 check_cxx_source_compiles("
-#include <expected>
+#include \"${CMAKE_CURRENT_SOURCE_DIR}/src/Support/Expected.h\"
+#include \"${CMAKE_CURRENT_SOURCE_DIR}/src/Support/Optional.h\"
 #include <print>
 #include <ranges>
 #include <vector>
 int main()
 {
     std::vector<int> values = std::views::iota(0, 3) | std::ranges::to<std::vector<int>>();
-    std::expected<int, int> result = values.front();
-    std::print(\"{}\", result.value());
+    MarmotCompiler::Expected<int, int> result = values.front();
+    MarmotCompiler::Optional<int> value = result.Value();
+    std::print(\"{}\", value.Value());
 }
-" MARMOT_HAS_CXX23_LIBRARY)
-if(NOT MARMOT_HAS_CXX23_LIBRARY)
+" MARMOT_HAS_CXX23_SUPPORT)
+if(NOT MARMOT_HAS_CXX23_SUPPORT)
     message(FATAL_ERROR
-        "Marmot needs a C++23 standard library with <print>, <expected> and std::ranges::to.\n"
+        "Marmot needs C++23 explicit object parameters and a standard library with <print>, <expected> and std::ranges::to.\n"
         "Detected compiler: ${CMAKE_CXX_COMPILER} (${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION})\n"
-        "Use MSVC 19.37+, GCC 14+, or Clang 19+ (Clang 18 cannot use libstdc++'s std::expected); "
+        "Use MSVC 19.37+, GCC 14+, or Clang 19+; "
         "on Linux, for example: CXX=g++-14 cmake --preset linux-dev")
 endif()
 

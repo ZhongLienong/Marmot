@@ -6,7 +6,6 @@
 #include "support/CompileHelpers.h"
 #include "support/TempProject.h"
 
-#include <expected>
 #include <filesystem>
 #include <format>
 #include <sstream>
@@ -51,8 +50,8 @@ namespace
 	{
 
 		MarmotDriver::CompileFileWithReportResult compiled = MarmotDriver::CompileFileWithReport(project.Path(std::string(file)), std::move(inputs));
-		REQUIRE(compiled.has_value());
-		return std::move(compiled).value().TakeExecutable();
+		REQUIRE(compiled.HasValue());
+		return std::move(compiled).Value().TakeExecutable();
 	}
 
 	std::string Run(const MarmotExecutable& executable, const std::vector<std::string>& arguments = {})
@@ -138,12 +137,12 @@ TEST_CASE("A .mmc records its native libraries and runs from them", "[ffi][nativ
 		CompilationInputs().WithNativeLibraryPolicies({ { "marmot_test_native_artifact", NativeLibraryPolicy{ .m_thread_safe = true } } }));
 
 	std::stringstream artifact;
-	REQUIRE(MarmotBinaryArtifact::WriteExecutable(executable, artifact, false).has_value());
+	REQUIRE(MarmotBinaryArtifact::WriteExecutable(executable, artifact, false).HasValue());
 	const NativeLibraryImport& library = executable.GetNativeLibraries()[0u];
 	CHECK(library.m_name == "marmot_test_native_artifact");
 	CHECK(library.m_symbols == std::vector<std::string>{ "marmot_test_add", "marmot_test_answer" });
 	CHECK(library.m_policy.m_thread_safe);
-	CHECK_FALSE(library.m_policy.m_checksum.has_value());
+	CHECK_FALSE(library.m_policy.m_checksum.HasValue());
 	CHECK(Run(executable) == "ok");
 }
 
@@ -230,8 +229,8 @@ TEST_CASE("A native function takes at most four arguments", "[ffi][native]")
 		"foreign \"marmot_test_add\" Add : fn(Int, Int, Int, Int, Int) -> Int from \"marmot_test_native\";\n"
 		"Add(1, 2, 3, 4, 5);\n") });
 	const MarmotDriver::CompileFileWithReportResult compiled = MarmotDriver::CompileFileWithReport(project.Path("Main.mmt"), CompilationInputs());
-	REQUIRE_FALSE(compiled.has_value());
-	CHECK(compiled.error().Rendered().find("Too many arguments to a native function (max 4)") != std::string::npos);
+	REQUIRE_FALSE(compiled.HasValue());
+	CHECK(compiled.Error().Rendered().find("Too many arguments to a native function (max 4)") != std::string::npos);
 }
 
 TEST_CASE("Loading a native library requires its result deallocator", "[ffi][native]")

@@ -2,6 +2,7 @@
 #include "Compiler/MarmotIROptimizer/Analysis/MarmotIRAnalysis.h"
 #include "Compiler/MarmotIROptimizer/Interprocedural/MarmotIRBodyCopy.h"
 #include "Compiler/MarmotIROptimizer/MarmotIRPasses.h"
+#include "Support/Optional.h"
 
 #include <ranges>
 #include <utility>
@@ -14,12 +15,12 @@ namespace
 	// A caller stops taking bodies past this size.
 	constexpr size_t s_max_caller_size = 4000u;
 
-	std::optional<MarmotIRFunctionId> DirectCallee(const MarmotIRInstruction& instruction)
+	MarmotCompiler::Optional<MarmotIRFunctionId> DirectCallee(const MarmotIRInstruction& instruction)
 	{
 		const bool is_call = instruction.m_op == MarmotIROp::Call || instruction.m_op == MarmotIROp::TailCall;
 		if (!is_call || !std::holds_alternative<MarmotIRFunctionId>(instruction.m_immediate))
 		{
-			return std::nullopt;
+			return MarmotCompiler::None;
 		}
 		return std::get<MarmotIRFunctionId>(instruction.m_immediate);
 	}
@@ -70,14 +71,14 @@ namespace
 						}
 						const uint32_t named = std::get<MarmotIRFunctionId>(instruction.m_immediate).m_index;
 						m_references[named] += 1u;
-						if (DirectCallee(instruction).has_value())
+						if (DirectCallee(instruction).HasValue())
 						{
 							m_callees[caller].push_back(named);
 						}
 					}
 				}
 			}
-			if (module.m_top_level.has_value())
+			if (module.m_top_level.HasValue())
 			{
 				m_references[module.m_top_level->m_index] += 1u;
 			}
@@ -165,7 +166,7 @@ namespace
 		const MarmotIRFunction& callee = module.Function(std::get<MarmotIRFunctionId>(call.m_immediate));
 		// Another module's source has other lines: the call's own stands for
 		// all of them, as the call did.
-		const std::optional<int> line = callee.m_source_module == caller.m_source_module ? std::nullopt : std::optional<int>(call.m_line);
+		const MarmotCompiler::Optional<int> line = callee.m_source_module == caller.m_source_module ? MarmotCompiler::None : MarmotCompiler::Optional<int>(call.m_line);
 
 		if (call.m_op == MarmotIROp::TailCall)
 		{
@@ -177,7 +178,7 @@ namespace
 		const MarmotIRBlockId continuation = MarmotIRAnalysis::InsertBlock(caller, site.m_block + 1u);
 		std::vector<MarmotIRInstruction>& instructions = caller.m_blocks[site.m_block].m_instructions;
 		MarmotIRBlock& after = caller.m_blocks[continuation.m_index];
-		after.m_parameters = { call.m_result.value() };
+		after.m_parameters = { call.m_result.Value() };
 		after.m_instructions.assign(std::make_move_iterator(instructions.begin() + site.m_position + 1), std::make_move_iterator(instructions.end()));
 		instructions.erase(instructions.begin() + site.m_position, instructions.end());
 
@@ -214,12 +215,12 @@ namespace
 
 	bool IsInlinable(const MarmotIRModule& module, const CallGraph& graph, const std::vector<uint32_t>& components, uint32_t caller, const MarmotIRInstruction& call)
 	{
-		const std::optional<MarmotIRFunctionId> callee_id = DirectCallee(call);
-		if (!callee_id.has_value() || callee_id->m_index == caller)
+		const MarmotCompiler::Optional<MarmotIRFunctionId> callee_id = DirectCallee(call);
+		if (!callee_id.HasValue() || callee_id->m_index == caller)
 		{
 			return false;
 		}
-		const MarmotIRFunction& callee = module.Function(callee_id.value());
+		const MarmotIRFunction& callee = module.Function(callee_id.Value());
 		if (!callee.m_capture_types.empty() || callee.m_return_type->IsType<MarmotType::NeverType>() || !MarmotIRAnalysis::IsFrameTransparent(callee))
 		{
 			return false;

@@ -269,9 +269,9 @@ void ShadowingPolicyDiagnostic::operator()(MarmotExpression::Block& block)
 				VisitStatement(statement);
 			}
 
-			if (block.m_final_expr.has_value())
+			if (block.m_final_expr.HasValue())
 			{
-				VisitExpression(block.m_final_expr.value());
+				VisitExpression(block.m_final_expr.Value());
 			}
 		}
 	);
@@ -286,7 +286,7 @@ void ShadowingPolicyDiagnostic::operator()(MarmotExpression::Case& case_expr)
 			VisitPattern(case_expr.m_pattern);
 			if (case_expr.HasGuard())
 			{
-				VisitExpression(case_expr.m_guard.value());
+				VisitExpression(case_expr.m_guard.Value());
 			}
 			VisitExpression(case_expr.m_expr);
 		}

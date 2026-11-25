@@ -1,6 +1,7 @@
 #include "UnusedLocalDiagnostic.h"
 
 #include "Compiler/Analysis/SharedAnalysis.h"
+#include "Support/Optional.h"
 
 #include <format>
 
@@ -34,16 +35,16 @@ void UnusedLocalDiagnostic::FinishScope(const Scope& scope)
 	}
 }
 
-void UnusedLocalDiagnostic::RegisterBinding(const Token& token, const std::optional<BindingId>& binding, bool suppressed)
+void UnusedLocalDiagnostic::RegisterBinding(const Token& token, const MarmotCompiler::Optional<BindingId>& binding, bool suppressed)
 {
-	if (!binding.has_value() || !binding.value())
+	if (!binding.HasValue() || !binding.Value())
 	{
 		return;
 	}
-	const bool inserted = m_bindings.emplace(binding.value(), BindingInfo{ token, MarmotAnalysis::DemangleDisplayName(token.m_lexeme), false, suppressed }).second;
+	const bool inserted = m_bindings.emplace(binding.Value(), BindingInfo{ token, MarmotAnalysis::DemangleDisplayName(token.m_lexeme), false, suppressed }).second;
 	if (inserted)
 	{
-		m_scope->m_bindings.push_back(binding.value());
+		m_scope->m_bindings.push_back(binding.Value());
 	}
 }
 
@@ -88,7 +89,7 @@ void UnusedLocalDiagnostic::operator()(MarmotStatement::TupleDefinition& def_tup
 	for (std::size_t index = 0u; index < def_tuple.m_names.size(); index += 1u)
 	{
 		const Token& token = def_tuple.m_names[index];
-		const std::optional<BindingId>& binding = def_tuple.m_bindings[index];
+		const MarmotCompiler::Optional<BindingId>& binding = def_tuple.m_bindings[index];
 		RegisterBinding(token, binding, MarmotAnalysis::IsIgnoredBindingName(MarmotAnalysis::DemangleDisplayName(token.m_lexeme)));
 	}
 
@@ -147,9 +148,9 @@ void UnusedLocalDiagnostic::operator()(MarmotExpression::Block& block)
 				VisitStatement(statement);
 			}
 
-			if (block.m_final_expr.has_value())
+			if (block.m_final_expr.HasValue())
 			{
-				VisitExpression(block.m_final_expr.value());
+				VisitExpression(block.m_final_expr.Value());
 			}
 		}
 	);
@@ -164,7 +165,7 @@ void UnusedLocalDiagnostic::operator()(MarmotExpression::Case& case_expr)
 			VisitPattern(case_expr.m_pattern);
 			if (case_expr.HasGuard())
 			{
-				VisitExpression(case_expr.m_guard.value());
+				VisitExpression(case_expr.m_guard.Value());
 			}
 			VisitExpression(case_expr.m_expr);
 		}

@@ -1,6 +1,7 @@
 #include "Compiler/MarmotIROptimizer/Analysis/MarmotIRAnalysis.h"
 #include "Compiler/MarmotIROptimizer/Analysis/MarmotIRModuleFacts.h"
 #include "Compiler/MarmotIROptimizer/MarmotIRPasses.h"
+#include "Support/Optional.h"
 
 #include <ranges>
 #include <set>
@@ -64,14 +65,14 @@ namespace
 	// Leaves a Unit where an instruction was, for anything that used it.
 	void MakeUnit(MarmotIRInstruction& instruction)
 	{
-		instruction = MarmotIRAnalysis::Const(instruction.m_result.value(), MarmotType::MakeLiteralType<MarmotType::UnitType>(), std::monostate{}, instruction.m_line);
+		instruction = MarmotIRAnalysis::Const(instruction.m_result.Value(), MarmotType::MakeLiteralType<MarmotType::UnitType>(), std::monostate{}, instruction.m_line);
 	}
 
 	// A capture nothing reads is not captured: each closure is made without
 	// it, and what bound it later binds nothing.
 	bool DropUnreadCaptures(MarmotIRModule& module)
 	{
-		std::vector<std::vector<std::optional<uint32_t>>> renumbered(module.m_functions.size());
+		std::vector<std::vector<MarmotCompiler::Optional<uint32_t>>> renumbered(module.m_functions.size());
 		bool dropped_any = false;
 		for (uint32_t function_index = 0u; function_index < module.m_functions.size(); function_index += 1u)
 		{
@@ -89,7 +90,7 @@ namespace
 			}
 			uint32_t next = 0u;
 			renumbered[function_index] = read
-				| std::views::transform([&next](bool is_read) { return is_read ? std::optional<uint32_t>(next++) : std::nullopt; })
+				| std::views::transform([&next](bool is_read) { return is_read ? MarmotCompiler::Optional<uint32_t>(next++) : MarmotCompiler::None; })
 				| std::ranges::to<std::vector>();
 			if (std::ranges::contains(read, false))
 			{
@@ -108,7 +109,7 @@ namespace
 		for (uint32_t function_index = 0u; function_index < module.m_functions.size(); function_index += 1u)
 		{
 			MarmotIRFunction& function = module.m_functions[function_index];
-			const std::vector<std::optional<MarmotIRSite>> sites = MarmotIRAnalysis::DefinitionSites(function);
+			const std::vector<MarmotCompiler::Optional<MarmotIRSite>> sites = MarmotIRAnalysis::DefinitionSites(function);
 			std::vector<MarmotIRInstruction*> binds;
 			for (MarmotIRBlock& block : function.m_blocks)
 			{
@@ -125,10 +126,10 @@ namespace
 			for (MarmotIRInstruction* bind : binds)
 			{
 				const MarmotIRFunctionId bound = std::get<MarmotIRFunctionId>(MarmotIRAnalysis::Definition(function, sites, bind->m_operands[0u])->m_immediate);
-				const std::optional<uint32_t> capture = renumbered[bound.m_index][std::get<MarmotIRIndex>(bind->m_immediate).m_value];
-				if (capture.has_value())
+				const MarmotCompiler::Optional<uint32_t> capture = renumbered[bound.m_index][std::get<MarmotIRIndex>(bind->m_immediate).m_value];
+				if (capture.HasValue())
 				{
-					bind->m_immediate = MarmotIRIndex{ capture.value() };
+					bind->m_immediate = MarmotIRIndex{ capture.Value() };
 				}
 				else
 				{
@@ -141,13 +142,13 @@ namespace
 				{
 					if (instruction.m_op == MarmotIROp::GetCapture)
 					{
-						instruction.m_immediate = MarmotIRIndex{ renumbered[function_index][std::get<MarmotIRIndex>(instruction.m_immediate).m_value].value() };
+						instruction.m_immediate = MarmotIRIndex{ renumbered[function_index][std::get<MarmotIRIndex>(instruction.m_immediate).m_value].Value() };
 					}
 					else if (instruction.m_op == MarmotIROp::MakeClosure)
 					{
-						const std::vector<std::optional<uint32_t>>& captures = renumbered[std::get<MarmotIRFunctionId>(instruction.m_immediate).m_index];
+						const std::vector<MarmotCompiler::Optional<uint32_t>>& captures = renumbered[std::get<MarmotIRFunctionId>(instruction.m_immediate).m_index];
 						instruction.m_operands = std::views::zip(std::views::iota(0uz), instruction.m_operands)
-							| std::views::filter([&captures](const auto& operand) { return captures[std::get<0>(operand)].has_value(); })
+							| std::views::filter([&captures](const auto& operand) { return captures[std::get<0>(operand)].HasValue(); })
 							| std::views::transform([](const auto& operand) { return std::get<1>(operand); })
 							| std::ranges::to<std::vector>();
 					}
@@ -184,8 +185,8 @@ namespace
 					if (instruction.m_op == MarmotIROp::MakeClosure)
 					{
 						const uint32_t made = std::get<MarmotIRFunctionId>(instruction.m_immediate).m_index;
-						creations[made].push_back(Creation{ maker, instruction.m_result.value(), instruction.m_operands });
-						is_liftable[made] = is_liftable[made] && IsOnlyCalled(function, instruction.m_result.value());
+						creations[made].push_back(Creation{ maker, instruction.m_result.Value(), instruction.m_operands });
+						is_liftable[made] = is_liftable[made] && IsOnlyCalled(function, instruction.m_result.Value());
 					}
 				}
 			}
@@ -193,7 +194,7 @@ namespace
 
 		// A lifted function that makes closures of another passes its new
 		// parameters where it passed its captures.
-		std::vector<std::vector<std::optional<MarmotIRValueId>>> lifted_captures(module.m_functions.size());
+		std::vector<std::vector<MarmotCompiler::Optional<MarmotIRValueId>>> lifted_captures(module.m_functions.size());
 		for (uint32_t lifted = 0u; lifted < module.m_functions.size(); lifted += 1u)
 		{
 			MarmotIRFunction& function = module.m_functions[lifted];
@@ -212,7 +213,7 @@ namespace
 			}
 
 			// The captures that hold the closure itself may only be called.
-			std::vector<std::optional<MarmotIRValueId>> replacements(function.m_values.size());
+			std::vector<MarmotCompiler::Optional<MarmotIRValueId>> replacements(function.m_values.size());
 			std::vector<MarmotIRValueId> self_values;
 			std::vector<MarmotIRValueId> parameters;
 			// Named for what the first closure captured, as the reader knows it.
@@ -237,8 +238,8 @@ namespace
 						replacements[instruction.m_result->m_index] = parameters[capture];
 						continue;
 					}
-					self_values.push_back(instruction.m_result.value());
-					self_only_called = self_only_called && IsOnlyCalled(function, instruction.m_result.value());
+					self_values.push_back(instruction.m_result.Value());
+					self_only_called = self_only_called && IsOnlyCalled(function, instruction.m_result.Value());
 				}
 			}
 			if (!self_only_called)
@@ -265,11 +266,11 @@ namespace
 			for (const Creation& creation : creations[lifted])
 			{
 				MarmotIRFunction& maker = module.m_functions[creation.m_maker];
-				const std::vector<std::optional<MarmotIRValueId>>& maker_captures = lifted_captures[creation.m_maker];
+				const std::vector<MarmotCompiler::Optional<MarmotIRValueId>>& maker_captures = lifted_captures[creation.m_maker];
 				const std::vector<MarmotIRValueId> captures = creation.m_captures
 					| std::views::transform([&maker_captures](MarmotIRValueId capture)
 					{
-						return capture.m_index < maker_captures.size() && maker_captures[capture.m_index].has_value() ? maker_captures[capture.m_index].value() : capture;
+						return capture.m_index < maker_captures.size() && maker_captures[capture.m_index].HasValue() ? maker_captures[capture.m_index].Value() : capture;
 					})
 					| std::ranges::to<std::vector>();
 				CallDirectly(maker, creation.m_closure, lifted_id, captures);
@@ -297,7 +298,7 @@ namespace
 		bool changed = false;
 		for (MarmotIRFunction& function : module.m_functions)
 		{
-			const std::vector<std::optional<MarmotIRSite>> sites = MarmotIRAnalysis::DefinitionSites(function);
+			const std::vector<MarmotCompiler::Optional<MarmotIRSite>> sites = MarmotIRAnalysis::DefinitionSites(function);
 			std::set<std::pair<uint32_t, uint32_t>> known;
 			for (const MarmotIRBlock& block : function.m_blocks)
 			{

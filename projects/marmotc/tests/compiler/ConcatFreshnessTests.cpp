@@ -1,5 +1,4 @@
 #include <cstddef>
-#include <optional>
 #include <string>
 
 #include <catch2/catch_test_macros.hpp>
@@ -8,6 +7,7 @@
 #include "Bytecode/Executable/Executable.h"
 #include "Compiler/BytecodeModule/BytecodeModule.h"
 #include "support/CompileHelpers.h"
+#include "Support/Optional.h"
 
 namespace
 {
@@ -20,7 +20,7 @@ namespace
 	// their output: if a pass folded their probes away, they would keep
 	// passing while they stopped testing anything.
 
-	[[nodiscard]] std::optional<std::size_t> FindMainProcedureIndex(const BytecodeModule& module)
+	[[nodiscard]] MarmotCompiler::Optional<std::size_t> FindMainProcedureIndex(const BytecodeModule& module)
 	{
 		for (std::size_t index = 0u; index < module.m_procedure_names.size(); index += 1u)
 		{
@@ -30,7 +30,7 @@ namespace
 			}
 		}
 
-		return std::nullopt;
+		return MarmotCompiler::None;
 	}
 
 	// Steps through the procedure instruction by instruction, so an operand byte
@@ -58,13 +58,13 @@ namespace
 
 	[[nodiscard]] const BytecodeStream& MainProcedureOrFail(const BytecodeModule& module)
 	{
-		const std::optional<std::size_t> main_index = FindMainProcedureIndex(module);
-		if (!main_index.has_value())
+		const MarmotCompiler::Optional<std::size_t> main_index = FindMainProcedureIndex(module);
+		if (!main_index.HasValue())
 		{
 			FAIL("Compiled module has no $main$ procedure.");
 		}
 
-		return module.m_procedures[main_index.value()];
+		return module.m_procedures[main_index.Value()];
 	}
 
 	// The right operand is read through an array index so nothing that
@@ -106,43 +106,43 @@ namespace
 
 TEST_CASE("A text literal left operand of ++ emits CONCAT_TEXT and never EXTEND_TEXT", "[compiler][backend][concat]")
 {
-	std::expected<BytecodeModule, MarmotResult::CompilerDiagnostics> module_result =
+	MarmotResult::DiagnosticsResult<BytecodeModule> module_result =
 		MarmotTest::GenerateBytecodeSnippetWithDiagnostics(LITERAL_LEFT_SOURCE, "LiteralLeftProbe.mmt");
-	REQUIRE(module_result.has_value());
+	REQUIRE(module_result.HasValue());
 
-	const BytecodeStream& main_procedure = MainProcedureOrFail(module_result.value());
+	const BytecodeStream& main_procedure = MainProcedureOrFail(module_result.Value());
 	REQUIRE(ContainsOpCode(main_procedure, OpCode::CONCAT_TEXT));
 	REQUIRE_FALSE(ContainsOpCode(main_procedure, OpCode::EXTEND_TEXT));
 }
 
 TEST_CASE("A ++ on the result of another ++ emits EXTEND_TEXT", "[compiler][backend][concat]")
 {
-	std::expected<BytecodeModule, MarmotResult::CompilerDiagnostics> module_result =
+	MarmotResult::DiagnosticsResult<BytecodeModule> module_result =
 		MarmotTest::GenerateBytecodeSnippetWithDiagnostics(CHAIN_SOURCE, "ChainProbe.mmt");
-	REQUIRE(module_result.has_value());
+	REQUIRE(module_result.HasValue());
 
-	const BytecodeStream& main_procedure = MainProcedureOrFail(module_result.value());
+	const BytecodeStream& main_procedure = MainProcedureOrFail(module_result.Value());
 	REQUIRE(ContainsOpCode(main_procedure, OpCode::EXTEND_TEXT));
 }
 
 TEST_CASE("A ++ on a folded text constant emits CONCAT_TEXT and never EXTEND_TEXT", "[compiler][backend][concat]")
 {
-	std::expected<BytecodeModule, MarmotResult::CompilerDiagnostics> module_result =
+	MarmotResult::DiagnosticsResult<BytecodeModule> module_result =
 		MarmotTest::GenerateBytecodeSnippetWithDiagnostics(FOLDED_CHAIN_SOURCE, "FoldedChainProbe.mmt");
-	REQUIRE(module_result.has_value());
+	REQUIRE(module_result.HasValue());
 
-	const BytecodeStream& main_procedure = MainProcedureOrFail(module_result.value());
+	const BytecodeStream& main_procedure = MainProcedureOrFail(module_result.Value());
 	REQUIRE(ContainsOpCode(main_procedure, OpCode::CONCAT_TEXT));
 	REQUIRE_FALSE(ContainsOpCode(main_procedure, OpCode::EXTEND_TEXT));
 }
 
 TEST_CASE("A name as the left operand of ++ emits CONCAT_TEXT and never EXTEND_TEXT", "[compiler][backend][concat]")
 {
-	std::expected<BytecodeModule, MarmotResult::CompilerDiagnostics> module_result =
+	MarmotResult::DiagnosticsResult<BytecodeModule> module_result =
 		MarmotTest::GenerateBytecodeSnippetWithDiagnostics(CONCAT_SHAPE_SOURCE, "ConcatTextProbe.mmt");
-	REQUIRE(module_result.has_value());
+	REQUIRE(module_result.HasValue());
 
-	const BytecodeStream& main_procedure = MainProcedureOrFail(module_result.value());
+	const BytecodeStream& main_procedure = MainProcedureOrFail(module_result.Value());
 	REQUIRE(ContainsOpCode(main_procedure, OpCode::CONCAT_TEXT));
 	REQUIRE_FALSE(ContainsOpCode(main_procedure, OpCode::EXTEND_TEXT));
 }

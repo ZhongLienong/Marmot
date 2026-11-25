@@ -1,8 +1,8 @@
 #include "CompilationExecution.h"
+#include "Support/Optional.h"
 
 #include <condition_variable>
 #include <mutex>
-#include <optional>
 #include <queue>
 #include <stop_token>
 #include <thread>
@@ -74,7 +74,7 @@ namespace
 			const CompilationExecution::InterfaceReady interface_ready = [this](const std::string& file_path) { PublishInterface(file_path); };
 			while (true)
 			{
-				std::optional<ScheduledModule> module;
+				MarmotCompiler::Optional<ScheduledModule> module;
 				{
 					std::unique_lock<std::mutex> lock(m_mutex);
 					m_ready_cv.wait(lock, stop, [this]() { return !m_ready.empty() || m_active == 0u; });
@@ -82,7 +82,7 @@ namespace
 					{
 						return;
 					}
-					module.emplace(m_ready.top());
+					module.Emplace(m_ready.top());
 					m_ready.pop();
 					m_active += 1u;
 				}

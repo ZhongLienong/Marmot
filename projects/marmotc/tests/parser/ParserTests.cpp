@@ -10,8 +10,9 @@
 #include "support/CompileHelpers.h"
 #include "support/DiagnosticMatchers.h"
 #include "support/TempProject.h"
+#include "Support/Expected.h"
+#include "Support/Optional.h"
 
-#include <expected>
 #include <filesystem>
 #include <format>
 #include <memory>
@@ -75,12 +76,12 @@ namespace
 	struct PreparedParser
 	{
 		MarmotTest::SourceFixture m_source;
-		std::optional<ModuleDeclaration> m_module_declaration;
+		MarmotCompiler::Optional<ModuleDeclaration> m_module_declaration;
 		std::vector<UseImport> m_use_imports;
 		ModuleImports m_imports;
 		Parser m_parser;
 
-		PreparedParser(MarmotTest::SourceFixture source, TokenStream&& tokens, std::optional<ModuleDeclaration>&& module_declaration, std::vector<UseImport>&& use_imports)
+		PreparedParser(MarmotTest::SourceFixture source, TokenStream&& tokens, MarmotCompiler::Optional<ModuleDeclaration>&& module_declaration, std::vector<UseImport>&& use_imports)
 			: m_source(std::move(source)),
 			m_module_declaration(std::move(module_declaration)),
 			m_use_imports(std::move(use_imports)),
@@ -91,35 +92,35 @@ namespace
 				m_source.SourceLines(),
 				m_imports,
 				m_use_imports,
-				m_module_declaration.has_value() ? &m_module_declaration.value() : nullptr
+				m_module_declaration.HasValue() ? &m_module_declaration.Value() : nullptr
 			)
 		{
 		}
 	};
 
-	std::expected<std::unique_ptr<PreparedParser>, CompilerError> PrepareParser(std::string source_code, std::string file_name)
+	MarmotResult::Result<std::unique_ptr<PreparedParser>> PrepareParser(std::string source_code, std::string file_name)
 	{
 		MarmotTest::SourceFixture source(std::move(source_code), std::move(file_name));
 		MarmotResult::LexerResult lex_result = Lexer(std::string(source.SourceCode()), source.FileName()).Lex();
-		if (!lex_result.has_value())
+		if (!lex_result.HasValue())
 		{
-			return std::unexpected(std::move(lex_result.error()));
+			return MarmotCompiler::Failure(std::move(lex_result.Error()));
 		}
 
-		MarmotResult::ModuleManagerResult build_graph_result = ModuleManager(std::move(lex_result.value()), source.FileName(), source.SourceLines(), MarmotDriver::EnvironmentCompilationInputs()).GenerateBuildGraph();
-		if (!build_graph_result.has_value())
+		MarmotResult::ModuleManagerResult build_graph_result = ModuleManager(std::move(lex_result.Value()), source.FileName(), source.SourceLines(), MarmotDriver::EnvironmentCompilationInputs()).GenerateBuildGraph();
+		if (!build_graph_result.HasValue())
 		{
-			return std::unexpected(std::move(build_graph_result.error()));
+			return MarmotCompiler::Failure(std::move(build_graph_result.Error()));
 		}
 
-		BuildGraph build_graph = std::move(build_graph_result.value());
+		BuildGraph build_graph = std::move(build_graph_result.Value());
 		std::unordered_map<std::string, BuildGraph::BuildNode>::iterator node_it = build_graph.m_nodes.find(source.FileName());
 		if (node_it == build_graph.m_nodes.end())
 		{
-			return std::unexpected(CompilerError::Simple(CompilerStage::Module, "Failed to locate the prepared parser module."));
+			return MarmotCompiler::Failure(CompilerError::Simple(CompilerStage::Module, "Failed to locate the prepared parser module."));
 		}
 
-		std::optional<ModuleDeclaration> module_declaration = std::nullopt;
+		MarmotCompiler::Optional<ModuleDeclaration> module_declaration = MarmotCompiler::None;
 		std::unordered_map<std::string, ModuleDeclaration>::const_iterator module_it = build_graph.m_module_declarations.find(source.FileName());
 		if (module_it != build_graph.m_module_declarations.end())
 		{
@@ -154,10 +155,10 @@ def grouped = 1 + (2 * 3);
 def tuple_value = (1 + 2, 3);
 )";
 
-	std::expected<MarmotTest::ParsedSnippet, CompilerError> parse_result = MarmotTest::ParseSnippet(source_code, "ParserPrecedence.mmt");
-	if (!parse_result.has_value())
+	MarmotResult::Result<MarmotTest::ParsedSnippet> parse_result = MarmotTest::ParseSnippet(source_code, "ParserPrecedence.mmt");
+	if (!parse_result.HasValue())
 	{
-		FAIL(std::string(parse_result.error().Rendered()));
+		FAIL(std::string(parse_result.Error().Rendered()));
 	}
 
 	const MarmotProgramTree& program = parse_result->m_program;
@@ -195,8 +196,8 @@ def tuple_value = (1 + 2, 3);
 	REQUIRE(RequireLiteral(tuple_expr.m_elements[1u], MarmotExpression::LiteralKind::Integer).m_token.m_lexeme == "3");
 
 	const std::string mixed_source = "module ParserMixed\ndef mixed = 1 + 2 * 3;\n";
-	std::expected<MarmotTest::ParsedSnippet, CompilerError> mixed_result = MarmotTest::ParseSnippet(mixed_source, "ParserMixed.mmt");
-	REQUIRE(mixed_result.has_value());
+	MarmotResult::Result<MarmotTest::ParsedSnippet> mixed_result = MarmotTest::ParseSnippet(mixed_source, "ParserMixed.mmt");
+	REQUIRE(mixed_result.HasValue());
 	const MarmotStatement::VariableDefinition& mixed_definition = RequireVariableDefinition(mixed_result->m_program, 0u, "mixed");
 	const MarmotExpression::Binary& addition = RequireExpression<MarmotExpression::Binary>(mixed_definition.m_value);
 	REQUIRE(addition.m_op.m_token_name == Token::Name::SINGLE_PLUS);
@@ -224,10 +225,10 @@ def boxed : Box<Array<Array<Text>>> = Box(nested);
 def shift = fn(value: Int, data: Array<Array<Text>>) -> Int where Show<Array<Array<Text>>> => value >> 1;
 )";
 
-	std::expected<MarmotTest::ParsedSnippet, CompilerError> parse_result = MarmotTest::ParseSnippet(source_code, "ParserNestedGenericClosers.mmt");
-	if (!parse_result.has_value())
+	MarmotResult::Result<MarmotTest::ParsedSnippet> parse_result = MarmotTest::ParseSnippet(source_code, "ParserNestedGenericClosers.mmt");
+	if (!parse_result.HasValue())
 	{
-		FAIL(std::string(parse_result.error().Rendered()));
+		FAIL(std::string(parse_result.Error().Rendered()));
 	}
 
 	REQUIRE(parse_result->m_program.size() == 6u);
@@ -253,10 +254,10 @@ def Access = fn(value) => value(1).items[0](2).field;
 def converted = 7 as Float as Int as Text;
 def aliases = match 1 with case _ as first as second => (first, second);
 )";
-	std::expected<MarmotTest::ParsedSnippet, CompilerError> parsed = MarmotTest::ParseSnippet(source, "ParserFolds.mmt");
-	if (!parsed.has_value())
+	MarmotResult::Result<MarmotTest::ParsedSnippet> parsed = MarmotTest::ParseSnippet(source, "ParserFolds.mmt");
+	if (!parsed.HasValue())
 	{
-		FAIL(parsed.error().Rendered());
+		FAIL(parsed.Error().Rendered());
 	}
 	const MarmotProgramTree& program = parsed->m_program;
 	const MarmotExpression::Call& outer_call = RequireExpression<MarmotExpression::Call>(RequireFunctionBinding(program, 1u, "Steps").m_body);
@@ -300,13 +301,13 @@ TEST_CASE("Parser reports a failed cast suffix at its missing type", "[parser][f
 	{
 		const std::string line = "def value = 1" + suffix;
 		const std::string source = "module BadFold\n" + line + "\n";
-		std::expected<MarmotTest::ParsedSnippet, CompilerError> parsed = MarmotTest::ParseSnippet(source, "BadFold.mmt");
-		REQUIRE_FALSE(parsed.has_value());
-		CHECK(parsed.error().m_stage == CompilerStage::Parser);
-		CHECK(parsed.error().m_message == "Expected type token.");
-		REQUIRE(parsed.error().m_location.has_value());
-		CHECK(parsed.error().m_location->m_line == 2);
-		CHECK(parsed.error().m_location->m_source_line == line);
+		MarmotResult::Result<MarmotTest::ParsedSnippet> parsed = MarmotTest::ParseSnippet(source, "BadFold.mmt");
+		REQUIRE_FALSE(parsed.HasValue());
+		CHECK(parsed.Error().m_stage == CompilerStage::Parser);
+		CHECK(parsed.Error().m_message == "Expected type token.");
+		REQUIRE(parsed.Error().m_location.HasValue());
+		CHECK(parsed.Error().m_location->m_line == 2);
+		CHECK(parsed.Error().m_location->m_source_line == line);
 	}
 }
 
@@ -319,10 +320,10 @@ TEST_CASE("Parser folds long postfix chains without recursive parser calls", "[p
 		source.append(".field");
 	}
 	source.append(";\n");
-	std::expected<MarmotTest::ParsedSnippet, CompilerError> parsed = MarmotTest::ParseSnippet(source);
-	if (!parsed.has_value())
+	MarmotResult::Result<MarmotTest::ParsedSnippet> parsed = MarmotTest::ParseSnippet(source);
+	if (!parsed.HasValue())
 	{
-		FAIL(parsed.error().Rendered());
+		FAIL(parsed.Error().Rendered());
 	}
 	MarmotStatement::VariableDefinition& definition = parsed->m_program.front()->GetStatement<MarmotStatement::VariableDefinition>();
 	MarmotExpression::Function& function = definition.m_value->GetExpression<MarmotExpression::Function>();
@@ -353,10 +354,10 @@ class Iterable<Iter> {
 def NextValue = fn(iter: Array<Array<Int>>) -> Iterable::Item<Array<Array<Int>>> where Iterable<Array<Array<Int>>> => iter;
 )";
 
-	std::expected<MarmotTest::ParsedSnippet, CompilerError> parse_result = MarmotTest::ParseSnippet(source_code, "ParserNestedAssociatedTypes.mmt");
-	if (!parse_result.has_value())
+	MarmotResult::Result<MarmotTest::ParsedSnippet> parse_result = MarmotTest::ParseSnippet(source_code, "ParserNestedAssociatedTypes.mmt");
+	if (!parse_result.HasValue())
 	{
-		FAIL(std::string(parse_result.error().Rendered()));
+		FAIL(std::string(parse_result.Error().Rendered()));
 	}
 
 	REQUIRE(parse_result->m_program.size() == 2u);
@@ -392,14 +393,14 @@ use Helper.{increment, decrement}
 def local_value = 1;
 )";
 
-	std::expected<MarmotTest::ParsedSnippet, CompilerError> parse_result = MarmotTest::ParseSnippet(main_source_code, main_path.string());
-	if (!parse_result.has_value())
+	MarmotResult::Result<MarmotTest::ParsedSnippet> parse_result = MarmotTest::ParseSnippet(main_source_code, main_path.string());
+	if (!parse_result.HasValue())
 	{
-		FAIL(std::string(parse_result.error().Rendered()));
+		FAIL(std::string(parse_result.Error().Rendered()));
 	}
 
-	REQUIRE(parse_result->m_module_declaration.has_value());
-	const ModuleDeclaration& module_declaration = parse_result->m_module_declaration.value();
+	REQUIRE(parse_result->m_module_declaration.HasValue());
+	const ModuleDeclaration& module_declaration = parse_result->m_module_declaration.Value();
 	REQUIRE(module_declaration.ModuleName() == "Main");
 	REQUIRE(module_declaration.HasExport("local_value"));
 	REQUIRE(module_declaration.GetExportVisibility("local_value") == VisibilityLevel::Public);
@@ -422,10 +423,10 @@ TEST_CASE("Parser errors preserve parser stage and exact source metadata", "[par
 def value = ;
 )";
 
-	std::expected<MarmotTest::ParsedSnippet, CompilerError> parse_result = MarmotTest::ParseSnippet(source_code, "ParserFailure.mmt");
-	REQUIRE_FALSE(parse_result.has_value());
+	MarmotResult::Result<MarmotTest::ParsedSnippet> parse_result = MarmotTest::ParseSnippet(source_code, "ParserFailure.mmt");
+	REQUIRE_FALSE(parse_result.HasValue());
 
-	const CompilerError& error = parse_result.error();
+	const CompilerError& error = parse_result.Error();
 	RequireErrorMatches(
 		error,
 		MarmotTest::ErrorExpectation
@@ -435,12 +436,12 @@ def value = ;
 			.m_rendered_substrings = { "Parser Error", "ParserFailure.mmt:2", "def value = ;" }
 		});
 
-	REQUIRE(error.m_location.has_value());
+	REQUIRE(error.m_location.HasValue());
 	CHECK(error.m_location->m_file_name == "ParserFailure.mmt");
 	CHECK(error.m_location->m_line == 2);
 	CHECK(error.m_location->m_column == 12);
 	CHECK(error.m_location->m_caret_length == 1u);
-	CHECK(error.m_location->m_source_line == std::optional<std::string>("def value = ;"));
+	CHECK(error.m_location->m_source_line == MarmotCompiler::Optional<std::string>("def value = ;"));
 }
 
 TEST_CASE("Parser reports array comprehension near-miss syntax before name resolution", "[parser][diagnostic]")
@@ -452,9 +453,9 @@ TEST_CASE("Parser reports array comprehension near-miss syntax before name resol
 def value = [i i in 0..1..10];
 )";
 
-		std::expected<MarmotTest::ParsedSnippet, CompilerError> parse_result = MarmotTest::ParseSnippet(source_code, "SyntaxMissingFor.mmt");
-		REQUIRE_FALSE(parse_result.has_value());
-		const CompilerError& error = parse_result.error();
+		MarmotResult::Result<MarmotTest::ParsedSnippet> parse_result = MarmotTest::ParseSnippet(source_code, "SyntaxMissingFor.mmt");
+		REQUIRE_FALSE(parse_result.HasValue());
+		const CompilerError& error = parse_result.Error();
 		RequireErrorMatches(
 			error,
 			MarmotTest::ErrorExpectation
@@ -466,9 +467,9 @@ def value = [i i in 0..1..10];
 			});
 
 		CHECK(error.m_message.find("Undefined name.") == std::string::npos);
-		REQUIRE(error.m_location.has_value());
-		REQUIRE(error.m_location->m_column.has_value());
-		CHECK(error.m_location->m_column.value() == 15);
+		REQUIRE(error.m_location.HasValue());
+		REQUIRE(error.m_location->m_column.HasValue());
+		CHECK(error.m_location->m_column.Value() == 15);
 	}
 
 	SECTION("missing in")
@@ -478,9 +479,9 @@ def value = [i i in 0..1..10];
 def value = [i for i 0..1..10];
 )";
 
-		std::expected<MarmotTest::ParsedSnippet, CompilerError> parse_result = MarmotTest::ParseSnippet(source_code, "SyntaxMissingIn.mmt");
-		REQUIRE_FALSE(parse_result.has_value());
-		const CompilerError& error = parse_result.error();
+		MarmotResult::Result<MarmotTest::ParsedSnippet> parse_result = MarmotTest::ParseSnippet(source_code, "SyntaxMissingIn.mmt");
+		REQUIRE_FALSE(parse_result.HasValue());
+		const CompilerError& error = parse_result.Error();
 		RequireErrorMatches(
 			error,
 			MarmotTest::ErrorExpectation
@@ -492,9 +493,9 @@ def value = [i for i 0..1..10];
 			});
 
 		CHECK(error.m_message.find("Undefined name.") == std::string::npos);
-		REQUIRE(error.m_location.has_value());
-		REQUIRE(error.m_location->m_column.has_value());
-		CHECK(error.m_location->m_column.value() == 21);
+		REQUIRE(error.m_location.HasValue());
+		REQUIRE(error.m_location->m_column.HasValue());
+		CHECK(error.m_location->m_column.Value() == 21);
 	}
 }
 
@@ -505,10 +506,10 @@ TEST_CASE("Parser keeps arrays whose first element is a for-expression out of th
 def value = [for i in 0..1..10 i];
 )";
 
-	std::expected<MarmotTest::ParsedSnippet, CompilerError> parse_result = MarmotTest::ParseSnippet(source_code, "ArrayForLiteral.mmt");
-	if (!parse_result.has_value())
+	MarmotResult::Result<MarmotTest::ParsedSnippet> parse_result = MarmotTest::ParseSnippet(source_code, "ArrayForLiteral.mmt");
+	if (!parse_result.HasValue())
 	{
-		FAIL(std::string(parse_result.error().Rendered()));
+		FAIL(std::string(parse_result.Error().Rendered()));
 	}
 
 	const MarmotStatement::VariableDefinition& value_definition = RequireVariableDefinition(parse_result->m_program, 0u, "value");
@@ -548,16 +549,16 @@ def value = 1
 				sync_case.m_next_declaration
 			);
 
-			std::expected<std::unique_ptr<PreparedParser>, CompilerError> prepared_result = PrepareParser(source_code, std::format("ParserRecovery_{}.mmt", sync_case.m_name));
-			if (!prepared_result.has_value())
+			MarmotResult::Result<std::unique_ptr<PreparedParser>> prepared_result = PrepareParser(source_code, std::format("ParserRecovery_{}.mmt", sync_case.m_name));
+			if (!prepared_result.HasValue())
 			{
-				FAIL(std::string(prepared_result.error().Rendered()));
+				FAIL(std::string(prepared_result.Error().Rendered()));
 			}
 
-			PreparedParser& prepared = *prepared_result.value();
+			PreparedParser& prepared = *prepared_result.Value();
 			MarmotResult::ParserResult parse_result = prepared.m_parser.Parse();
-			REQUIRE_FALSE(parse_result.has_value());
-			CHECK(parse_result.error().First().m_message.find("Expected ';' after name binding.") != std::string::npos);
+			REQUIRE_FALSE(parse_result.HasValue());
+			CHECK(parse_result.Error().First().m_message.find("Expected ';' after name binding.") != std::string::npos);
 			CHECK(ParserTestAccess::CurrentTokenName(prepared.m_parser) == sync_case.m_expected_token);
 		}
 	}
@@ -573,16 +574,16 @@ class Next<T> {
 };
 )";
 
-	std::expected<std::unique_ptr<PreparedParser>, CompilerError> prepared_result = PrepareParser(source_code, "ParserRecoveryLimited.mmt");
-	if (!prepared_result.has_value())
+	MarmotResult::Result<std::unique_ptr<PreparedParser>> prepared_result = PrepareParser(source_code, "ParserRecoveryLimited.mmt");
+	if (!prepared_result.HasValue())
 	{
-		FAIL(std::string(prepared_result.error().Rendered()));
+		FAIL(std::string(prepared_result.Error().Rendered()));
 	}
 
-	PreparedParser& prepared = *prepared_result.value();
+	PreparedParser& prepared = *prepared_result.Value();
 	MarmotResult::ParserResult parse_result = prepared.m_parser.Parse();
-	REQUIRE_FALSE(parse_result.has_value());
-	CHECK(parse_result.error().First().m_message.find("Expected ',' after function parameter.") != std::string::npos);
+	REQUIRE_FALSE(parse_result.HasValue());
+	CHECK(parse_result.Error().First().m_message.find("Expected ',' after function parameter.") != std::string::npos);
 	CHECK(ParserTestAccess::CurrentTokenName(prepared.m_parser) == Token::Name::CLASS);
 }
 
@@ -614,19 +615,19 @@ instance Project<Int> { def project = fn<U>(value: U) -> U => { value + }; };)" 
 		SECTION(std::string(recovery_case.m_name))
 		{
 			const std::string source = std::format("module LifetimeRecovery\n{}\ndef recovered = 1;\n", recovery_case.m_broken_declaration);
-			std::expected<std::unique_ptr<PreparedParser>, CompilerError> prepared = PrepareParser(source, "LifetimeRecovery.mmt");
-			REQUIRE(prepared.has_value());
-			Parser& parser = prepared.value()->m_parser;
-			REQUIRE_FALSE(parser.Parse().has_value());
+			MarmotResult::Result<std::unique_ptr<PreparedParser>> prepared = PrepareParser(source, "LifetimeRecovery.mmt");
+			REQUIRE(prepared.HasValue());
+			Parser& parser = prepared.Value()->m_parser;
+			REQUIRE_FALSE(parser.Parse().HasValue());
 			REQUIRE(ParserTestAccess::CurrentTokenName(parser) == Token::Name::DEF);
 
 			MarmotResult::ParserResult recovered = parser.Parse();
-			if (!recovered.has_value())
+			if (!recovered.HasValue())
 			{
-				FAIL(recovered.error().Rendered());
+				FAIL(recovered.Error().Rendered());
 			}
 			REQUIRE(recovered->size() == 1u);
-			CHECK_FALSE(RequireVariableDefinition(recovered.value(), 0u, "recovered").m_binding.has_value());
+			CHECK_FALSE(RequireVariableDefinition(recovered.Value(), 0u, "recovered").m_binding.HasValue());
 		}
 	}
 }
@@ -658,10 +659,10 @@ def value = Secrets::hidden;
 def main = fn() -> Int => value;
 )";
 
-	MarmotResult::CompilerResult compile_result = MarmotTest::CompileSnippet(main_source_code, main_path.string());
-	REQUIRE_FALSE(compile_result.has_value());
+	MarmotResult::ExecutableDiagnosticsResult compile_result = MarmotTest::CompileSnippet(main_source_code, main_path.string());
+	REQUIRE_FALSE(compile_result.HasValue());
 
-	const CompilerError& error = compile_result.error().First();
+	const CompilerError& error = compile_result.Error().First();
 	CHECK(error.m_message.find("private to module 'Secrets'") != std::string::npos);
 	CHECK(error.m_message.find("current namespace 'Main'") != std::string::npos);
 }
@@ -697,8 +698,8 @@ use Math.Vector.{add}
 def main = fn() -> Int => add();
 )";
 
-	MarmotResult::CompilerResult compile_result = MarmotTest::CompileSnippet(main_source_code, main_path.string());
-	REQUIRE(compile_result.has_value());
+	MarmotResult::ExecutableDiagnosticsResult compile_result = MarmotTest::CompileSnippet(main_source_code, main_path.string());
+	REQUIRE(compile_result.HasValue());
 }
 
 TEST_CASE("Parser rejects ambiguous use imports from different modules", "[parser][module]")
@@ -742,10 +743,10 @@ use Right.{value}
 def main = fn() -> Int => value();
 )";
 
-	MarmotResult::CompilerResult compile_result = MarmotTest::CompileSnippet(main_source_code, main_path.string());
-	REQUIRE_FALSE(compile_result.has_value());
+	MarmotResult::ExecutableDiagnosticsResult compile_result = MarmotTest::CompileSnippet(main_source_code, main_path.string());
+	REQUIRE_FALSE(compile_result.HasValue());
 
-	const CompilerError& error = compile_result.error().First();
+	const CompilerError& error = compile_result.Error().First();
 	CHECK(error.m_message.find("Ambiguous use import for symbol 'value'") != std::string::npos);
 	CHECK(error.m_message.find("Left::value") != std::string::npos);
 }
@@ -783,8 +784,8 @@ use Helper.{value}
 def main = fn() -> Int => value();
 )";
 
-	MarmotResult::CompilerResult compile_result = MarmotTest::CompileSnippet(main_source_code, main_path.string());
-	REQUIRE(compile_result.has_value());
+	MarmotResult::ExecutableDiagnosticsResult compile_result = MarmotTest::CompileSnippet(main_source_code, main_path.string());
+	REQUIRE(compile_result.HasValue());
 }
 
 TEST_CASE("Compiler uses the declared entry module name for linked executable metadata", "[parser][module]")
@@ -794,10 +795,10 @@ TEST_CASE("Compiler uses the declared entry module name for linked executable me
 def main = fn() -> Int => 0;
 )";
 
-	MarmotResult::CompilerResult compile_result = MarmotTest::CompileSnippet(source_code, "EntryPoint.mmt");
-	REQUIRE(compile_result.has_value());
+	MarmotResult::ExecutableDiagnosticsResult compile_result = MarmotTest::CompileSnippet(source_code, "EntryPoint.mmt");
+	REQUIRE(compile_result.HasValue());
 
-	const MarmotExecutable& executable = compile_result.value();
+	const MarmotExecutable& executable = compile_result.Value();
 	CHECK(std::filesystem::path(executable.GetFileName()).filename() == "EntryPoint.mmt");
 	REQUIRE_FALSE(executable.m_procedure_names.empty());
 	CHECK(std::string(executable.m_procedure_names[0u].c_str()) == std::format("{}@{}", MmcWire::MODULE_BOOTSTRAP_PREFIX, "App.Main"));
@@ -814,10 +815,10 @@ def result = match Option::Some(7) with
 ;
 )";
 
-	std::expected<MarmotTest::ParsedSnippet, CompilerError> parse_result = MarmotTest::ParseSnippet(source_code, "ParserMatch.mmt");
-	if (!parse_result.has_value())
+	MarmotResult::Result<MarmotTest::ParsedSnippet> parse_result = MarmotTest::ParseSnippet(source_code, "ParserMatch.mmt");
+	if (!parse_result.HasValue())
 	{
-		FAIL(std::string(parse_result.error().Rendered()));
+		FAIL(std::string(parse_result.Error().Rendered()));
 	}
 
 	const MarmotProgramTree& program = parse_result->m_program;
@@ -849,10 +850,10 @@ TEST_CASE("Parser requires parentheses on empty constructor patterns", "[parser]
 			"type Choice = Empty | Full(Choice);\n"
 			"type EmptyRecord = {};\n"
 			"def result = match Choice::Empty() with case " + pattern + " => 0;\n";
-		std::expected<MarmotTest::ParsedSnippet, CompilerError> parsed = MarmotTest::ParseSnippet(source, "EmptyConstructorPattern.mmt");
-		REQUIRE_FALSE(parsed.has_value());
-		CHECK(parsed.error().m_stage == CompilerStage::Parser);
-		CHECK(parsed.error().m_message == "Constructor patterns require parentheses; use Name() for a constructor with no fields.");
+		MarmotResult::Result<MarmotTest::ParsedSnippet> parsed = MarmotTest::ParseSnippet(source, "EmptyConstructorPattern.mmt");
+		REQUIRE_FALSE(parsed.HasValue());
+		CHECK(parsed.Error().m_stage == CompilerStage::Parser);
+		CHECK(parsed.Error().m_message == "Constructor patterns require parentheses; use Name() for a constructor with no fields.");
 	}
 }
 
@@ -879,10 +880,10 @@ def nested_source = { { p with x = 1 } with y = 2 };
 def projected = { p with x = 9 }.x;
 )";
 
-	std::expected<MarmotTest::ParsedSnippet, CompilerError> parse_result = MarmotTest::ParseSnippet(source_code, "ParserRecordUpdate.mmt");
-	if (!parse_result.has_value())
+	MarmotResult::Result<MarmotTest::ParsedSnippet> parse_result = MarmotTest::ParseSnippet(source_code, "ParserRecordUpdate.mmt");
+	if (!parse_result.HasValue())
 	{
-		FAIL(std::string(parse_result.error().Rendered()));
+		FAIL(std::string(parse_result.Error().Rendered()));
 	}
 
 	const MarmotProgramTree& program = parse_result->m_program;
@@ -934,10 +935,10 @@ def PortOf = fn(c : Config) -> Int => { c with port = 1 }.port;
 def BlockBodied = fn() -> Int => { def local = 2; local };
 )";
 
-	std::expected<MarmotTest::ParsedSnippet, CompilerError> parse_result = MarmotTest::ParseSnippet(source_code, "ParserRecordUpdateBody.mmt");
-	if (!parse_result.has_value())
+	MarmotResult::Result<MarmotTest::ParsedSnippet> parse_result = MarmotTest::ParseSnippet(source_code, "ParserRecordUpdateBody.mmt");
+	if (!parse_result.HasValue())
 	{
-		FAIL(std::string(parse_result.error().Rendered()));
+		FAIL(std::string(parse_result.Error().Rendered()));
 	}
 
 	const MarmotProgramTree& program = parse_result->m_program;
@@ -968,10 +969,10 @@ TEST_CASE("Parser lowers a type record onto a Struct node", "[parser]")
 type FromType = { x: Int, y: Text };
 )";
 
-	std::expected<MarmotTest::ParsedSnippet, CompilerError> parse_result = MarmotTest::ParseSnippet(source_code, "TypeRecordLowering.mmt");
-	if (!parse_result.has_value())
+	MarmotResult::Result<MarmotTest::ParsedSnippet> parse_result = MarmotTest::ParseSnippet(source_code, "TypeRecordLowering.mmt");
+	if (!parse_result.HasValue())
 	{
-		FAIL(std::string(parse_result.error().Rendered()));
+		FAIL(std::string(parse_result.Error().Rendered()));
 	}
 
 	const MarmotProgramTree& program = parse_result->m_program;
@@ -1005,10 +1006,10 @@ TEST_CASE("Parser lowers a type sum onto a Union node", "[parser]")
 type FromType<T> = Empty | Full(T);
 )";
 
-	std::expected<MarmotTest::ParsedSnippet, CompilerError> parse_result = MarmotTest::ParseSnippet(source_code, "TypeSumLowering.mmt");
-	if (!parse_result.has_value())
+	MarmotResult::Result<MarmotTest::ParsedSnippet> parse_result = MarmotTest::ParseSnippet(source_code, "TypeSumLowering.mmt");
+	if (!parse_result.HasValue())
 	{
-		FAIL(std::string(parse_result.error().Rendered()));
+		FAIL(std::string(parse_result.Error().Rendered()));
 	}
 
 	const MarmotProgramTree& program = parse_result->m_program;
@@ -1063,10 +1064,10 @@ type Meters = Int;
 alias Feet = Int;
 )";
 
-	std::expected<MarmotTest::ParsedSnippet, CompilerError> parse_result = MarmotTest::ParseSnippet(source_code, "NewtypeLowering.mmt");
-	if (!parse_result.has_value())
+	MarmotResult::Result<MarmotTest::ParsedSnippet> parse_result = MarmotTest::ParseSnippet(source_code, "NewtypeLowering.mmt");
+	if (!parse_result.HasValue())
 	{
-		FAIL(std::string(parse_result.error().Rendered()));
+		FAIL(std::string(parse_result.Error().Rendered()));
 	}
 
 	const MarmotProgramTree& program = parse_result->m_program;
@@ -1095,10 +1096,10 @@ TEST_CASE("Parser still reads a leading-bar single-variant sum as a union", "[pa
 type Solo = | Only(Int);
 )";
 
-	std::expected<MarmotTest::ParsedSnippet, CompilerError> parse_result = MarmotTest::ParseSnippet(source_code, "LeadingBarSum.mmt");
-	if (!parse_result.has_value())
+	MarmotResult::Result<MarmotTest::ParsedSnippet> parse_result = MarmotTest::ParseSnippet(source_code, "LeadingBarSum.mmt");
+	if (!parse_result.HasValue())
 	{
-		FAIL(std::string(parse_result.error().Rendered()));
+		FAIL(std::string(parse_result.Error().Rendered()));
 	}
 
 	const MarmotProgramTree& program = parse_result->m_program;
@@ -1121,10 +1122,10 @@ class Container<T> {
 type Meters = Int;
 )";
 
-	std::expected<MarmotTest::ParsedSnippet, CompilerError> parse_result = MarmotTest::ParseSnippet(source_code, "AssociatedTypeBoundary.mmt");
-	if (!parse_result.has_value())
+	MarmotResult::Result<MarmotTest::ParsedSnippet> parse_result = MarmotTest::ParseSnippet(source_code, "AssociatedTypeBoundary.mmt");
+	if (!parse_result.HasValue())
 	{
-		FAIL(std::string(parse_result.error().Rendered()));
+		FAIL(std::string(parse_result.Error().Rendered()));
 	}
 
 	const MarmotProgramTree& program = parse_result->m_program;
@@ -1158,10 +1159,10 @@ instance Container<Int> {
 type Meters = Int;
 )";
 
-	std::expected<MarmotTest::ParsedSnippet, CompilerError> parse_result = MarmotTest::ParseSnippet(source_code, "InstanceAssociatedTypeBoundary.mmt");
-	if (!parse_result.has_value())
+	MarmotResult::Result<MarmotTest::ParsedSnippet> parse_result = MarmotTest::ParseSnippet(source_code, "InstanceAssociatedTypeBoundary.mmt");
+	if (!parse_result.HasValue())
 	{
-		FAIL(std::string(parse_result.error().Rendered()));
+		FAIL(std::string(parse_result.Error().Rendered()));
 	}
 
 	const MarmotProgramTree& program = parse_result->m_program;
@@ -1196,10 +1197,10 @@ alias IntKeyed<V> = Pair<Int, V>;
 def keyed : IntKeyed<Text> = Pair(1, "one");
 )";
 
-	std::expected<MarmotTest::ParsedSnippet, CompilerError> parse_result = MarmotTest::ParseSnippet(source_code, "ParameterisedAlias.mmt");
-	if (!parse_result.has_value())
+	MarmotResult::Result<MarmotTest::ParsedSnippet> parse_result = MarmotTest::ParseSnippet(source_code, "ParameterisedAlias.mmt");
+	if (!parse_result.HasValue())
 	{
-		FAIL(std::string(parse_result.error().Rendered()));
+		FAIL(std::string(parse_result.Error().Rendered()));
 	}
 
 	const MarmotProgramTree& program = parse_result->m_program;
@@ -1241,10 +1242,10 @@ alias Swapped<A, B> = Pair<B, A>;
 def swapped : Swapped<Int, Text> = Pair("one", 2);
 )";
 
-	std::expected<MarmotTest::ParsedSnippet, CompilerError> parse_result = MarmotTest::ParseSnippet(source_code, "SwappedAlias.mmt");
-	if (!parse_result.has_value())
+	MarmotResult::Result<MarmotTest::ParsedSnippet> parse_result = MarmotTest::ParseSnippet(source_code, "SwappedAlias.mmt");
+	if (!parse_result.HasValue())
 	{
-		FAIL(std::string(parse_result.error().Rendered()));
+		FAIL(std::string(parse_result.Error().Rendered()));
 	}
 
 	const MarmotProgramTree& program = parse_result->m_program;
@@ -1253,10 +1254,10 @@ def swapped : Swapped<Int, Text> = Pair("one", 2);
 	REQUIRE(program[2u]->IsStatement<MarmotStatement::VariableDefinition>());
 
 	const MarmotStatement::VariableDefinition& definition = program[2u]->GetStatement<MarmotStatement::VariableDefinition>();
-	REQUIRE(definition.m_annotated_type.has_value());
-	REQUIRE(definition.m_annotated_type.value()->IsType<MarmotType::StructType>());
+	REQUIRE(definition.m_annotated_type.HasValue());
+	REQUIRE(definition.m_annotated_type.Value()->IsType<MarmotType::StructType>());
 
-	const MarmotType::StructType& annotated = definition.m_annotated_type.value()->GetType<MarmotType::StructType>();
+	const MarmotType::StructType& annotated = definition.m_annotated_type.Value()->GetType<MarmotType::StructType>();
 	REQUIRE(annotated.m_type_arguments.size() == 2u);
 	REQUIRE(annotated.m_type_arguments[0u]->IsType<MarmotType::TextType>());
 	REQUIRE(annotated.m_type_arguments[1u]->IsType<MarmotType::IntegerType>());
@@ -1275,11 +1276,11 @@ type Box<T> =
 alias BoxAlias<T> where Show<T> = Box<T>;
 )";
 
-	std::expected<MarmotTest::ParsedSnippet, CompilerError> parse_result = MarmotTest::ParseSnippet(source_code, "ConstrainedAlias.mmt");
-	REQUIRE_FALSE(parse_result.has_value());
+	MarmotResult::Result<MarmotTest::ParsedSnippet> parse_result = MarmotTest::ParseSnippet(source_code, "ConstrainedAlias.mmt");
+	REQUIRE_FALSE(parse_result.HasValue());
 
 	RequireErrorMatches(
-		parse_result.error(),
+		parse_result.Error(),
 		MarmotTest::ErrorExpectation
 		{
 			.m_stage = CompilerStage::Parser,
@@ -1302,10 +1303,10 @@ alias IntBox = Box<Int>;
 def boxed : IntBox = Box(1);
 )";
 
-	std::expected<MarmotTest::ParsedSnippet, CompilerError> parse_result = MarmotTest::ParseSnippet(source_code, "InstantiatedAlias.mmt");
-	if (!parse_result.has_value())
+	MarmotResult::Result<MarmotTest::ParsedSnippet> parse_result = MarmotTest::ParseSnippet(source_code, "InstantiatedAlias.mmt");
+	if (!parse_result.HasValue())
 	{
-		FAIL(std::string(parse_result.error().Rendered()));
+		FAIL(std::string(parse_result.Error().Rendered()));
 	}
 
 	const MarmotProgramTree& program = parse_result->m_program;
@@ -1328,10 +1329,10 @@ def lambda = fn(x: Int) -> Int => x;
 def inferred = fn(x) => x;
 )";
 
-	std::expected<MarmotTest::ParsedSnippet, CompilerError> parse_result = MarmotTest::ParseSnippet(source_code, "ReturnSeparator.mmt");
-	if (!parse_result.has_value())
+	MarmotResult::Result<MarmotTest::ParsedSnippet> parse_result = MarmotTest::ParseSnippet(source_code, "ReturnSeparator.mmt");
+	if (!parse_result.HasValue())
 	{
-		FAIL(std::string(parse_result.error().Rendered()));
+		FAIL(std::string(parse_result.Error().Rendered()));
 	}
 
 	const MarmotProgramTree& program = parse_result->m_program;
@@ -1372,21 +1373,21 @@ def predicate : fn(Int) -> Bool = fn(x: Int) -> Bool => x > 0;
 def Describe = fn(config: Config, label: Text) -> Text => label ++ config.host;
 )";
 
-	std::expected<MarmotTest::ParsedSnippet, CompilerError> parse_result = MarmotTest::ParseSnippet(source_code, "ColonAscription.mmt");
-	if (!parse_result.has_value())
+	MarmotResult::Result<MarmotTest::ParsedSnippet> parse_result = MarmotTest::ParseSnippet(source_code, "ColonAscription.mmt");
+	if (!parse_result.HasValue())
 	{
-		FAIL(std::string(parse_result.error().Rendered()));
+		FAIL(std::string(parse_result.Error().Rendered()));
 	}
 
 	const MarmotProgramTree& program = parse_result->m_program;
 
 	const MarmotStatement::VariableDefinition& count = RequireVariableDefinition(program, 3u, "count");
-	REQUIRE(count.m_annotated_type.has_value());
-	REQUIRE(count.m_annotated_type.value()->ToString() == "Int");
+	REQUIRE(count.m_annotated_type.HasValue());
+	REQUIRE(count.m_annotated_type.Value()->ToString() == "Int");
 
 	const MarmotStatement::VariableDefinition& predicate = RequireVariableDefinition(program, 4u, "predicate");
-	REQUIRE(predicate.m_annotated_type.has_value());
-	REQUIRE(predicate.m_annotated_type.value()->IsType<MarmotType::FunctionType>());
+	REQUIRE(predicate.m_annotated_type.HasValue());
+	REQUIRE(predicate.m_annotated_type.Value()->IsType<MarmotType::FunctionType>());
 
 	const MarmotExpression::Function& describe = RequireFunctionBinding(program, 5u, "Describe");
 	REQUIRE(describe.m_params.Size() == 2u);
@@ -1403,15 +1404,15 @@ TEST_CASE("Parser separates a function-type annotation from an arrow return type
 def predicate : fn(Int) -> Bool = fn(x: Int) -> Bool => x > 0;
 )";
 
-	std::expected<MarmotTest::ParsedSnippet, CompilerError> parse_result = MarmotTest::ParseSnippet(source_code, "ArrowAnnotation.mmt");
-	if (!parse_result.has_value())
+	MarmotResult::Result<MarmotTest::ParsedSnippet> parse_result = MarmotTest::ParseSnippet(source_code, "ArrowAnnotation.mmt");
+	if (!parse_result.HasValue())
 	{
-		FAIL(std::string(parse_result.error().Rendered()));
+		FAIL(std::string(parse_result.Error().Rendered()));
 	}
 
 	const MarmotStatement::VariableDefinition& definition = RequireVariableDefinition(parse_result->m_program, 0u, "predicate");
-	REQUIRE(definition.m_annotated_type.has_value());
-	REQUIRE(definition.m_annotated_type.value()->IsType<MarmotType::FunctionType>());
+	REQUIRE(definition.m_annotated_type.HasValue());
+	REQUIRE(definition.m_annotated_type.Value()->IsType<MarmotType::FunctionType>());
 
 	const MarmotExpression::Function& lambda = RequireExpression<MarmotExpression::Function>(definition.m_value);
 	REQUIRE(lambda.m_return_type->ToString() == "Bool");
@@ -1423,11 +1424,11 @@ TEST_CASE("Parser rejects channel arrow syntax", "[parser]")
 		R"(module ArrowSend
 def Send = fn(c: Channel<Text>) -> Int => { c -> "value"; 0 };
 )";
-	CHECK_FALSE(MarmotTest::ParseSnippet(send_source, "ArrowSend.mmt").has_value());
+	CHECK_FALSE(MarmotTest::ParseSnippet(send_source, "ArrowSend.mmt").HasValue());
 
 	const std::string receive_source =
 		R"(module ArrowReceive
 def Receive = fn(c: Channel<Text>) -> Text => <- c;
 )";
-	CHECK_FALSE(MarmotTest::ParseSnippet(receive_source, "ArrowReceive.mmt").has_value());
+	CHECK_FALSE(MarmotTest::ParseSnippet(receive_source, "ArrowReceive.mmt").HasValue());
 }

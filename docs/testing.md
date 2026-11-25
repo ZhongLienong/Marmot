@@ -98,7 +98,7 @@ The helpers in `projects/marmotc/tests/support/` exist to keep new tests short a
 - `ParseSnippet(source, file_name)` returns parsed statements, module declaration metadata, and collected `use` imports
 - `TypeCheckSnippet(source, file_name)` returns the typed program tree and warnings
 - `AnalyzeSnippet(source, file_name)` returns warnings and static-analyzer errors
-- `CompileSnippetWithReport(source, file_name)` returns the final `MarmotResult::CompilationResult` from the driver boundary
+- `CompileSnippetWithReport(source, file_name)` returns the final `MarmotResult::CompiledProgramReportResult` from the driver boundary
 - `CompilationReport(result)` returns the final `MarmotResult::CompilerReport` for either a successful or failed compile result
 - `CompileSnippet(source, file_name)` compiles through the driver layer without launching the CLI
 - `ExecuteSnippet(source, file_name)` compiles a snippet, writes a temporary artifact, and captures stdout/stderr from the VM subprocess

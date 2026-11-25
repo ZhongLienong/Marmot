@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <functional>
 #include <memory>
-#include <optional>
 #include <ranges>
 #include <string>
 #include <unordered_map>
@@ -11,6 +10,7 @@
 #include <vector>
 
 #include "Compiler/Primitive/Primitive.h"
+#include "Support/Optional.h"
 
 class MarmotType
 {
@@ -132,8 +132,8 @@ public:
 		bool m_is_transferable = false;
 		// On a primitive's declared type only. A primitive can only be called, by
 		// the name of its declaration, so no copy of this type needs it.
-		std::optional<MarmotPrimitive> m_primitive;
-		std::optional<size_t> m_intrinsic;
+		MarmotCompiler::Optional<MarmotPrimitive> m_primitive;
+		MarmotCompiler::Optional<size_t> m_intrinsic;
 	};
 
 	struct StructType

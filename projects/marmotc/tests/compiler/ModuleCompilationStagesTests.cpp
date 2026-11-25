@@ -27,8 +27,8 @@ def wrong: Bool = Dependency::Value;
 	{
 		CAPTURE(jobs);
 		const MarmotDriver::CompileFileWithReportResult compiled = MarmotDriver::CompileFileWithReport(project.Path("Main.mmt"), CompilationInputs().WithJobs(jobs));
-		REQUIRE_FALSE(compiled.has_value());
-		const MarmotResult::CompilerReport& report = compiled.error().m_report;
+		REQUIRE_FALSE(compiled.HasValue());
+		const MarmotResult::CompilerReport& report = compiled.Error().m_report;
 		INFO(report.Rendered());
 		REQUIRE(report.m_errors.Size() == 2u);
 		CHECK(report.m_errors.m_items[0u].m_code == CompilerErrorCode::CodeGeneratorLimitExceeded);
@@ -63,8 +63,8 @@ def wrong: Bool = 1;
 	{
 		CAPTURE(jobs);
 		const MarmotDriver::CompileFileWithReportResult compiled = MarmotDriver::CompileFileWithReport(project.Path("Main.mmt"), CompilationInputs().WithJobs(jobs));
-		REQUIRE_FALSE(compiled.has_value());
-		const MarmotResult::CompilerReport& report = compiled.error().m_report;
+		REQUIRE_FALSE(compiled.HasValue());
+		const MarmotResult::CompilerReport& report = compiled.Error().m_report;
 		INFO(report.Rendered());
 		REQUIRE(report.m_errors.Size() == 1u);
 		CHECK(report.m_errors.First().m_code == CompilerErrorCode::ModuleMissingExportedSymbol);

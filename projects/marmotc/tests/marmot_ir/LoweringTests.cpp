@@ -16,10 +16,10 @@ namespace
 {
 	LoweredModule RequireLowered(std::string source)
 	{
-		std::expected<LoweredModule, MarmotResult::CompilerDiagnostics> lowered = MarmotTest::LowerSnippetWithDiagnostics(std::move(source));
-		if (!lowered.has_value())
+		MarmotResult::DiagnosticsResult<LoweredModule> lowered = MarmotTest::LowerSnippetWithDiagnostics(std::move(source));
+		if (!lowered.HasValue())
 		{
-			FAIL(lowered.error().Rendered());
+			FAIL(lowered.Error().Rendered());
 		}
 		const std::vector<MarmotIRViolation> violations = MarmotIRVerifier(lowered->m_module).Verify();
 		for (const MarmotIRViolation& violation : violations)
@@ -27,15 +27,15 @@ namespace
 			UNSCOPED_INFO(violation.ToString());
 		}
 		REQUIRE(violations.empty());
-		return std::move(lowered).value();
+		return std::move(lowered).Value();
 	}
 
 	CompilerError RequireLoweringError(std::string source)
 	{
-		std::expected<LoweredModule, MarmotResult::CompilerDiagnostics> lowered = MarmotTest::LowerSnippetWithDiagnostics(std::move(source));
-		REQUIRE_FALSE(lowered.has_value());
-		REQUIRE(lowered.error().Size() == 1u);
-		return lowered.error().m_items.front();
+		MarmotResult::DiagnosticsResult<LoweredModule> lowered = MarmotTest::LowerSnippetWithDiagnostics(std::move(source));
+		REQUIRE_FALSE(lowered.HasValue());
+		REQUIRE(lowered.Error().Size() == 1u);
+		return lowered.Error().m_items.front();
 	}
 
 	void RequireErrorMatches(const CompilerError& error, const MarmotTest::ErrorExpectation& expectation)
@@ -245,9 +245,9 @@ TEST_CASE("Every prelude module lowers to MarmotIR that verifies", "[marmot_ir][
 	{
 		INFO(module.string());
 		MarmotDriver::CompileFileWithReportResult compiled = MarmotDriver::CompileFileWithReport(module, MarmotDriver::EnvironmentCompilationInputs());
-		if (!compiled.has_value())
+		if (!compiled.HasValue())
 		{
-			FAIL(compiled.error().Rendered());
+			FAIL(compiled.Error().Rendered());
 		}
 	}
 }
@@ -281,9 +281,9 @@ Print((Lib::Scale(Lib::factor) as Text) ++ "\n");
 	});
 
 	MarmotDriver::CompileFileWithReportResult compiled = MarmotDriver::CompileFileWithReport(project.Path("Main.mmt"), MarmotDriver::EnvironmentCompilationInputs().WithEmitMarmotIR(true));
-	if (!compiled.has_value())
+	if (!compiled.HasValue())
 	{
-		FAIL(compiled.error().Rendered());
+		FAIL(compiled.Error().Rendered());
 	}
 
 	const std::vector<std::string>& modules = compiled->m_marmot_ir;
