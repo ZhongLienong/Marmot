@@ -7,8 +7,15 @@
 ## Install
 
 In VS Code, run **Extensions: Install from VSIX…** and select the
-`marmot-lang-0.1.0.vsix` package. To build the package from this directory,
-run `npx @vscode/vsce package --skip-license`.
+`marmot-lang-0.1.0.vsix` package.
+
+To build the package, run these PowerShell commands from the Marmot repo root.
+The VSIX will be written to `editors/vscode`.
+
+```powershell
+Set-Location .\editors\vscode
+npx.cmd @vscode/vsce package --skip-license
+```
 
 ## Diagnostics
 
