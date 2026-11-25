@@ -12,16 +12,22 @@
       "include": "#numbers"
     },
     {
-      "include": "#keywords"
-    },
-    {
-      "include": "#types"
+      "include": "#import"
     },
     {
       "include": "#moduleDecl"
     },
     {
       "include": "#functionDecl"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#types"
+    },
+    {
+      "include": "#functionCall"
     },
     {
       "include": "#typeAnnotations"
@@ -54,6 +60,10 @@
           "patterns": [
             {
               "name": "constant.character.escape.marmot",
+              "match": "\\\\(?:[nrtbf0\\\\\"]|x[0-9A-Fa-f]{2}|u\\{[0-9A-Fa-f]+\\})"
+            },
+            {
+              "name": "invalid.illegal.escape.marmot",
               "match": "\\\\."
             }
           ]
@@ -92,25 +102,43 @@
         }
       ]
     },
-    "moduleDecl": {
+    "import": {
+      "begin": "\\b(import)\\s*(\\{)",
+      "beginCaptures": {
+        "1": { "name": "keyword.control.marmot" },
+        "2": { "name": "keyword.operator.marmot" }
+      },
+      "end": "\\}",
+      "endCaptures": {
+        "0": { "name": "keyword.operator.marmot" }
+      },
       "patterns": [
+        { "include": "#comments" },
+        { "include": "#strings" },
         {
-          "name": "entity.name.namespace.marmot",
-          "match": "(?<=\\bmodule\\s)([A-Z][A-Za-z0-9_]*(?:\\.[A-Z][A-Za-z0-9_]*)*)"
-        }
+          "name": "string.unquoted.import.marmot",
+          "match": "<[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*>"
+        },
+        { "include": "#operators" }
       ]
     },
+    "moduleDecl": {
+      "match": "\\b(module)\\s+([A-Za-z_][A-Za-z0-9_]*(?:\\s*\\.\\s*[A-Za-z_][A-Za-z0-9_]*)*)",
+      "captures": {
+        "1": { "name": "keyword.control.marmot" },
+        "2": { "name": "entity.name.namespace.marmot" }
+      }
+    },
     "functionDecl": {
-      "patterns": [
-        {
-          "name": "entity.name.function.marmot",
-          "match": "(?<=\\bdef\\s)([A-Za-z_][A-Za-z0-9_]*)(?=\\s*=\\s*fn\\b)"
-        },
-        {
-          "name": "entity.name.function.call.marmot",
-          "match": "\\b([A-Za-z_][A-Za-z0-9_]*)\\s*(?=\\()"
-        }
-      ]
+      "match": "\\b(def)\\s+([A-Za-z_][A-Za-z0-9_]*)(?=\\s*=\\s*fn\\b)",
+      "captures": {
+        "1": { "name": "keyword.control.marmot" },
+        "2": { "name": "entity.name.function.marmot" }
+      }
+    },
+    "functionCall": {
+      "name": "entity.name.function.call.marmot",
+      "match": "\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()"
     },
     "typeAnnotations": {
       "patterns": [

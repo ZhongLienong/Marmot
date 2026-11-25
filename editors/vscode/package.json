@@ -1,19 +1,35 @@
 {
   "name": "marmot-lang",
   "displayName": "Marmot Language Support",
-  "description": "Syntax highlighting and on-save diagnostics for Marmot.",
+  "description": "Syntax highlighting and compiler diagnostics for Marmot.",
   "version": "0.1.0",
   "publisher": "marmot",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ZhongLienong/Marmot.git",
+    "directory": "editors/vscode"
+  },
   "engines": {
     "vscode": "^1.90.0"
   },
   "categories": [
     "Programming Languages"
   ],
-  "activationEvents": [
-    "onLanguage:marmot"
-  ],
   "main": "./extension.js",
+  "files": [
+    "extension.js",
+    "language-configuration.json",
+    "syntaxes/"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "Diagnostics run the Marmot project tool and require Workspace Trust.",
+      "restrictedConfigurations": [
+        "marmot.executablePath"
+      ]
+    }
+  },
   "contributes": {
     "languages": [
       {
@@ -41,15 +57,10 @@
         "marmot.executablePath": {
           "type": "string",
           "default": "marmot",
-          "description": "Path to the marmot project tool used for diagnostics."
+          "scope": "resource",
+          "description": "Path to the Marmot project tool. By default, VS Code looks for marmot on PATH."
         }
       }
-    },
-    "commands": [
-      {
-        "command": "marmot.showSuggestion",
-        "title": "Marmot: Show Suggestion"
-      }
-    ]
+    }
   }
 }
