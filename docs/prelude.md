@@ -14,11 +14,12 @@ Complete `.mmt` source files still need an explicit `module` declaration even wh
 ## Module Map
 
 - `Prelude/Option.mmt`, `Prelude/Result.mmt`, and `Prelude/List.mmt` provide the core ADTs and helper functions used throughout the rest of the prelude.
-- `Collections/Map.mmt` and `Collections/Set.mmt` provide persistent hash-based collections: `Map::With` adds a key or replaces its value and returns a new map, `Map::Without` removes one, and `Set::SetWith` of a value already present changes nothing.
+- `Collections/Map.mmt` and `Collections/Set.mmt` provide persistent hash-based collections. `Map::With` adds or replaces an entry, and `Map::Without` removes one. Sets support single-element updates, union, intersection, and difference.
 - `IO.mmt`, `System.mmt`, and `DateTime.mmt` are the effectful modules. Their public surface favors `Option` and `Result` wrappers rather than sentinel return values.
 - `TextUtil.mmt`, `ArrayUtil.mmt`, `Path.mmt`, and `Math.mmt` provide the common text, array, path, and numeric helpers that sit above the raw runtime builtins.
 - `Concatenable.mmt`, `Convertible.mmt`, `Countable.mmt`, `Equatable.mmt`, `Hashable.mmt`, `Indexable.mmt`, `Iterable.mmt`, `Numeric.mmt`, `Orderable.mmt`, and `Transferable.mmt` expose the helper and typeclass surface used by operators, collections, and concurrency.
 - `Iter.mmt` provides lazy sequence pipelines over any `Iterable`. See [Sequence Pipelines](#sequence-pipelines).
+- `Json.mmt` parses and encodes JSON using a `Json` union and typed errors. `JNumber` stores the exact numeric spelling as `Text`. Objects store ordered key-value pairs, including duplicate keys. Syntax errors report a zero-based code-point offset, and container nesting is limited to 256 levels.
 - `Prelude/Panic.mmt` contains the simple panic helper used by many tests and examples.
 - References are part of the language: `Ref<T>` and the `ref`, `*` and `:=` forms need no import. See [References](type-system.md#references).
 - `Concurrency.mmt` exports the VM primitives `Spawn`, `Send`, `Close`, `IsDone`, and `Cancel`. `MakeChannel` is a Marmot function over a private primitive with `where Transferable<T>`. `Join` and `Receive` are Marmot functions that construct `Result<T, WorkerError>` and `Option<T>` from private primitive outcomes. `WorkerError` has `Cancelled` and `Failed(Text)` variants. `JoinedOrPanic` treats worker failure as fatal, and `ParallelMap` maps over chunks using `Spawn` and `Join`.
@@ -61,10 +62,10 @@ def evens = values
 
 - Sources: `OfArray(values)`, or any value with an `Iterable` instance, such as
   `List::ListIterNew(list)`, a `MapIter` or a `SetIter`.
-- Stages: `Map(source, f)`, `Filter(source, keep)`, `Take(source, count)`. Each is
+- Stages: `Map(source, f)`, `Filter(source, keep)`, `Take(source, count)`, `Zip(left, right)`, and `FlatMap(source, expand)`. Each is
   a value with its own `Iterable` instance, so `for` loops and comprehensions
-  consume one directly.
-- Consumers: `ToArray(source)`, `Fold(source, initial, step)`, `Count(source)`.
+  consume one directly. `Zip` stops at the shorter source. Each `FlatMap` expansion supplies an `Iterable`.
+- Consumers: `ToArray(source)`, `Fold(source, initial, step)`, and `Count(source)` consume the full sequence. `Find(source, keep)`, `Any(source, keep)`, and `All(source, keep)` stop as soon as their result is known.
 
 Stages are lazy. Nothing runs until a consumer asks for an element, and a `Take`
 in front of a `Map` means the mapped function runs only for the elements taken.
@@ -125,13 +126,15 @@ def platform_name =
 Public IO entry points:
 
 - `TryReadFile`, `TryWriteFile`, `TryAppendToFile`
-- `TryReadBinaryFile`, `TryWriteBinaryFile`
+- `TryReadBinaryFile`, `TryWriteBinaryFile`, `TryAppendBinaryFile`
+- `TryReadBinaryChunk(path, offset, max_bytes)`: reopens a regular file at a nonnegative byte offset and reads up to the requested number of bytes (1 to 2147483647). A successful read returns `Some(bytes)`, or `None` at EOF.
 - `TryDeleteFile`, `TryRenameFile`, `TryGetFileSize`
 - `FileExists`, which is also true for a directory, and `DirectoryExists`
 - `TryListDirectory`: the names in a directory, sorted, without the directory in front
 - `TryMakeDirectory`: makes the missing parents too; a directory already there is not an error
 - `TryFileChecksum`: `sha256:` and the file's SHA-256 in hex, the form plans and lockfiles use
-- Console helpers such as `PrintLine`, `PrintErrorLine`, `ReadInput`, and `ReadLine`
+- Console helpers such as `PrintLine`, `PrintErrorLine`, and `ReadInput`
+- `TryReadLine()`: reads standard input and distinguishes a blank line (`Ok(Some(""))`), EOF (`Ok(None())`), and a read error (`Err`). `ReadLine()` returns empty text for both a blank line and EOF.
 
 Public system entry points:
 
@@ -164,6 +167,8 @@ Public date/time entry points:
 - `LocalNow`, `UtcNow`
 - `NowUnixMillis`, `NowMonotonicNanos`, `TimezoneOffsetMinutes`
 - `FormatLocal`
+- `ParseTimestamp` and `FormatUtcTimestamp` parse and format Unix milliseconds. Parsing accepts a four-digit date, a time with seconds and up to three fractional digits, and `Z` or a signed offset. Formatting emits UTC with three fractional digits. Both return `None` for results outside UTC years 0000 through 9999. Leap seconds are rejected.
+- `DurationBetween(start, finish)` computes a signed millisecond `Duration`, and `AddDuration(timestamp, duration)` applies one to a timestamp. Both return `None` on integer overflow.
 
 ## Text and Array Helpers
 
@@ -191,7 +196,7 @@ Public text helpers:
 
 - `Length`, `Contains`, `StartsWith`, `EndsWith`, `Substring`
 - `Split`, `Join(Array<Text>, Text) -> Text`, `Replace`, `Trim`, `Reverse`
-- `FromCodePoint(Int) -> Option<Text>`: the text of one Unicode scalar value; `None` for a surrogate, anything past U+10FFFF, and U+0000, which text cannot hold
+- `FromCodePoint(Int) -> Option<Text>`: the text of one Unicode scalar value. Returns `None` for a surrogate, a value outside the Unicode range, or U+0000. Use the text literal escape `\0` to represent NUL.
 - `CodePointAt(Text, Int) -> Option<Int>`: the code point at a zero-based code-point index, or `None` if the index is outside the text
 - `CodePoints(Text) -> Array<Int>`: every code point, in one pass. To walk a text, index this array: `CodePointAt` finds each code point from the start of the text, so calling it in a loop is quadratic
 - `FromCodePoints(Array<Int>) -> Option<Text>`: the text of those code points; `None` when one of them is not a code point `FromCodePoint` takes
@@ -204,11 +209,14 @@ Public array helpers:
 - `WithAppended`, `WithReplaced`, `WithInserted`, `WithRemoved`
 - `Sort` for an `Orderable` element type, and `SortBy(Array<T>, fn(T, T) -> Int)` with a comparison that returns a negative number, zero or a positive number. Both are stable: equal elements keep their order. `Sort` stops with a panic if its comparator encounters unordered values
 
-Public path helpers, in `Path`, which read `/` and `\` as separators and write `/`:
+Public lexical path helpers in `Path` recognize both `/` and `\` as separators, including Windows drive roots and UNC shares.
 
-- `Join(directory, name)`: `name` alone when it is absolute or `directory` is empty
-- `Directory`, `FileName`: the parts before and after the last separator
+- `IsAbsolute`: tests for a leading separator or a drive followed by a separator
+- `Join(directory, name)`: `name` alone when it is rooted or drive-qualified, or when `directory` is empty
+- `Directory`, `FileName`: split the last component from its directory while preserving the root
 - `Extension`: the text after the file name's last dot, without the dot; empty for `Makefile` and `.gitignore`
+- `Normalize`: resolves dot and parent components and uses `/` in its output
+- `Relative(from_directory, to_path)`: computes a relative path within the same root, or returns `None` when the roots differ or the starting directory has an unmatched parent component
 
 ## Core ADTs and Collections
 
@@ -218,7 +226,7 @@ The core prelude modules stay intentionally small:
 - `Prelude/Result.mmt`: `Result`, `ResultMap`, `ResultBind`, `ResultMapError`, `ResultIsOk`, `ResultIsError`, `ResultUnwrap`, `ResultUnwrapOrElse`, `ResultUnwrapOrPanic`
 - `Prelude/List.mmt`: `List`, `ListMap`, `ListLength`, `ListAppend`, `ListFilter`, `ListReverse`, `ListFold`, `ListFromArray`, `ListToArray`
 - `Collections/Map.mmt`: `Empty`, `Count`, `IsEmpty`, `Get`, `GetOr`, `ContainsKey`, `With`, `Without`, `Entries`, `Keys`, `Values`, `IterNew`
-- `Collections/Set.mmt`: `SetEmpty`, `SetCount`, `SetIsEmpty`, `SetWith`, `SetWithout`, `SetHas`, `SetToArray`, `SetIterNew`
+- `Collections/Set.mmt`: `SetEmpty`, `SetCount`, `SetIsEmpty`, `SetWith`, `SetWithout`, `SetHas`, `SetToArray`, `SetIterNew`, `SetUnion`, `SetIntersection`, `SetDifference`
 
 ## Math
 

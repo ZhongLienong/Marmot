@@ -1,10 +1,14 @@
 module IO
-import { "./Prelude/Result.mmt", "./Transferable.mmt" }
+import { "./Prelude/Option.mmt", "./Prelude/Result.mmt", "./TextUtil.mmt", "./Transferable.mmt" }
+use Option.
+{
+    Option
+}
 use Result.
 {
     Result
 }
-public export { IOError, Print, PrintLine, PrintError, PrintErrorLine, ReadInput, ReadLine, FileExists, DirectoryExists, TryReadFile, TryWriteFile, TryAppendToFile, TryReadBinaryFile, TryWriteBinaryFile, TryDeleteFile, TryRenameFile, TryGetFileSize, TryListDirectory, TryMakeDirectory, TryFileChecksum }
+public export { IOError, Print, PrintLine, PrintError, PrintErrorLine, ReadInput, ReadLine, TryReadLine, FileExists, DirectoryExists, TryReadFile, TryWriteFile, TryAppendToFile, TryReadBinaryFile, TryReadBinaryChunk, TryWriteBinaryFile, TryAppendBinaryFile, TryDeleteFile, TryRenameFile, TryGetFileSize, TryListDirectory, TryMakeDirectory, TryFileChecksum }
 
 type IOError = NotFound(Text) | PermissionDenied(Text) | InvalidPath(Text) | UnknownIO(Text);
 
@@ -16,6 +20,8 @@ foreign "MARMOT_FFI_ReadInput" ReadInputRaw: fn() -> Text from "marmotstdlib";
 
 foreign "MARMOT_FFI_ReadLine" ReadLineRaw: fn() -> Text from "marmotstdlib";
 
+foreign "MARMOT_FFI_TryReadLine" TryReadLineRaw: fn() -> Array<Text> from "marmotstdlib";
+
 foreign "MARMOT_FFI_ReadFile" ReadFileRaw: fn(Text) -> Text from "marmotstdlib";
 
 foreign "MARMOT_FFI_WriteFile" WriteFileRaw: fn(Text, Text) -> Bool from "marmotstdlib";
@@ -24,7 +30,11 @@ foreign "MARMOT_FFI_AppendToFile" AppendToFileRaw: fn(Text, Text) -> Bool from "
 
 foreign "MARMOT_FFI_ReadBinaryFile" ReadBinaryFileRaw: fn(Text) -> Array<Byte> from "marmotstdlib";
 
+foreign "MARMOT_FFI_ReadBinaryChunk" ReadBinaryChunkRaw: fn(Text, Int, Int) -> Array<Byte> from "marmotstdlib";
+
 foreign "MARMOT_FFI_WriteBinaryFile" WriteBinaryFileRaw: fn(Text, Array<Byte>) -> Bool from "marmotstdlib";
+
+foreign "MARMOT_FFI_AppendBinaryFile" AppendBinaryFileRaw: fn(Text, Array<Byte>) -> Bool from "marmotstdlib";
 
 foreign "MARMOT_FFI_FileExists" FileExistsRaw: fn(Text) -> Bool from "marmotstdlib";
 
@@ -109,6 +119,17 @@ def IOResultFromStatus = fn<T>(path: Text, value: T) -> Result<T, IOError> =>
     else Result::Err(MakeIOError(path, error_kind))
 };
 
+// Reads a line from standard input without its line feed. A blank line gives
+// Some("") and end of input gives None. A read failure gives Err.
+def TryReadLine = fn() -> Result<Option<Text>, IOError> =>
+{
+    // The native return splits the line at embedded NULs for the C-string FFI.
+    def segments = TryReadLineRaw();
+    // At least one segment is present for a line, even when that line is empty.
+    def line: Option<Text> = if #segments == 0 then Option::None() else Option::Some(TextUtil::Join(segments, "\0"));
+    IOResultFromStatus("standard input", line)
+};
+
 // Reads a whole file as Text. Use TryReadBinaryFile for arbitrary bytes.
 def TryReadFile = fn(path: Text) -> Result<Text, IOError> =>
 {
@@ -139,10 +160,28 @@ def TryReadBinaryFile = fn(path: Text) -> Result<Array<Byte>, IOError> =>
     IOResultFromStatus(path, bytes)
 };
 
+// Opens the file at a zero-based byte offset and reads up to max_bytes bytes.
+// max_bytes must be between 1 and 2147483647. None means the offset is at or beyond EOF.
+def TryReadBinaryChunk = fn(path: Text, offset: Int, max_bytes: Int) -> Result<Option<Array<Byte>>, IOError> =>
+{
+    // An empty native buffer can mean EOF or failure. The I/O status distinguishes them.
+    def bytes = ReadBinaryChunkRaw(path, offset, max_bytes);
+    // A successful read of zero bytes means EOF because max_bytes is positive.
+    def chunk: Option<Array<Byte>> = if #bytes == 0 then Option::None() else Option::Some(bytes);
+    IOResultFromStatus(path, chunk)
+};
+
 // Writes bytes, creating the file or replacing its contents.
 def TryWriteBinaryFile = fn(path: Text, bytes: Array<Byte>) -> Result<Unit, IOError> =>
 {
     WriteBinaryFileRaw(path, bytes);
+    IOResultFromStatus(path, ())
+};
+
+// Appends a chunk of bytes, creating the file if needed.
+def TryAppendBinaryFile = fn(path: Text, bytes: Array<Byte>) -> Result<Unit, IOError> =>
+{
+    AppendBinaryFileRaw(path, bytes);
     IOResultFromStatus(path, ())
 };
 

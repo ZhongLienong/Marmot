@@ -1,49 +1,138 @@
 module Path
-import { "./TextUtil.mmt" }
-public export { Join, Directory, FileName, Extension }
+import { "./ArrayUtil.mmt", "./TextUtil.mmt", "./Prelude/List.mmt", "./Prelude/Option.mmt" }
+public export { IsAbsolute, Join, Directory, FileName, Extension, Normalize, Relative }
+use List.
+{
+    List,
+    ListReverse,
+    ListToArray
+}
+use Option.
+{
+    Option
+}
 
-// Both separators are read, so a Windows path splits too. Join writes `/`,
-// which Windows also accepts.
+type Root = {
+    prefix: Text,
+    absolute: Bool
+};
+
+// Use a common separator for lexical path operations on every host.
 def Separated = fn(path: Text) -> Text => TextUtil::Replace(path, "\\", "/");
 
-// Joins directory and name, inserting / as needed. An empty directory or a name starting
-// with either separator yields name unchanged.
-def Join = fn(directory: Text, name: Text) -> Text => if (directory == "") || TextUtil::StartsWith(Separated(name), "/")
-then name
-else if TextUtil::EndsWith(Separated(directory), "/")
-then directory ++ name
-else directory ++ "/" ++ name;
+// A Windows drive prefix begins with an ASCII letter followed by a colon.
+def HasDrive = fn(path: Text) -> Bool => (TextUtil::Substring(path, 1, 2) == ":") && TextUtil::Contains("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz", TextUtil::Substring(path, 0, 1));
 
-// Returns the last component after either separator. A trailing separator gives empty text.
-def FileName = fn(path: Text) -> Text =>
+// Recognizes a drive, a network share, or a leading separator as the root.
+def FindRoot = fn(path: Text) -> Root => if HasDrive(path) then
 {
-    // Normalize separators before splitting so mixed separators work too.
-    def parts = TextUtil::Split(Separated(path), "/");
+    // The third character distinguishes a drive-relative path from a drive root.
+    def absolute = TextUtil::Substring(path, 2, 3) == "/";
+    Root(TextUtil::Substring(path, 0, if absolute then 3 else 2), absolute)
+} else if TextUtil::StartsWith(path, "//") then
+{
+    // A UNC root must include both a server and a share.
+    def parts = TextUtil::Split(path, "/");
+    if (#parts >= 4) && (parts[2] != "") && (parts[3] != "") then Root("//" ++ parts[2] ++ "/" ++ parts[3], true) else Root("/", true)
+} else if TextUtil::StartsWith(path, "/") then Root("/", true) else Root("", false);
+
+// Tests for a leading separator or a drive followed by a separator.
+def IsAbsolute = fn(path: Text) -> Bool => FindRoot(Separated(path)).absolute;
+
+// Appends a known tail, preserving the meaning of a bare drive prefix.
+def AttachTail = fn(directory: Text, name: Text) -> Text => if TextUtil::EndsWith(Separated(directory), "/") || (HasDrive(directory) && (TextUtil::Length(directory) == 2)) then directory ++ name else directory ++ "/" ++ name;
+
+// Joins directory and name. A rooted or drive-qualified name replaces directory.
+def Join = fn(directory: Text, name: Text) -> Text => if (directory == "") || TextUtil::StartsWith(Separated(name), "/") || HasDrive(name) then name else AttachTail(directory, name);
+
+// Splits the portion of a separator-normalized path after its root.
+def TailParts = fn(path: Text, root: Root) -> Array<Text> => TextUtil::Split(TextUtil::Substring(path, TextUtil::Length(root.prefix), TextUtil::Length(path)), "/");
+
+// Returns the last component after the root. A root or trailing separator gives empty text.
+def FileName = fn(path: Text) -> Text => {
+    // Use normalized separators to handle either input spelling.
+    def separated = Separated(path);
+    // Exclude the drive or share name from the list of file components.
+    def parts = TailParts(separated, FindRoot(separated));
     parts[#parts - 1]
 };
 
-// Returns the portion before the final separator using the input's separators. A bare name
-// gives empty text.
-def Directory = fn(path: Text) -> Text =>
-{
-    // Count code points so the cut works for multibyte names.
+// Returns the portion before the last component, retaining the root and input separators.
+def Directory = fn(path: Text) -> Text => {
+    // Count normalized root code points so the original spelling can be sliced.
+    def root_length = TextUtil::Length(FindRoot(Separated(path)).prefix);
+    // The separator before the last component is omitted unless it belongs to the root.
     def cut = TextUtil::Length(path) - TextUtil::Length(FileName(path)) - 1;
-    // Keep the initial separator when the last component is directly below the root.
-    def end = if cut == 0
-    then 1
-    else cut;
-    if cut < 0
-    then ""
-    else TextUtil::Substring(path, 0, end)
+    TextUtil::Substring(path, 0, if cut < root_length then root_length else cut)
 };
 
 // Returns the part of the file name after its last dot, without the dot. A sole leading dot
 // gives an empty extension.
-def Extension = fn(path: Text) -> Text =>
-{
+def Extension = fn(path: Text) -> Text => {
     // Inspect the file name alone so dots in directory names do not count.
     def parts = TextUtil::Split(FileName(path), ".");
-    if (#parts < 2) || ((#parts == 2) && (parts[0] == ""))
-    then ""
-    else parts[#parts - 1]
+    if (#parts < 2) || ((#parts == 2) && (parts[0] == "")) then "" else parts[#parts - 1]
+};
+
+// Resolves empty components, dot, and parent traversal using a stack of path components.
+def NormalizeParts = fn(parts: Array<Text>, index: Int, absolute: Bool, stack: List<Text>) -> List<Text> => if index >= #parts then stack else
+{
+    // A parent can remove an ordinary component, or stay unresolved on a relative path.
+    def part = parts[index];
+    if (part == "") || (part == ".") then NormalizeParts(parts, index + 1, absolute, stack) else if part == ".." then match stack with
+        case List::Cons(head, rest) if head != ".." => NormalizeParts(parts, index + 1, absolute, rest)
+        case _ => NormalizeParts(parts, index + 1, absolute, if absolute then stack else List::Cons(part, stack)) else NormalizeParts(parts, index + 1, absolute, List::Cons(part, stack))
+};
+
+// Returns normalized components in directory-to-file order.
+def Components = fn(path: Text, root: Root) -> Array<Text> => ListToArray(ListReverse(NormalizeParts(TailParts(path, root), 0, root.absolute, List::Nil())));
+
+// Keeps a drive-like first component relative after redundant dots are removed.
+def RelativeText = fn(path: Text) -> Text => if path == "" then "." else if HasDrive(path) then "./" ++ path else path;
+
+// Resolves dot and parent components lexically and uses / as the separator.
+def Normalize = fn(path: Text) -> Text => {
+    // Preserve the root while removing redundant components from its tail.
+    def separated = Separated(path);
+    // The root determines whether unresolved parents are retained.
+    def root = FindRoot(separated);
+    // Joining the normalized components collapses duplicate separators.
+    def tail = TextUtil::Join(Components(separated, root), "/");
+    if root.prefix == "" then RelativeText(tail) else if tail == "" then root.prefix else AttachTail(root.prefix, tail)
+};
+
+// Compares root spellings, ignoring ASCII case for Windows drive letters.
+def SameRoot = fn(left: Root, right: Root) -> Bool => (left.prefix == right.prefix) || (HasDrive(left.prefix) && HasDrive(right.prefix) && (left.absolute == right.absolute) && ((TextUtil::CodePoints(left.prefix)[0] % 32) == (TextUtil::CodePoints(right.prefix)[0] % 32)));
+
+// Counts the shared leading path components.
+def SharedPrefix = fn(left: Array<Text>, right: Array<Text>, index: Int) -> Int => if (index < #left) && (index < #right) && (left[index] == right[index]) then SharedPrefix(left, right, index + 1) else index;
+
+// Computes a lexical path from one directory to another path. Returns None for different
+// roots or when the starting directory has an unmatched parent component.
+def Relative = fn(from_directory: Text, to_path: Text) -> Option<Text> => {
+    // Normalize both inputs with the same separator rules.
+    def source = Separated(from_directory);
+    // Use the destination root to reject a cross-root calculation.
+    def target = Separated(to_path);
+    // Resolve source parents only within the source root.
+    def source_root = FindRoot(source);
+    // Resolve destination parents only within the destination root.
+    def target_root = FindRoot(target);
+    if ! SameRoot(source_root, target_root) then Option::None() else
+    {
+        // Walk up from the first unmatched source component.
+        def from_parts = Components(source, source_root);
+        // Keep the unmatched destination components to walk down again.
+        def to_parts = Components(target, target_root);
+        // The shared prefix is the closest common directory.
+        def common = SharedPrefix(from_parts, to_parts, 0);
+        if (common < #from_parts) && (from_parts[common] == "..") then Option::None() else
+        {
+            // Each remaining source component needs a parent step.
+            def parents = [".." for _ in common..#from_parts];
+            // The destination tail begins after the shared directory.
+            def tail = ArrayUtil::Slice(to_parts, common, #to_parts);
+            Option::Some(RelativeText(TextUtil::Join(parents ++ tail, "/")))
+        }
+    }
 };

@@ -1,0 +1,47 @@
+module IOBinaryChunks
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/System.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt" }
+use Option.
+{
+    Option
+}
+use Result.
+{
+    Result,
+    ResultUnwrapOrPanic,
+    ResultIsError
+}
+
+def path = "marmot-io-chunks-" ++ (System::CurrentProcessId() as Text) ++ ".bin";
+
+def Expect = fn(condition: Bool, message: Text) -> Unit => if condition then () else Panic::Panic(message);
+
+def Read = fn(offset: Int, count: Int) -> Option<Array<Byte>> => ResultUnwrapOrPanic(IO::TryReadBinaryChunk(path, offset, count), "binary chunk read failed");
+
+ResultUnwrapOrPanic(IO::TryWriteBinaryFile(path, [0x00, 0xFF]), "write failed");
+ResultUnwrapOrPanic(IO::TryAppendBinaryFile(path, [0x80, 0x0A, 0x01]), "append failed");
+
+match Read(0, 3) with
+    case Option::Some([0x00, 0xFF, 0x80]) => ()
+    case _ => Panic::Panic("first chunk must preserve every byte");
+
+match Read(3, 8) with
+    case Option::Some([0x0A, 0x01]) => ()
+    case _ => Panic::Panic("the final chunk may be shorter than requested");
+
+match Read(5, 1) with
+    case Option::None() => ()
+    case _ => Panic::Panic("expected EOF");
+
+match Read(9223372036854775807, 1) with
+    case Option::None() => ()
+    case _ => Panic::Panic("expected EOF past the end");
+
+Expect(ResultIsError(IO::TryReadBinaryChunk(path, -1, 1)), "negative offset must fail");
+Expect(ResultIsError(IO::TryReadBinaryChunk(path, 0, 0)), "zero length must fail");
+ResultUnwrapOrPanic(IO::TryDeleteFile(path), "delete failed");
+Expect(ResultIsError(IO::TryReadBinaryChunk(path, 0, 1)), "missing file must fail");
+ResultUnwrapOrPanic(IO::TryAppendBinaryFile(path, [0x42]), "append should create a missing file");
+match Read(0, 1) with
+    case Option::Some([0x42]) => ()
+    case _ => Panic::Panic("expected bytes in the newly created file");
+ResultUnwrapOrPanic(IO::TryDeleteFile(path), "delete failed");

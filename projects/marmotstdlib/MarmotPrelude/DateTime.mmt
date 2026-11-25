@@ -1,5 +1,10 @@
 module DateTime
-public export { LocalTimeParts, UtcTimeParts, NowUnixMillis, NowMonotonicNanos, TimezoneOffsetMinutes, LocalNow, UtcNow, FormatLocal }
+import { "./TextUtil.mmt", "./Prelude/Option.mmt" }
+public export { LocalTimeParts, UtcTimeParts, Duration, NowUnixMillis, NowMonotonicNanos, TimezoneOffsetMinutes, LocalNow, UtcNow, FormatLocal, ParseTimestamp, FormatUtcTimestamp, AddDuration, DurationBetween }
+use Option.
+{
+    Option
+}
 
 type LocalTimeParts =
 {
@@ -26,6 +31,16 @@ type UtcTimeParts =
     day_of_year: Int
 };
 
+type Duration = {
+    milliseconds: Int
+};
+
+// The native timestamp parser uses the smallest Int as its failure sentinel.
+def MinInt: Int = -9223372036854775808;
+
+// Checked duration arithmetic uses the full positive Int range.
+def MaxInt: Int = 9223372036854775807;
+
 foreign "MARMOT_FFI_GetTime" GetTimeRaw: fn() -> Float from "marmotstdlib";
 
 foreign "MARMOT_FFI_GetMonotonicNanos" GetMonotonicNanosRaw: fn() -> Int from "marmotstdlib";
@@ -47,6 +62,10 @@ foreign "MARMOT_FFI_GetDayOfWeek" GetDayOfWeekRaw: fn() -> Int from "marmotstdli
 foreign "MARMOT_FFI_GetDayOfYear" GetDayOfYearRaw: fn() -> Int from "marmotstdlib";
 
 foreign "MARMOT_FFI_FormatTime" FormatTimeRaw: fn(Text) -> Text from "marmotstdlib";
+
+foreign "MARMOT_FFI_ParseTimestamp" ParseTimestampRaw: fn(Text) -> Int from "marmotstdlib";
+
+foreign "MARMOT_FFI_FormatUtcTimestamp" FormatUtcTimestampRaw: fn(Int) -> Text from "marmotstdlib";
 
 foreign "MARMOT_FFI_GetTimezoneOffset" GetTimezoneOffsetRaw: fn() -> Int from "marmotstdlib";
 
@@ -112,3 +131,31 @@ def UtcNow = fn() -> UtcTimeParts =>
 
 // Formats the current local time using strftime-style directives.
 def FormatLocal = fn(format: Text) -> Text => FormatTimeRaw(format);
+
+// Parses YYYY-MM-DDTHH:MM:SS, an optional fraction of one to three digits, and
+// Z or a signed HH:MM offset. Returns Unix milliseconds for UTC years 0000–9999.
+// Malformed dates, leap seconds, and results outside that year range give None.
+def ParseTimestamp = fn(text: Text) -> Option<Int> => if TextUtil::Contains(text, "\0") then Option::None() else
+{
+    // Validate the entire timestamp before exposing the numeric result.
+    def milliseconds = ParseTimestampRaw(text);
+    if milliseconds == MinInt then Option::None() else Option::Some(milliseconds)
+};
+
+// Formats Unix milliseconds as UTC with exactly three fractional digits.
+// Returns None outside UTC years 0000–9999.
+def FormatUtcTimestamp = fn(timestamp: Int) -> Option<Text> => {
+    // The native formatter yields empty text when the UTC year cannot be represented.
+    def text = FormatUtcTimestampRaw(timestamp);
+    if text == "" then Option::None() else Option::Some(text)
+};
+
+// Adds a signed duration to a timestamp and returns None if the Int would overflow.
+def AddDuration = fn(timestamp: Int, duration: Duration) -> Option<Int> => {
+    // Select a bound whose subtraction is safe for the sign of the duration.
+    def delta = duration.milliseconds;
+    if ((delta > 0) && (timestamp > MaxInt - delta)) || ((delta < 0) && (timestamp < MinInt - delta)) then Option::None() else Option::Some(timestamp + delta)
+};
+
+// Returns the signed elapsed milliseconds from start to finish, or None on Int overflow.
+def DurationBetween = fn(start: Int, finish: Int) -> Option<Duration> => if ((start > 0) && (finish < MinInt + start)) || ((start < 0) && (finish > MaxInt + start)) then Option::None() else Option::Some(Duration(finish - start));

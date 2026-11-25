@@ -1,7 +1,7 @@
 module Iter
 import { "./ArrayUtil.mmt", "./Iterable.mmt", "./Prelude/Option.mmt" }
 
-public export { ArrayIter, OfArray, Mapped, Map, Filtered, Filter, Taken, Take, Fold, Count, ToArray }
+public export { ArrayIter, OfArray, Mapped, Map, Filtered, Filter, Taken, Take, Zipped, Zip, FlatMapped, FlatMap, Find, Any, All, Fold, Count, ToArray }
 
 use Option.
 {
@@ -110,6 +110,67 @@ instance Iterable<Taken<S, A>> where Iterable<S>, Iterable::Item<S> ~ A
         }
         case Option::None() => Option::None();
 };
+
+type Zipped<L, R, A, B> = {
+    left: L,
+    right: R
+};
+
+// Creates a lazy sequence of pairs and stops once either input is exhausted.
+// Each step checks the left input first.
+def Zip = fn<L, R, A, B>(left: L, right: R) -> Zipped<L, R, A, B> where Iterable<L>, Iterable::Item<L> ~ A, Iterable<R>, Iterable::Item<R> ~ B => Zipped(left, right);
+
+instance Iterable<Zipped<L, R, A, B>> where Iterable<L>, Iterable::Item<L> ~ A, Iterable<R>, Iterable::Item<R> ~ B
+{
+    type Item = (A, B);
+    // Pulls one item from each input and carries both remaining states.
+    def Next = fn(stage: Zipped<L, R, A, B>) -> Option<((A, B), Zipped<L, R, A, B>)> => match Iterable::Next(stage.left) with
+        case Option::None() => Option::None()
+        case Option::Some((left, left_rest)) => match Iterable::Next(stage.right) with
+            case Option::None() => Option::None()
+            case Option::Some((right, right_rest)) => Option::Some(((left, right), Zipped(left_rest, right_rest)));
+};
+
+type FlatMapped<S, I, A, B> = {
+    source: S,
+    expand: fn(A) -> I,
+    inner: Option<I>
+};
+
+// Lazily expands each source element into an Iterable and yields its items in order.
+def FlatMap = fn<S, I, A, B>(source: S, expand: fn(A) -> I) -> FlatMapped<S, I, A, B> where Iterable<S>, Iterable::Item<S> ~ A, Iterable<I>, Iterable::Item<I> ~ B => FlatMapped(source, expand, Option::None());
+
+// Drains the current inner sequence before expanding another source item.
+// Empty inner sequences are skipped in tail position.
+def NextFlat = fn<S, I, A, B>(stage: FlatMapped<S, I, A, B>) -> Option<(B, FlatMapped<S, I, A, B>)> where Iterable<S>, Iterable::Item<S> ~ A, Iterable<I>, Iterable::Item<I> ~ B =>
+    match stage.inner with
+        case Option::Some(inner) =>
+        {
+            match Iterable::Next(inner) with
+                case Option::Some((value, rest)) => Option::Some((value, FlatMapped(stage.source, stage.expand, Option::Some(rest))))
+                case Option::None() => NextFlat(FlatMapped(stage.source, stage.expand, Option::None()))
+        }
+        case Option::None() => match Iterable::Next(stage.source) with
+            case Option::Some((value, rest)) => NextFlat(FlatMapped(rest, stage.expand, Option::Some(stage.expand(value))))
+            case Option::None() => Option::None();
+
+instance Iterable<FlatMapped<S, I, A, B>> where Iterable<S>, Iterable::Item<S> ~ A, Iterable<I>, Iterable::Item<I> ~ B
+{
+    type Item = B;
+    // Yields the next item from the flattened sequence.
+    def Next = fn(stage: FlatMapped<S, I, A, B>) -> Option<(B, FlatMapped<S, I, A, B>)> => NextFlat(stage);
+};
+
+// Returns the first element accepted by keep and stops pulling source items.
+def Find = fn<S, A>(source: S, keep: fn(A) -> Bool) -> Option<A> where Iterable<S>, Iterable::Item<S> ~ A => match Iterable::Next(source) with
+    case Option::Some((value, rest)) => if keep(value) then Option::Some(value) else Find(rest, keep)
+    case Option::None() => Option::None();
+
+// Stops at the first match. An empty sequence yields false.
+def Any = fn<S, A>(source: S, keep: fn(A) -> Bool) -> Bool where Iterable<S>, Iterable::Item<S> ~ A => Option::OptionIsSome(Find(source, keep));
+
+// Stops at the first rejection. An empty sequence yields true.
+def All = fn<S, A>(source: S, keep: fn(A) -> Bool) -> Bool where Iterable<S>, Iterable::Item<S> ~ A => !Any(source, fn(value: A) -> Bool => !keep(value));
 
 // Consumes the sequence in order, passing the accumulated value first to step.
 def Fold = fn<S, A, B>(source: S, initial: B, step: fn(B, A) -> B) -> B where Iterable<S>, Iterable::Item<S> ~ A => match Iterable::Next(source) with

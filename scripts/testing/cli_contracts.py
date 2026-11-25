@@ -28,7 +28,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from lib.host import REPO_ROOT, remove_artifacts, write_text
+from lib.host import PRELUDE_DIR, REPO_ROOT, remove_artifacts, write_text
 from lib.presets import BuildTree, add_build_arguments
 from lib.program import vm_beside
 
@@ -68,6 +68,8 @@ def run_vm(
     tree: BuildTree,
     args: list[str],
     env_overrides: dict[str, str | None] | None = None,
+    *,
+    input_text: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """The matching independent VM build or installed sibling."""
     env = os.environ.copy()
@@ -78,6 +80,7 @@ def run_vm(
             env[key] = value
     return subprocess.run(
         [str(vm_beside(tree.compiler)), *args],
+        input=input_text,
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -749,6 +752,38 @@ def scenario_compiler_parallelism(tree: BuildTree) -> None:
                          f"timings must preserve failed compilation reports: {failed}")
 
 
+def scenario_typed_line_input_distinguishes_blank_lines_from_eof(tree: BuildTree) -> None:
+    with tempfile.TemporaryDirectory(prefix="marmot-cli-stdin-") as folder:
+        main_path = Path(folder) / "Main.mmt"
+        artifact = main_path.with_suffix(".mmc")
+        write_text(
+            main_path,
+            """module Main
+import { <IO>, <Prelude.Option>, <Prelude.Result> }
+use Option.{Option}
+use Result.{Result}
+
+def Show = fn() -> Unit => match IO::TryReadLine() with
+    case Result::Ok(Option::Some("contains\\0nul")) => IO::PrintLine("NUL")
+    case Result::Ok(Option::Some(line)) => IO::PrintLine("[" ++ line ++ "]")
+    case Result::Ok(Option::None()) => IO::PrintLine("EOF")
+    case Result::Err(_) => IO::PrintLine("error");
+
+Show();
+Show();
+Show();
+Show();
+Show();
+""",
+        )
+        built = run_marmot(tree, ["build", str(main_path), "-o", str(artifact)],
+                           {"MARMOT_PATH": str(PRELUDE_DIR)})
+        assert_condition(built.returncode == 0, f"typed line input could not build: {built}")
+        result = run_vm(tree, ["run", str(artifact)], input_text="\ncontains\0nul\nlast line")
+        assert_condition(result.returncode == 0 and result.stdout == "[]\nNUL\n[last line]\nEOF\nEOF\n",
+                         f"typed line input returned: {result}")
+
+
 SCENARIOS: list[tuple[str, Any]] = [
     ("compiler_parallelism", scenario_compiler_parallelism),
     ("profile_features", scenario_profile_features),
@@ -762,6 +797,7 @@ SCENARIOS: list[tuple[str, Any]] = [
     ("emit_ast_feature", scenario_emit_ast_feature),
     ("marmotvm_runs_what_marmotc_built", scenario_marmotvm_runs_what_marmotc_built),
     ("marmotvm_passes_program_arguments", scenario_marmotvm_passes_program_arguments),
+    ("typed_line_input_distinguishes_blank_lines_from_eof", scenario_typed_line_input_distinguishes_blank_lines_from_eof),
     ("marmotvm_command_line", scenario_marmotvm_command_line),
     ("build_command_compiles_without_running", scenario_build_command_compiles_without_running),
     ("native_library_loads_only_to_run", scenario_native_library_loads_only_to_run),

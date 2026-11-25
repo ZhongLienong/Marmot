@@ -1,0 +1,73 @@
+module JsonCodec
+import { "../../../projects/marmotstdlib/MarmotPrelude/Json.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt", "../../../projects/marmotstdlib/MarmotPrelude/TextUtil.mmt" }
+use Json.
+{
+    Json,
+    JsonError
+}
+use Result.
+{
+    Result,
+    ResultIsError,
+    ResultUnwrapOrPanic
+}
+
+def Expect = fn(condition: Bool, message: Text) -> Unit => if condition then () else Panic::Panic(message);
+
+def Decode = fn(source: Text) -> Json => ResultUnwrapOrPanic(Json::Parse(source), "JSON should decode");
+
+def Encode = fn(value: Json) -> Text => ResultUnwrapOrPanic(Json::Encode(value), "JSON should encode");
+
+def mixed = Decode
+(
+    " \t\r\n{\"x\":1E400,\"x\":null,\"items\":[true,false,[],{}],\"s\":\"\\uD83D\\uDE00\\u0000\\n\"} "
+);
+
+def checked: Unit = match mixed with
+    case Json::JObject
+(
+    [("x", Json::JNumber("1E400")), ("x", Json::JNull()), ("items", Json::JArray([Json::JBool(true), Json::JBool(false), Json::JArray([]), Json::JObject([])])), ("s", Json::JString("😀\0\n"))]
+) => ()
+    case _ => Panic::Panic("decoded value should preserve order, duplicate keys, numbers, and escapes");
+
+def compact = "{\"x\":1E400,\"x\":null,\"items\":[true,false,[],{}],\"s\":\"😀\\u0000\\u000a\"}";
+Expect(Encode(mixed) == compact, "encoding should emit compact JSON and escape control characters");
+Expect(Encode(Decode(compact)) == compact, "compact JSON should round-trip");
+Expect
+(
+    Encode(Decode("-0.050e+002")) == "-0.050e+002",
+    "numbers should retain the original spelling"
+);
+Expect
+(
+    Encode(Decode("\"\\/\\\"\\\\\\t\\b\\f\\r\"")) == "\"/\\\"\\\\\\u0009\\u0008\\u000c\\u000d\"",
+    "standard string escapes should round-trip"
+);
+
+for invalid in ["", "null false", "[1,]", "{\"a\":1,}", "{\"x\" 1}", "[", "01", "1.", "-.2", "1E+", "+1", "NaN", "\"\\q\"", "\"\\uD800\"", "\"\\uDC00\"", "\"\\uD800\\u0041\"", "\"raw\nnewline\""]
+{
+    Expect(ResultIsError(Json::Parse(invalid)), "accepted malformed JSON: " ++ invalid);
+};
+
+Expect(ResultIsError(Json::Parse("\"\xFF\"")), "malformed UTF-8 must fail");
+Expect(ResultIsError(Json::Encode(Json::JString("\xFF"))), "cannot encode malformed UTF-8");
+Expect(ResultIsError(Json::Encode(Json::JNumber("01"))), "cannot encode an invalid number");
+Expect
+(
+    ResultIsError(Json::Encode(Json::JNumber("1 "))),
+    "number payload must contain only the number"
+);
+
+def nested = TextUtil::Join(["[" for _ in 0..257], "") ++ "null" ++ TextUtil::Join(["]" for _ in 0..257], "");
+
+def limited: Unit = match Json::Parse(nested) with
+    case Result::Err(JsonError::NestingLimit()) => ()
+    case _ => Panic::Panic("excessive nesting should yield a typed error");
+
+def Wrap = fn(value: Json, remaining: Int) -> Json =>
+    if remaining == 0 then value else Wrap(Json::JArray([value]), remaining - 1);
+
+def nested_empty = Wrap(Json::JArray([]), 256);
+def encoding_limited: Unit = match Json::Encode(nested_empty) with
+    case Result::Err(JsonError::NestingLimit()) => ()
+    case _ => Panic::Panic("encoding should cap nested containers even if the last is empty");

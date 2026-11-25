@@ -13,6 +13,10 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <limits>
+#include <memory>
+#include <new>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <system_error>
@@ -20,6 +24,7 @@
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
 #include <windows.h>
 #endif
 
@@ -194,6 +199,154 @@ namespace
 
 		return std::make_error_code(std::errc::permission_denied);
 	}
+
+	MarmotFFIArray* ReadBinaryBytes(std::ifstream& file, std::streamsize size, bool whole_file)
+	{
+		if (size > std::numeric_limits<int32_t>::max())
+		{
+			SetLastIOError(IOErrorKind::Unknown, "Binary file exceeds the maximum array length. Read it in chunks.");
+			return nullptr;
+		}
+
+		const std::unique_ptr<char[]> buffer(new (std::nothrow) char[static_cast<size_t>(size)]);
+		if (!buffer)
+		{
+			SetLastIOError(IOErrorKind::Unknown, "Failed to allocate binary file buffer.");
+			return nullptr;
+		}
+
+		file.read(buffer.get(), size);
+		if (file.bad() || (file.fail() && (whole_file || !file.eof())))
+		{
+			SetLastIOError(IOErrorKind::Unknown, "Failed to read binary file.");
+			return nullptr;
+		}
+
+		const int32_t length = static_cast<int32_t>(file.gcount());
+		if (length == 0)
+		{
+			ClearLastIOError();
+			return nullptr;
+		}
+
+		auto* values = static_cast<int64_t*>(std::malloc(static_cast<size_t>(length) * sizeof(int64_t)));
+		auto* result = static_cast<MarmotFFIArray*>(std::malloc(sizeof(MarmotFFIArray)));
+		if (values == nullptr || result == nullptr)
+		{
+			std::free(values);
+			std::free(result);
+			SetLastIOError(IOErrorKind::Unknown, "Failed to allocate binary file result.");
+			return nullptr;
+		}
+
+		for (int32_t i = 0; i < length; i += 1)
+		{
+			values[i] = static_cast<uint8_t>(buffer[static_cast<size_t>(i)]);
+		}
+		*result = { values, length };
+		ClearLastIOError();
+		return result;
+	}
+
+	MarmotFFIArray* ReadBinaryFileBytes(
+		const char* file_path, int64_t offset, std::optional<std::streamsize> max_bytes)
+	{
+		const std::shared_lock<std::shared_mutex> lock(MarmotProcessState::s_mutex);
+		const std::filesystem::path path = TextPath::FromText(file_path);
+		std::error_code ec;
+		const std::filesystem::file_status status = std::filesystem::status(path, ec);
+		if (ec || std::filesystem::is_directory(status))
+		{
+			SetLastIOErrorFromCode(ec ? ec : std::make_error_code(std::errc::is_a_directory));
+			return nullptr;
+		}
+		if (max_bytes && !std::filesystem::is_regular_file(status))
+		{
+			SetLastIOError(IOErrorKind::Unknown, "Binary chunks require a regular file.");
+			return nullptr;
+		}
+
+		std::ifstream file(path, std::ios::binary);
+		if (!file.is_open())
+		{
+			SetLastIOErrorFromCode(DiagnoseReadOpenFailure(path));
+			return nullptr;
+		}
+
+		file.seekg(0, std::ios::end);
+		const std::streamoff file_size = file.tellg();
+		if (file_size < 0)
+		{
+			SetLastIOError(IOErrorKind::Unknown, "Failed to determine binary file size.");
+			return nullptr;
+		}
+		if (offset >= file_size)
+		{
+			ClearLastIOError();
+			return nullptr;
+		}
+
+		if (!file.seekg(offset, std::ios::beg))
+		{
+			SetLastIOError(IOErrorKind::Unknown, "Failed to seek to binary file offset.");
+			return nullptr;
+		}
+		const std::streamsize available = file_size - offset;
+		return ReadBinaryBytes(file, std::min(available, max_bytes.value_or(available)), !max_bytes);
+	}
+	void WriteBinaryBytes(void** args, void* ret, std::ios::openmode mode)
+	{
+		const std::shared_lock<std::shared_mutex> lock(MarmotProcessState::s_mutex);
+		const char* file_name = reinterpret_cast<const char*>(args[0u]);
+		const auto* array_arg = static_cast<const MarmotFFIArray*>(args[1u]);
+		if (array_arg == nullptr || array_arg->length < 0)
+		{
+			SetLastIOError(IOErrorKind::Unknown, "Invalid binary array argument.");
+			std::memset(ret, 0, sizeof(double));
+			return;
+		}
+
+		const std::filesystem::path path = TextPath::FromText(file_name);
+		std::ofstream file(path, std::ios::out | std::ios::binary | mode);
+		if (!file.is_open())
+		{
+			SetLastIOErrorFromCode(DiagnoseWriteOpenFailure(path));
+			std::memset(ret, 0, sizeof(double));
+			return;
+		}
+
+		if (array_arg->length > 0 && array_arg->data == nullptr)
+		{
+			SetLastIOError(IOErrorKind::Unknown, "Binary array data was null.");
+			std::memset(ret, 0, sizeof(double));
+			return;
+		}
+
+		if (array_arg->length > 0)
+		{
+			const auto* array_data = static_cast<const uint64_t*>(array_arg->data);
+			std::vector<char> buffer(static_cast<size_t>(array_arg->length));
+			for (int i = 0; i < array_arg->length; i += 1)
+			{
+				buffer[static_cast<size_t>(i)] = static_cast<char>(array_data[i] & 0xFFu);
+			}
+			file.write(buffer.data(), static_cast<std::streamsize>(array_arg->length));
+		}
+
+		file.close();
+		const bool success = !file.fail();
+		if (success)
+		{
+			ClearLastIOError();
+		}
+		else
+		{
+			SetLastIOError(IOErrorKind::Unknown, "Failed to write binary file.");
+		}
+
+		std::memset(ret, 0, sizeof(double));
+		*reinterpret_cast<bool*>(ret) = success;
+	}
 }
 
 extern "C"
@@ -259,6 +412,53 @@ extern "C"
 			const int64_t ptr = reinterpret_cast<int64_t>(empty);
 			std::memcpy(ret, &ptr, sizeof(double));
 		}
+	}
+
+	MARMOT_FFI_EXPORT void MARMOT_FFI_CALL MARMOT_FFI_FUNC(TryReadLine)(void**, void* ret) noexcept
+	{
+		const std::lock_guard<std::mutex> lock(s_input_mutex);
+		std::string line;
+		MarmotFFIArray* result = nullptr;
+		if (std::getline(std::cin, line))
+		{
+			// The C-string FFI preserves embedded NUL through a segment boundary.
+			std::vector<std::string> segments;
+			size_t start = 0;
+			for (size_t end = line.find('\0'); end != std::string::npos; end = line.find('\0', start))
+			{
+				segments.push_back(line.substr(start, end - start));
+				start = end + 1;
+			}
+			segments.push_back(line.substr(start));
+			result = AllocateStringArray(segments);
+			if (result)
+			{
+				char** data = static_cast<char**>(result->data);
+				if (std::find(data, data + result->length, nullptr) != data + result->length)
+				{
+					MARMOT_FFI_FreeResult(MARMOT_FFI_RETURN_ARRAY_STRINGS, result);
+					result = nullptr;
+				}
+			}
+			if (result)
+			{
+				ClearLastIOError();
+			}
+			else
+			{
+				SetLastIOError(IOErrorKind::Unknown, "Failed to allocate input line.");
+			}
+		}
+		else if (std::cin.eof() && !std::cin.bad())
+		{
+			ClearLastIOError();
+		}
+		else
+		{
+			SetLastIOError(IOErrorKind::Unknown, "Failed to read a line.");
+		}
+		const int64_t ptr = reinterpret_cast<int64_t>(result);
+		std::memcpy(ret, &ptr, sizeof(ptr));
 	}
 
 	MARMOT_FFI_EXPORT void MARMOT_FFI_CALL MARMOT_FFI_FUNC(ReadFile)(void** args, void* ret) noexcept
@@ -359,137 +559,40 @@ extern "C"
 
 	MARMOT_FFI_EXPORT void MARMOT_FFI_CALL MARMOT_FFI_FUNC(ReadBinaryFile)(void** args, void* ret) noexcept
 	{
-		const std::shared_lock<std::shared_mutex> lock(MarmotProcessState::s_mutex);
-		const char* file_path = reinterpret_cast<const char*>(args[0u]);
-		const std::filesystem::path path = TextPath::FromText(file_path);
+		const char* path = reinterpret_cast<const char*>(args[0u]);
+		const int64_t ptr = reinterpret_cast<int64_t>(ReadBinaryFileBytes(path, 0, std::nullopt));
+		std::memcpy(ret, &ptr, sizeof(ptr));
+	}
 
-		// Linux opens a directory as a stream that reads nothing.
-		std::ifstream file(path, std::ios::in | std::ios::binary);
-		if (std::filesystem::is_directory(path) || !file.is_open())
+	MARMOT_FFI_EXPORT void MARMOT_FFI_CALL MARMOT_FFI_FUNC(ReadBinaryChunk)(void** args, void* ret) noexcept
+	{
+		const char* path = reinterpret_cast<const char*>(args[0u]);
+		int64_t offset;
+		int64_t max_bytes;
+		std::memcpy(&offset, &args[1u], sizeof(offset));
+		std::memcpy(&max_bytes, &args[2u], sizeof(max_bytes));
+
+		MarmotFFIArray* result = nullptr;
+		if (offset < 0 || max_bytes <= 0 || max_bytes > std::numeric_limits<int32_t>::max())
 		{
-			SetLastIOErrorFromCode(DiagnoseReadOpenFailure(path));
-			const int64_t null_ptr = 0;
-			std::memcpy(ret, &null_ptr, sizeof(int64_t));
-			return;
+			SetLastIOError(IOErrorKind::Unknown, "Expected a nonnegative offset and a byte count between 1 and 2147483647.");
 		}
-
-		file.seekg(0, std::ios::end);
-		const std::streamsize file_size = file.tellg();
-		file.seekg(0, std::ios::beg);
-
-		if (file_size < 0)
+		else
 		{
-			SetLastIOError(IOErrorKind::Unknown, "Failed to determine binary file size.");
-			const int64_t null_ptr = 0;
-			std::memcpy(ret, &null_ptr, sizeof(int64_t));
-			return;
+			result = ReadBinaryFileBytes(path, offset, max_bytes);
 		}
-
-		if (file_size == 0)
-		{
-			ClearLastIOError();
-			const int64_t null_ptr = 0;
-			std::memcpy(ret, &null_ptr, sizeof(int64_t));
-			return;
-		}
-
-		double* array_data = static_cast<double*>(std::malloc(static_cast<size_t>(file_size) * sizeof(double)));
-		if (array_data == nullptr)
-		{
-			SetLastIOError(IOErrorKind::Unknown, "Failed to allocate binary file buffer.");
-			const int64_t null_ptr = 0;
-			std::memcpy(ret, &null_ptr, sizeof(int64_t));
-			return;
-		}
-
-		std::vector<char> buffer(static_cast<size_t>(file_size));
-		file.read(buffer.data(), file_size);
-		if (file.fail())
-		{
-			std::free(array_data);
-			SetLastIOError(IOErrorKind::Unknown, "Failed to read binary file.");
-			const int64_t null_ptr = 0;
-			std::memcpy(ret, &null_ptr, sizeof(int64_t));
-			return;
-		}
-
-		for (std::streamsize i = 0; i < file_size; i += 1)
-		{
-			const uint8_t byte_value = static_cast<uint8_t>(buffer[static_cast<size_t>(i)]);
-			const int64_t value = static_cast<int64_t>(byte_value);
-			std::memcpy(&array_data[i], &value, sizeof(double));
-		}
-
-		MarmotFFIArray* result = static_cast<MarmotFFIArray*>(std::malloc(sizeof(MarmotFFIArray)));
-		if (result == nullptr)
-		{
-			std::free(array_data);
-			SetLastIOError(IOErrorKind::Unknown, "Failed to allocate binary file result.");
-			const int64_t null_ptr = 0;
-			std::memcpy(ret, &null_ptr, sizeof(int64_t));
-			return;
-		}
-
-		result->data = array_data;
-		result->length = static_cast<int>(file_size);
-
-		ClearLastIOError();
 		const int64_t ptr = reinterpret_cast<int64_t>(result);
-		std::memcpy(ret, &ptr, sizeof(int64_t));
+		std::memcpy(ret, &ptr, sizeof(ptr));
 	}
 
 	MARMOT_FFI_EXPORT void MARMOT_FFI_CALL MARMOT_FFI_FUNC(WriteBinaryFile)(void** args, void* ret) noexcept
 	{
-		const std::shared_lock<std::shared_mutex> lock(MarmotProcessState::s_mutex);
-		const char* file_name = reinterpret_cast<const char*>(args[0u]);
-		const auto* array_arg = static_cast<const MarmotFFIArray*>(args[1u]);
-		if (array_arg == nullptr || array_arg->length < 0)
-		{
-			SetLastIOError(IOErrorKind::Unknown, "Invalid binary array argument.");
-			std::memset(ret, 0, sizeof(double));
-			return;
-		}
+		WriteBinaryBytes(args, ret, std::ios::trunc);
+	}
 
-		const std::filesystem::path path = TextPath::FromText(file_name);
-		std::ofstream file(path, std::ios::out | std::ios::binary);
-		if (!file.is_open())
-		{
-			SetLastIOErrorFromCode(DiagnoseWriteOpenFailure(path));
-			std::memset(ret, 0, sizeof(double));
-			return;
-		}
-
-		if (array_arg->length > 0 && array_arg->data == nullptr)
-		{
-			SetLastIOError(IOErrorKind::Unknown, "Binary array data was null.");
-			std::memset(ret, 0, sizeof(double));
-			return;
-		}
-
-		if (array_arg->length > 0)
-		{
-			const auto* array_data = static_cast<const uint64_t*>(array_arg->data);
-			std::vector<char> buffer(static_cast<size_t>(array_arg->length));
-			for (int i = 0; i < array_arg->length; i += 1)
-			{
-				buffer[static_cast<size_t>(i)] = static_cast<char>(array_data[i] & 0xFFu);
-			}
-			file.write(buffer.data(), static_cast<std::streamsize>(array_arg->length));
-		}
-
-		file.close();
-		const bool success = !file.fail();
-		if (success)
-		{
-			ClearLastIOError();
-		}
-		else
-		{
-			SetLastIOError(IOErrorKind::Unknown, "Failed to write binary file.");
-		}
-
-		std::memset(ret, 0, sizeof(double));
-		*reinterpret_cast<bool*>(ret) = success;
+	MARMOT_FFI_EXPORT void MARMOT_FFI_CALL MARMOT_FFI_FUNC(AppendBinaryFile)(void** args, void* ret) noexcept
+	{
+		WriteBinaryBytes(args, ret, std::ios::app);
 	}
 
 	MARMOT_FFI_EXPORT void MARMOT_FFI_CALL MARMOT_FFI_FUNC(FileExists)(void** args, void* ret) noexcept

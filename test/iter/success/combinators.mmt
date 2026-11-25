@@ -1,0 +1,66 @@
+module IterCombinators
+import { "../../../projects/marmotstdlib/MarmotPrelude/Iter.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/List.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt" }
+use Option.
+{
+    Option
+}
+
+def Expect = fn(condition: Bool, message: Text) -> Unit => if condition then () else Panic::Panic(message);
+
+def source = Iter::OfArray([1, 2, 3, 4]);
+
+def empty: Array<Int> = [];
+
+def pulls = ref 0;
+
+def Observe = fn(n: Int) -> Int => {
+    pulls := *pulls + 1;
+    n
+};
+
+def AtLeastTwo = fn(n: Int) -> Bool => n >= 2;
+
+def BelowThree = fn(n: Int) -> Bool => n < 3;
+
+def found: Unit = match Iter::Find(Iter::Map(source, Observe), AtLeastTwo) with
+    case Option::Some(2) => Expect(*pulls == 2, "find should stop pulling after the first match")
+    case _ => Panic::Panic("find should return the first match");
+
+pulls := 0;
+Expect(Iter::Any(Iter::Map(source, Observe), AtLeastTwo), "any should find a match");
+Expect(*pulls == 2, "any should short-circuit");
+pulls := 0;
+Expect
+(
+    !Iter::All(Iter::Map(source, Observe), BelowThree),
+    "all should reject a nonmatching element"
+);
+Expect(*pulls == 3, "all should short-circuit");
+Expect(!Iter::Any(Iter::OfArray(empty), AtLeastTwo), "any on empty should be false");
+Expect(Iter::All(Iter::OfArray(empty), BelowThree), "all on empty should be true");
+
+def zipped = Iter::Zip(source, List::ListIterNew(List::ListFromArray(["a", "b"])));
+
+def paired: Unit = match Iter::ToArray(zipped) with
+    case [(1, "a"), (2, "b")] => ()
+    case _ => Panic::Panic("zip should stop at the shorter source");
+
+def Expand = fn(n: Int) -> Iter::ArrayIter<Text> => {
+    pulls := *pulls + 1;
+    if n == 1 then Iter::OfArray([]) else Iter::OfArray([n as Text, "x"])
+};
+
+pulls := 0;
+
+def flat = Iter::FlatMap(source, Expand);
+Expect(*pulls == 0, "flat map should defer expansion");
+
+def flattened: Unit = match Iter::ToArray(Iter::Take(flat, 3)) with
+    case ["2", "x", "3"] => Expect(*pulls == 3, "flat map should pull only the required sources")
+    case _ => Panic::Panic("flat map should skip empty expansions and keep item order");
+
+Expect
+(
+    Iter::Count(Iter::FlatMap(Iter::OfArray(empty), Expand)) == 0,
+    "empty source should flatten to empty"
+);

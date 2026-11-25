@@ -1,6 +1,6 @@
 module Set
-import { "./Map.mmt", "../ArrayUtil.mmt", "../Countable.mmt", "../Equatable.mmt", "../Hashable.mmt", "../Iterable.mmt", "../Prelude/Option.mmt" }
-public export { Set, SetEmpty, SetCount, SetIsEmpty, SetWith, SetWithout, SetHas, SetToArray, SetIter, SetIterNew }
+import { "./Map.mmt", "../ArrayUtil.mmt", "../Countable.mmt", "../Equatable.mmt", "../Hashable.mmt", "../Iter.mmt", "../Iterable.mmt", "../Prelude/Option.mmt" }
+public export { Set, SetEmpty, SetCount, SetIsEmpty, SetWith, SetWithout, SetHas, SetToArray, SetIter, SetIterNew, SetUnion, SetIntersection, SetDifference }
 use Option.
 {
     Option
@@ -62,3 +62,17 @@ instance Countable<Set<T>>
     // Supplies the number of distinct elements for Countable.
     def Count = fn(set: Set<T>) -> Int => Map::Count(set.entries);
 };
+
+// Returns the elements of either set, using the right representative of an equal pair.
+def SetUnion = fn<T>(left: Set<T>, right: Set<T>) -> Set<T> where Hashable<T>, Equatable<T> => Iter::Fold(SetIterNew(right), left, fn(result: Set<T>, value: T) -> Set<T> => SetWith(result, value));
+
+// Keeps the left elements that are also present in right.
+def SetIntersection = fn<T>(left: Set<T>, right: Set<T>) -> Set<T> where Hashable<T>, Equatable<T> => Iter::Fold
+(
+    SetIterNew(left),
+    left,
+    fn(result: Set<T>, value: T) -> Set<T> => if SetHas(right, value) then result else SetWithout(result, value)
+);
+
+// Keeps the left elements that are absent from right.
+def SetDifference = fn<T>(left: Set<T>, right: Set<T>) -> Set<T> where Hashable<T>, Equatable<T> => Iter::Fold(SetIterNew(right), left, fn(result: Set<T>, value: T) -> Set<T> => SetWithout(result, value));

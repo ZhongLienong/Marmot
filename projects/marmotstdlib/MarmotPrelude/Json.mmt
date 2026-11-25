@@ -1,0 +1,334 @@
+module Json
+import { "./ArrayUtil.mmt", "./TextUtil.mmt", "./Prelude/List.mmt", "./Prelude/Option.mmt", "./Prelude/Result.mmt" }
+public export { Json, JsonError, Parse, Encode }
+use List.
+{
+    List,
+    ListReverse,
+    ListToArray
+}
+use Option.
+{
+    Option,
+    OptionUnwrapOrPanic
+}
+use Result.
+{
+    Result,
+    ResultMap
+}
+
+type Json = JNull | JBool(Bool) | JNumber(Text) | JString(Text) | JArray(Array<Json>) | JObject(Array<(Text, Json)>);
+
+type JsonError = SyntaxError(Int, Text) | InvalidUtf8 | InvalidNumber(Text) | NestingLimit;
+
+type Cursor = {
+    points: Array<Int>,
+    index: Ref<Int>
+};
+
+// Bound nesting before recursive descent can exhaust a VM stack.
+def MaxDepth: Int = 256;
+
+// Reads a code point or returns a sentinel before indexing past the input.
+def At = fn(points: Array<Int>, index: Int) -> Int => if index < #points then points[index] else -1;
+
+// Reads the next code point without advancing.
+def Peek = fn(cursor: Cursor) -> Int => At(cursor.points, *(cursor.index));
+
+// Advances only if the next code point matches.
+def Take = fn(cursor: Cursor, point: Int) -> Bool => if Peek(cursor) == point then
+{
+    cursor.index := *(cursor.index) + 1;
+    true
+} else false;
+
+// Skips the four whitespace characters allowed between JSON tokens.
+def SkipSpace = fn(cursor: Cursor) -> Unit => {
+    // Inspect the point once before deciding whether it belongs to the next token.
+    def point = Peek(cursor);
+    if (point == 32) || (point == 9) || (point == 10) || (point == 13) then
+    {
+        cursor.index := *(cursor.index) + 1;
+        SkipSpace(cursor)
+    } else ()
+};
+
+// Reports a syntax error at the current zero-based code-point offset.
+def ErrorAt = fn<T>(cursor: Cursor, message: Text) -> Result<T, JsonError> => Result::Err(JsonError::SyntaxError(*(cursor.index), message));
+
+// Converts a run of non-NUL points and keeps NUL when it was decoded from an escape.
+def BuildText = fn(points: Array<Int>, start: Int, index: Int, built: Text) -> Option<Text> => if (index == #points) || (points[index] == 0) then match TextUtil::FromCodePoints(ArrayUtil::Slice(points, start, index)) with
+    case Option::None() => Option::None()
+    case Option::Some(part) => if index == #points then Option::Some(built ++ part) else BuildText(points, index + 1, index + 1, built ++ part ++ "\0") else BuildText(points, start, index + 1, built);
+
+// Tests for an ASCII decimal digit.
+def IsDigit = fn(point: Int) -> Bool => (point >= 48) && (point <= 57);
+
+// Advances over the decimal digits after a required leading digit.
+def SkipDigits = fn(points: Array<Int>, index: Int) -> Int => if IsDigit(At(points, index)) then SkipDigits(points, index + 1) else index;
+
+// Reads a required nonempty sequence of digits in a number.
+def DigitsEnd = fn(points: Array<Int>, index: Int) -> Int => if IsDigit(At(points, index)) then SkipDigits(points, index + 1) else -1;
+
+// Finds the first point after a JSON number, or returns -1 for malformed syntax.
+def NumberEnd = fn(points: Array<Int>, start: Int) -> Int => {
+    // Only the integer may begin with a minus, and a leading zero consumes one digit.
+    def first = if At(points, start) == 45 then start + 1 else start;
+    // A subsequent digit after a lone zero is left for the enclosing parser to reject.
+    def whole = if At(points, first) == 48 then first + 1 else DigitsEnd(points, first);
+    if whole < 0 then -1 else
+    {
+        // A decimal point must be followed by at least one digit.
+        def fraction = if At(points, whole) == 46 then DigitsEnd(points, whole + 1) else whole;
+        if fraction < 0 then -1 else
+        {
+            // Exponents use either case of E and may have their own sign.
+            def mark = At(points, fraction);
+            if (mark == 69) || (mark == 101) then
+            {
+                // The exponent sign is optional.
+                def sign = At(points, fraction + 1);
+                DigitsEnd(points, if (sign == 43) || (sign == 45) then fraction + 2 else fraction + 1)
+            } else fraction
+        }
+    }
+};
+
+// Preserves the exact numeric spelling instead of rounding it through Float.
+def ReadNumber = fn(cursor: Cursor) -> Result<Json, JsonError> => {
+    // Keep the start because NumberEnd only returns the stopping index.
+    def start = *(cursor.index);
+    // The same scanner validates user-constructed numbers during encoding.
+    def end = NumberEnd(cursor.points, start);
+    if end < 0 then ErrorAt(cursor, "Invalid number") else
+    {
+        cursor.index := end;
+        Result::Ok
+        (
+            Json::JNumber
+            (
+                OptionUnwrapOrPanic
+                (
+                    TextUtil::FromCodePoints(ArrayUtil::Slice(cursor.points, start, end)),
+                    "JSON number scanner returned non-ASCII text"
+                )
+            )
+        )
+    }
+};
+
+// Decodes a hexadecimal digit, using -1 for an invalid digit or EOF.
+def HexDigit = fn(point: Int) -> Int => if IsDigit(point) then point - 48 else if (point >= 65) && (point <= 70) then point - 55 else if (point >= 97) && (point <= 102) then point - 87 else -1;
+
+// Reads exactly four hexadecimal digits after a Unicode escape introducer.
+def HexQuad = fn(cursor: Cursor, remaining: Int, code: Int) -> Int => if remaining == 0 then code else
+{
+    // Leave the cursor on the first invalid digit for the diagnostic.
+    def digit = HexDigit(Peek(cursor));
+    if digit < 0 then -1 else
+    {
+        cursor.index := *(cursor.index) + 1;
+        HexQuad(cursor, remaining - 1, (code * 16) + digit)
+    }
+};
+
+// Combines a UTF-16 surrogate pair or reads a single Unicode scalar.
+def ReadUnicode = fn(cursor: Cursor) -> Int => {
+    // A leading surrogate requires a second Unicode escape.
+    def high = HexQuad(cursor, 4, 0);
+    if (high >= 55296) && (high <= 56319) then if Take(cursor, 92) && Take(cursor, 117) then
+    {
+        // Accept only a trailing surrogate in the second escape.
+        def low = HexQuad(cursor, 4, 0);
+        if (low >= 56320) && (low <= 57343) then 65536 + ((high - 55296) * 1024) + (low - 56320) else -1
+    } else -1 else if (high >= 56320) && (high <= 57343) then -1 else high
+};
+
+// Decodes an escape after the opening backslash.
+def ReadEscape = fn(cursor: Cursor) -> Int => {
+    // Move past the escape letter before reading any hexadecimal digits.
+    def mark = Peek(cursor);
+    if mark < 0 then -1 else
+    {
+        cursor.index := *(cursor.index) + 1;
+        match mark with
+            case 34 | 47 | 92 => mark
+            case 98 => 8
+            case 102 => 12
+            case 110 => 10
+            case 114 => 13
+            case 116 => 9
+            case 117 => ReadUnicode(cursor)
+            case _ => -1
+    }
+};
+
+// Accumulates decoded points in reverse order so scanning does not copy a growing array.
+def ReadString = fn(cursor: Cursor, reversed: List<Int>) -> Result<Text, JsonError> => {
+    // Read raw quotes and control characters before interpreting escapes.
+    def point = Peek(cursor);
+    if Take(cursor, 34) then match BuildText(ListToArray(ListReverse(reversed)), 0, 0, "") with
+                case Option::Some(text) => Result::Ok(text)
+                case Option::None() => Result::Err(JsonError::InvalidUtf8()) else if point < 0 then ErrorAt(cursor, "Unterminated string") else if point < 32 then ErrorAt(cursor, "Unescaped control character") else
+    {
+                    cursor.index := *(cursor.index) + 1;
+                    // An escape contributes one Unicode scalar, including a decoded NUL.
+                    def decoded = if point == 92 then ReadEscape(cursor) else point;
+                    if decoded < 0 then ErrorAt(cursor, "Invalid string escape") else ReadString(cursor, List::Cons(decoded, reversed))
+                }
+};
+
+// Matches a fixed keyword without reading past EOF.
+def ReadLiteral = fn(cursor: Cursor, spelling: Text, value: Json) -> Result<Json, JsonError> => {
+    // Slice clamps at EOF, so a truncated keyword cannot match.
+    def end = *(cursor.index) + TextUtil::Length(spelling);
+    // All keywords consist of ASCII characters.
+    def points = ArrayUtil::Slice(cursor.points, *(cursor.index), end);
+    match TextUtil::FromCodePoints(points) with
+                case Option::Some(actual) if actual == spelling => {
+                    cursor.index := end;
+                    Result::Ok(value)
+                }
+                case _ => ErrorAt(cursor, "Expected " ++ spelling)
+};
+
+// Parses a nonempty comma-separated sequence whose opening delimiter was consumed.
+def ReadItems = fn<T>(cursor: Cursor, depth: Int, closing: Int, read_item: fn(Cursor, Int) -> Result<T, JsonError>, reversed: List<T>) -> Result<Array<T>, JsonError> => match read_item(cursor, depth) with
+                    case Result::Err(error) => Result::Err(error)
+                    case Result::Ok(item) => {
+                        SkipSpace(cursor);
+                        // Prepend each item so appending takes constant time.
+                        def items = List::Cons(item, reversed);
+                        if Take(cursor, closing) then Result::Ok(ListToArray(ListReverse(items))) else if Take(cursor, 44) then ReadItems(cursor, depth, closing, read_item, items) else ErrorAt(cursor, "Expected a comma or closing delimiter")
+                    };
+
+// Handles an empty container before parsing the first item.
+def ReadSequence = fn<T>(cursor: Cursor, depth: Int, closing: Int, read_item: fn(Cursor, Int) -> Result<T, JsonError>) -> Result<Array<T>, JsonError> => {
+    SkipSpace(cursor);
+    if Take(cursor, closing) then Result::Ok([]) else ReadItems(cursor, depth, closing, read_item, List::Nil())
+};
+
+// Parses one value at the current nesting depth.
+def ReadValue: fn(Cursor, Int) -> Result<Json, JsonError> = fn(cursor: Cursor, depth: Int) -> Result<Json, JsonError> => {
+    SkipSpace(cursor);
+    // Reject another container even if it would be empty.
+    def point = Peek(cursor);
+    if (depth == MaxDepth) && ((point == 91) || (point == 123)) then Result::Err(JsonError::NestingLimit()) else if Take(cursor, 34) then ResultMap(ReadString(cursor, List::Nil()), fn(text: Text) -> Json => Json::JString(text)) else if Take(cursor, 91) then ResultMap
+    (
+        ReadSequence(cursor, depth + 1, 93, ReadValue),
+        fn(items: Array<Json>) -> Json => Json::JArray(items)
+    ) else if Take(cursor, 123) then ResultMap
+    (
+        ReadSequence(cursor, depth + 1, 125, ReadMember),
+        fn(fields: Array<(Text, Json)>) -> Json => Json::JObject(fields)
+    ) else match point with
+                case 110 => ReadLiteral(cursor, "null", Json::JNull())
+                case 116 => ReadLiteral(cursor, "true", Json::JBool(true))
+                case 102 => ReadLiteral(cursor, "false", Json::JBool(false))
+                case _ if (point == 45) || IsDigit(point) => ReadNumber(cursor)
+                case _ => ErrorAt(cursor, "Expected a JSON value")
+};
+
+// Reads an object member and preserves its original position among other members.
+def ReadMember: fn(Cursor, Int) -> Result<(Text, Json), JsonError> = fn(cursor: Cursor, depth: Int) -> Result<(Text, Json), JsonError> => {
+    SkipSpace(cursor);
+    if ! Take(cursor, 34) then ErrorAt(cursor, "Expected an object key") else match ReadString(cursor, List::Nil()) with
+                case Result::Err(error) => Result::Err(error)
+                case Result::Ok(key) => {
+                    SkipSpace(cursor);
+                    if ! Take(cursor, 58) then ErrorAt(cursor, "Expected a colon") else ResultMap(ReadValue(cursor, depth), fn(value: Json) -> (Text, Json) => (key, value))
+                }
+};
+
+// Parses one UTF-8 JSON value with optional surrounding whitespace. Object order and
+// duplicate keys are preserved. Syntax error offsets count Unicode code points from zero.
+def Parse = fn(source: Text) -> Result<Json, JsonError> => {
+    // Decode once so even documents with multibyte text can be scanned by index.
+    def points = TextUtil::CodePoints(source);
+    match BuildText(points, 0, 0, "") with
+                case Option::Some(rebuilt) if rebuilt == source => {
+                    // The cursor is private to this parse.
+                    def cursor = Cursor(points, ref 0);
+                    match ReadValue(cursor, 0) with
+                    case Result::Err(error) => Result::Err(error)
+                    case Result::Ok(value) => {
+                        SkipSpace(cursor);
+                        if * (cursor.index) == #points then Result::Ok(value) else ErrorAt(cursor, "Unexpected data after the value")
+                    }
+                }
+                    case _ => Result::Err(JsonError::InvalidUtf8())
+};
+
+// Emits the four-digit JSON escape for a control character.
+def ControlEscape = fn(point: Int) -> Text => {
+    // Every escaped control character has two leading zeroes.
+    def digits = "0123456789abcdef";
+    "\\u00" ++ TextUtil::Substring(digits, point / 16, (point / 16) + 1) ++ TextUtil::Substring(digits, point % 16, (point % 16) + 1)
+};
+
+// Appends escaped points from a string that has already passed UTF-8 validation.
+def EscapePoints = fn(points: Array<Int>, index: Int, built: Text) -> Text => if index == #points then built ++ "\"" else
+{
+    // Quotes, backslashes, and all control characters require escaping.
+    def escaped = match points[index] with
+                        case 34 => "\\\""
+                        case 92 => "\\\\"
+                        case point if point < 32 => ControlEscape(point)
+                        case point => OptionUnwrapOrPanic
+    (
+        TextUtil::FromCodePoint(point),
+        "validated JSON string contains a non-scalar code point"
+    );
+    EscapePoints(points, index + 1, built ++ escaped)
+};
+
+// Validates a Text before quoting it, since Text may contain non-UTF-8 bytes.
+def Quote = fn(value: Text, built: Text) -> Result<Text, JsonError> => {
+    // Recover the original Text from its code points to detect invalid byte sequences.
+    def points = TextUtil::CodePoints(value);
+    match BuildText(points, 0, 0, "") with
+                        case Option::Some(rebuilt) if rebuilt == value => Result::Ok(EscapePoints(points, 0, built ++ "\""))
+                        case _ => Result::Err(JsonError::InvalidUtf8())
+};
+
+// Writes comma-separated members without appending a trailing comma.
+def WriteItems = fn<T>(items: Array<T>, index: Int, depth: Int, write_item: fn(T, Int, Text) -> Result<Text, JsonError>, built: Text) -> Result<Text, JsonError> => if index == #items then Result::Ok(built) else match write_item(items[index], depth, if index == 0 then built else built ++ ",") with
+                            case Result::Err(error) => Result::Err(error)
+                            case Result::Ok(text) => WriteItems(items, index + 1, depth, write_item, text);
+
+// Writes one JSON value, validating numbers constructed by callers.
+def WriteValue: fn(Json, Int, Text) -> Result<Text, JsonError> = fn(value: Json, depth: Int, built: Text) -> Result<Text, JsonError> => match value with
+                            case Json::JNull() => Result::Ok(built ++ "null")
+                            case Json::JBool(flag) => Result::Ok(built ++ (if flag then "true" else "false"))
+                            case Json::JString(text) => Quote(text, built)
+                            case Json::JNumber(text) => {
+                                // NumberEnd checks the grammar. All accepted number characters are ASCII.
+                                def points = TextUtil::CodePoints(text);
+                                match TextUtil::FromCodePoints(points) with
+                                case Option::Some(ascii) if (ascii == text) && (NumberEnd(points, 0) == #points) => Result::Ok(built ++ ascii)
+                                case _ => Result::Err(JsonError::InvalidNumber(text))
+                            }
+                                case Json::JArray(_) | Json::JObject(_) if depth == MaxDepth => Result::Err(JsonError::NestingLimit())
+                                case Json::JArray(items) => ResultMap
+(
+    WriteItems(items, 0, depth + 1, WriteValue, built ++ "["),
+    fn(text: Text) -> Text => text ++ "]"
+)
+                                case Json::JObject(fields) => ResultMap
+(
+    WriteItems(fields, 0, depth + 1, WriteMember, built ++ "{"),
+    fn(text: Text) -> Text => text ++ "}"
+);
+
+// Writes a quoted object key followed by its value.
+def WriteMember: fn((Text, Json), Int, Text) -> Result<Text, JsonError> = fn(field:(Text, Json), depth: Int, built: Text) -> Result<Text, JsonError> => {
+    // The pair stores the key and value without imposing an ordering on keys.
+    def (key, value) = field;
+    match Quote(key, built) with
+                                case Result::Err(error) => Result::Err(error)
+                                case Result::Ok(text) => WriteValue(value, depth, text ++ ":")
+};
+
+// Encodes one JSON value as compact UTF-8 text and rejects invalid numbers or malformed text.
+def Encode = fn(value: Json) -> Result<Text, JsonError> => WriteValue(value, 0, "");

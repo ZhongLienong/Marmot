@@ -6,13 +6,106 @@
 #include <cstring>
 #include <ctime>
 #include <cstdlib>
+#include <format>
+#include <limits>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <iomanip>
 #include <sstream>
 
 namespace
 {
 	using FFIAllocation::AllocateString;
+	using namespace std::chrono;
+
+	constexpr sys_days s_first_timestamp = year{0} / January / 1;
+	constexpr sys_days s_after_last_timestamp = year{10000} / January / 1;
+	constexpr int64_t s_invalid_timestamp = (std::numeric_limits<int64_t>::min)();
+
+	int DecimalField(std::string_view text)
+	{
+		int value = 0;
+		for (const char digit : text)
+		{
+			if (digit < '0' || digit > '9')
+			{
+				return -1;
+			}
+			value = (value * 10) + (digit - '0');
+		}
+		return value;
+	}
+
+	std::optional<minutes> ReadUtcOffset(std::string_view text)
+	{
+		if (text == "Z" || text == "z")
+		{
+			return minutes{0};
+		}
+		if (text.size() != 6 || (text[0] != '+' && text[0] != '-') || text[3] != ':')
+		{
+			return std::nullopt;
+		}
+		const int hour = DecimalField(text.substr(1, 2));
+		const int minute = DecimalField(text.substr(4, 2));
+		if (hour < 0 || hour > 23 || minute < 0 || minute > 59)
+		{
+			return std::nullopt;
+		}
+		const minutes offset{(hour * 60) + minute};
+		return text[0] == '-' ? -offset : offset;
+	}
+
+	std::optional<sys_time<milliseconds>> ReadTimestamp(std::string_view text)
+	{
+		if (text.size() < 20 || text[4] != '-' || text[7] != '-' ||
+			(text[10] != 'T' && text[10] != 't') || text[13] != ':' || text[16] != ':')
+		{
+			return std::nullopt;
+		}
+		const int year_number = DecimalField(text.substr(0, 4));
+		const int month_number = DecimalField(text.substr(5, 2));
+		const int day_number = DecimalField(text.substr(8, 2));
+		const int hour = DecimalField(text.substr(11, 2));
+		const int minute = DecimalField(text.substr(14, 2));
+		const int second = DecimalField(text.substr(17, 2));
+		const year_month_day date = year{year_number} / month{static_cast<unsigned>(month_number)} / day{static_cast<unsigned>(day_number)};
+		if (year_number < 0 || month_number < 1 || day_number < 1 || !date.ok() ||
+			hour < 0 || hour > 23 || minute < 0 || minute > 59 || second < 0 || second > 59)
+		{
+			return std::nullopt;
+		}
+
+		std::string_view suffix = text.substr(19);
+		milliseconds subsecond{0};
+		if (suffix.front() == '.')
+		{
+			suffix.remove_prefix(1);
+			const size_t count = suffix.find_first_not_of("0123456789");
+			if (count < 1 || count > 3)
+			{
+				return std::nullopt;
+			}
+			const int scale = count == 1 ? 100 : (count == 2 ? 10 : 1);
+			subsecond = milliseconds{DecimalField(suffix.substr(0, count)) * scale};
+			suffix.remove_prefix(count);
+		}
+		const std::optional<minutes> offset = ReadUtcOffset(suffix);
+		if (!offset)
+		{
+			return std::nullopt;
+		}
+		// Widen the date before adding clock fields. Some duration aliases have
+		// narrower representations than milliseconds.
+		const sys_time<milliseconds> midnight = sys_days{date};
+		const sys_time<milliseconds> timestamp = midnight + hours{hour} + minutes{minute} + seconds{second} + subsecond - *offset;
+		if (timestamp < s_first_timestamp || timestamp >= s_after_last_timestamp)
+		{
+			return std::nullopt;
+		}
+		return timestamp;
+	}
 
 	std::tm ReadLocalTime()
 	{
@@ -134,6 +227,36 @@ extern "C"
 
 		const int64_t ptr = reinterpret_cast<int64_t>(result);
 		std::memcpy(ret, &ptr, sizeof(int64_t));
+	}
+
+	MARMOT_FFI_EXPORT void MARMOT_FFI_CALL MARMOT_FFI_FUNC(ParseTimestamp)(void** args, void* ret) noexcept
+	{
+		const std::optional<std::chrono::sys_time<std::chrono::milliseconds>> timestamp =
+			ReadTimestamp(static_cast<const char*>(args[0u]));
+		const int64_t value = timestamp ? timestamp->time_since_epoch().count() : s_invalid_timestamp;
+		std::memcpy(ret, &value, sizeof(value));
+	}
+
+	MARMOT_FFI_EXPORT void MARMOT_FFI_CALL MARMOT_FFI_FUNC(FormatUtcTimestamp)(void** args, void* ret) noexcept
+	{
+		using namespace std::chrono;
+		int64_t value;
+		std::memcpy(&value, &args[0u], sizeof(value));
+		const sys_time<milliseconds> timestamp{milliseconds{value}};
+		char* result = nullptr;
+		if (timestamp >= s_first_timestamp && timestamp < s_after_last_timestamp)
+		{
+			const sys_days date = floor<days>(timestamp);
+			const year_month_day calendar{date};
+			const hh_mm_ss time{timestamp - date};
+			result = AllocateString(std::format(
+				"{:04}-{:02}-{:02}T{:02}:{:02}:{:02}.{:03}Z",
+				static_cast<int>(calendar.year()), static_cast<unsigned>(calendar.month()),
+				static_cast<unsigned>(calendar.day()), time.hours().count(), time.minutes().count(),
+				time.seconds().count(), time.subseconds().count()));
+		}
+		const int64_t ptr = reinterpret_cast<int64_t>(result);
+		std::memcpy(ret, &ptr, sizeof(ptr));
 	}
 
 	MARMOT_FFI_EXPORT void MARMOT_FFI_CALL MARMOT_FFI_FUNC(GetTimezoneOffset)(void**, void* ret) noexcept

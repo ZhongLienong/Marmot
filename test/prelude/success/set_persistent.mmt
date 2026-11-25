@@ -54,4 +54,15 @@ Expect(total == 3160, "every value is seen once and only once");
 
 Expect(#Set::SetToArray(wide) == 80, "SetToArray returns every value");
 
+def overlap = Set::SetWith(Set::SetWith(seed, 2), 3);
+def union = Set::SetUnion(two, overlap);
+def intersection = Set::SetIntersection(two, overlap);
+def difference = Set::SetDifference(two, overlap);
+Expect((#union == 3) && Set::SetHas(union, 1) && Set::SetHas(union, 2) && Set::SetHas(union, 3), "union includes both sides");
+Expect((#intersection == 1) && Set::SetHas(intersection, 2), "intersection keeps the overlap");
+Expect((#difference == 1) && Set::SetHas(difference, 1), "difference keeps only the left elements");
+Expect(Set::SetIsEmpty(Set::SetIntersection(seed, two)), "intersection with empty is empty");
+Expect(#Set::SetDifference(two, seed) == 2, "subtracting empty preserves size");
+Expect((#two == 2) && !Set::SetHas(two, 3) && (#overlap == 2), "set operations preserve both inputs");
+
 IO::PrintLine("set_persistent: PASS");

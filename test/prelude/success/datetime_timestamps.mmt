@@ -1,0 +1,86 @@
+module DateTimeTimestamps
+import { "../../../projects/marmotstdlib/MarmotPrelude/DateTime.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt" }
+use Option.
+{
+    OptionIsNone,
+    OptionUnwrapOrPanic
+}
+
+def Expect = fn(condition: Bool, message: Text) -> Unit => if condition then () else Panic::Panic(message);
+
+def Parse = fn(timestamp: Text) -> Int => OptionUnwrapOrPanic(DateTime::ParseTimestamp(timestamp), "expected valid timestamp");
+
+def Format = fn(milliseconds: Int) -> Text => OptionUnwrapOrPanic
+(
+    DateTime::FormatUtcTimestamp(milliseconds),
+    "expected representable UTC timestamp"
+);
+
+Expect(Parse("1970-01-01T00:00:00Z") == 0, "epoch should be zero");
+Expect(Parse("1969-12-31T23:59:59.999Z") == -1, "pre-epoch millisecond should be negative");
+Expect
+(
+    Format(-1) == "1969-12-31T23:59:59.999Z",
+    "formatting before the epoch must round down to the day"
+);
+Expect
+(
+    Parse("1970-01-01T01:30:00.1+01:30") == 100,
+    "positive offset and fraction should normalize to UTC"
+);
+Expect(Parse("1969-12-31t23:30:00.01-00:30") == 10, "negative offset can cross the UTC date");
+Expect
+(
+    Format(Parse("2000-02-29T15:01:02.003Z")) == "2000-02-29T15:01:02.003Z",
+    "leap day should round-trip"
+);
+Expect
+(
+    Format(Parse("0000-01-01T00:00:00Z")) == "0000-01-01T00:00:00.000Z",
+    "first supported UTC day"
+);
+Expect
+(
+    Format(Parse("9999-12-31T23:59:59.999Z")) == "9999-12-31T23:59:59.999Z",
+    "last supported UTC millisecond"
+);
+
+for invalid in ["1900-02-29T00:00:00Z", "2024-04-31T00:00:00Z", "2024-01-01T24:00:00Z", "2024-01-01T00:00:60Z", "2024-01-01T00:00:00.1234Z", "2024-01-01T00:00:00+24:00", "2024-01-01T00:00:00", "1970-01-01T00:00:00Z\0junk", "0000-01-01T00:00:00+00:01"]
+{
+    Expect(OptionIsNone(DateTime::ParseTimestamp(invalid)), "accepted an invalid timestamp");
+};
+
+def earliest: Int = -9223372036854775808;
+
+def latest: Int = 9223372036854775807;
+Expect
+(
+    OptionIsNone(DateTime::FormatUtcTimestamp(earliest)),
+    "format should reject a timestamp outside the calendar range"
+);
+
+def forward = OptionUnwrapOrPanic
+(
+    DateTime::AddDuration(-100, DateTime::Duration(250)),
+    "expected duration addition"
+);
+Expect(forward == 150, "duration addition should preserve signed timestamps");
+
+def elapsed = OptionUnwrapOrPanic(DateTime::DurationBetween(forward, -100), "expected signed duration");
+Expect(elapsed.milliseconds == -250, "reverse interval should be negative");
+Expect
+(
+    OptionIsNone(DateTime::AddDuration(latest, DateTime::Duration(1))),
+    "addition must reject overflow"
+);
+Expect
+(
+    OptionIsNone(DateTime::AddDuration(earliest, DateTime::Duration(-1))),
+    "addition must reject underflow"
+);
+Expect(OptionIsNone(DateTime::DurationBetween(earliest, latest)), "difference must reject overflow");
+Expect
+(
+    OptionIsNone(DateTime::DurationBetween(latest, earliest)),
+    "difference must reject underflow"
+);

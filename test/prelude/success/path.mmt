@@ -1,5 +1,11 @@
 module PreludePath
-import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Path.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt" }
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Path.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt" }
+use Option.
+{
+    Option,
+    OptionIsNone,
+    OptionUnwrapOrPanic
+}
 
 def Expect = fn(condition: Bool, message: Text) -> Unit =>
 {
@@ -65,5 +71,51 @@ Expect(Path::Extension("archive.tar.gz") == "gz", "Path::Extension should take o
 Expect(Path::Extension("Makefile") == "", "Path::Extension without a dot should be empty");
 Expect(Path::Extension(".gitignore") == "", "Path::Extension of a dotfile should be empty");
 Expect(Path::Extension("v1.2/README") == "", "Path::Extension should ignore dots in the directory");
+
+Expect(Path::Join("base", "C:file") == "C:file", "drive-qualified name should replace the base");
+Expect(!Path::IsAbsolute("C:file"), "drive-relative path is not absolute");
+Expect(Path::IsAbsolute("C:/file"), "drive root should be absolute");
+
+Expect(Path::IsAbsolute("\\\\srv\\share"), "UNC share should be absolute");
+Expect(Path::FileName("\\\\srv\\share") == "", "UNC root should have no file name");
+Expect
+(
+    Path::Directory("\\\\srv\\share\\name") == "\\\\srv\\share",
+    "parent should retain the share root"
+);
+Expect
+(
+    Path::Normalize("\\\\srv\\share\\..\\a\\.\\b") == "//srv/share/a/b",
+    "normalize within the share"
+);
+Expect(Path::Normalize("C:\\..\\a//b/../") == "C:/a", "normalize within the drive root");
+Expect(Path::Normalize("../a/../../b") == "../../b", "keep unresolved relative parents");
+Expect
+(
+    Path::Normalize("x/../C:file") == "./C:file",
+    "normalization should preserve a relative drive-like component"
+);
+
+Expect
+(
+    OptionUnwrapOrPanic(Path::Relative("c:\\one\\two", "C:\\one\\file"), "expected a relative path") == "../file",
+    "same drive should match regardless of letter case"
+);
+Expect(OptionIsNone(Path::Relative("C:/one", "D:/two")), "different drives have no relative path");
+Expect
+(
+    OptionIsNone(Path::Relative("//srv/one", "//srv/two")),
+    "different shares have no relative path"
+);
+Expect
+(
+    OptionIsNone(Path::Relative("../one", "two")),
+    "unmatched leading parent has no lexical relative path"
+);
+Expect
+(
+    OptionUnwrapOrPanic(Path::Relative("/one", "/one/."), "expected a relative path") == ".",
+    "equal paths should use dot"
+);
 
 IO::PrintLine("prelude_path: PASS");
