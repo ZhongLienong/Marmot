@@ -162,9 +162,9 @@ REQUIRE(MarmotTest::Matches(
 
 ## Command Matrix
 
-`scripts/dev.py` runs every check, on Windows and Linux alike, and builds what
-a check needs first (`--no-build` skips that). `--build` picks the
-configuration, Dev by default.
+`scripts/dev.py gate` builds and runs the native checks on Windows and Linux.
+`--build` picks the configuration, Dev by default. Build the matching
+configuration first when running a check that needs the toolchain on its own.
 
 The `wasm` CI job runs separately from the native gate. It builds the compiler
 and VM modules with Emscripten, then uses the playground adapter to run
@@ -181,7 +181,8 @@ python scripts/dev.py gate --only docs cli format
 
 Its steps, in order, are `generate-mmc`, `layering`, `build`, `unit`, `mmc`,
 `docs`, `cli`, `format`, `benchmarks`, `tool` and `language`. After building,
-you can also run individual checks directly.
+you can also run individual checks directly. The `tool` step includes package
+integration tests that query the GitHub API and download test packages.
 
 ```bash
 python scripts/testing/layering.py
@@ -216,7 +217,7 @@ so most wrong includes already fail to compile. The script also checks
 includes and production CMake links. It also keeps the compiler pipeline (`projects/marmotc/src/Compiler`, apart
 from the driver) free of project discovery: those files may not read environment
 variables, because the compiler compiles from the `CompilationInputs` its
-caller passes. It needs no build, and the gate runs it first.
+caller passes. The layering check runs before the build.
 
 Run the implementation tests:
 

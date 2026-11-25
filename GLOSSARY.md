@@ -1,8 +1,20 @@
-# Marmot language
+# Marmot
 
-Terms for Marmot's declarations, their visibility between modules, and type transformations.
+Terms for Marmot's language, type transformations, and toolchain.
 
 ## Language
+
+**Module**:
+A named `.mmt` source unit with its own namespace. Export declarations control
+which names other modules can access.
+
+**Nominal type**:
+A record, union, or newtype identified by its declaring module, name, and any
+type arguments.
+
+**Type alias**:
+A transparent name for another type. The alias and the named type share
+the same type identity.
 
 **Typeclass**:
 A named set of method and associated-type requirements parameterized by types.
@@ -52,3 +64,34 @@ the associated types known in the current checking context.
 **Type specialization**:
 The interpretation of a generic body's types for the arguments and typeclass
 instances chosen at a use of that body.
+
+## Projects and packages
+
+**Project manifest**:
+The `project.marmot` file that describes a project's entry source, layout, and
+dependency requirements for the `marmot` project tool.
+
+**Package**:
+A versioned unit described by `package.marmot` that can supply modules and native
+libraries to a project.
+
+**Build plan**:
+The JSON input that gives `marmotc` the resolved import search paths, native
+library metadata, and optionally an entry source.
+
+## Compiler and VM
+
+**MarmotIR**:
+The compiler's typed SSA representation of checked code before bytecode emission.
+
+**`.mmc` artifact**:
+The serialized program containing linked bytecode and its runtime metadata.
+`marmotc` writes it and `marmotvm` loads it.
+
+**VM intrinsic**:
+A VM-provided operation with a registered signature. A Marmot `foreign`
+declaration without `from` names a VM intrinsic.
+
+**Standalone executable**:
+A platform-native executable that bundles the VM, a `.mmc` artifact, and the
+native libraries imported by that artifact.

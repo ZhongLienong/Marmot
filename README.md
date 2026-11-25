@@ -471,7 +471,7 @@ See [Prelude](docs/prelude.md) for module-by-module notes and examples covering 
 
 Marmot has two FFI call paths:
 
-- `CALL_FOREIGN_INDEXED` for built-in runtime functions listed in `Builtins.def`
+- `CALL_INTRINSIC` for VM intrinsics listed in `Intrinsics.def`
 - `CALL_FOREIGN` for generic external functions, including package-provided dynamic libraries
 
 The examples below describe the generic `CALL_FOREIGN` ABI used by ordinary external and package functions.
@@ -501,7 +501,7 @@ foreign "marmot_image"
 }
 ```
 
-A declaration without `from` must name a builtin. See
+A declaration without `from` must name a VM intrinsic. See
 [Build Plans](docs/plan-file.md#native-libraries) for how `marmotvm` finds a
 library.
 

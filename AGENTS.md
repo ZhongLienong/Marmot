@@ -3,6 +3,11 @@
 These instructions apply to the entire repository unless a deeper `AGENTS.md`
 overrides them.
 
+Use [GLOSSARY.md](GLOSSARY.md) for Marmot terminology. For implementation
+details, see the [compiler pipeline](docs/compilation-workflow.md),
+[runtime architecture](docs/runtime-architecture.md), and
+[`.mmc` wire format](format/mmc/format.md).
+
 ## What is here
 
 Marmot is a language with three binaries:
@@ -21,11 +26,11 @@ the runtime; neither side links or includes the other. They agree through the
 
 | Path | What it holds |
 |---|---|
-| `projects/marmotc/src/Bytecode` | Compiler-side opcode and builtin IDs, executable model, `.mmc` writer |
-| `projects/marmotvm/src/Bytecode` | VM-side opcode and builtin IDs, loaded-program model, `.mmc` reader and disassembler |
+| `projects/marmotc/src/Bytecode` | Compiler-side opcode and intrinsic IDs, executable model, `.mmc` writer |
+| `projects/marmotvm/src/Bytecode` | VM-side opcode and intrinsic IDs, loaded-program model, `.mmc` reader and disassembler |
 | `format/mmc` | Under-development wire format snapshot and fixtures |
 | `projects/marmotc/src/Compiler` | Compiler errors, lexer, parser, type checker, static analysis, lowering, MarmotIR optimizer, bytecode backend, linker |
-| `projects/marmotvm/src` | Values, runtime errors, the interpreter, the GC, workers, builtin FFI adapters and the VM entry point |
+| `projects/marmotvm/src` | Values, runtime errors, the interpreter, the GC, workers, intrinsics, native FFI and the VM entry point |
 | `projects/marmot/src` | The `marmot` tool |
 | `projects/marmotstdlib/MarmotPrelude` | The prelude, written in Marmot |
 | `projects/marmotstdlib/src` | Native implementations of standard-library functions |
@@ -39,29 +44,19 @@ Studio build environment and prefers `clang-cl` when available. On Linux it
 picks a new enough GCC or Clang. Run `python scripts/dev.py` to list the commands.
 
 ```
-python scripts/dev.py build                 # marmotc and marmotvm, Dev
-python scripts/dev.py gate                  # the full gate
-marmot test module/
-marmot run scratch.mmt
+python scripts/dev.py build                     # compiler, VM and standard library, Dev
+python scripts/testing/language.py --category module
+python scripts/dev.py gate                       # the full gate
 ```
 
-The gate is what "green" means here: generated .mmc tables, layering, the build, C++ unit tests, the
-`.mmc` contract, doc examples, CLI contracts, formatting, benchmarks, the
-tool's cargo tests and the language suite, stopping at the first failure.
-`--skip` and `--only` take step
-names. Build first when invoking checks that need the toolchain directly.
-
-The language suite through the tool, in about thirteen seconds:
-
-```
-cargo run --quiet --manifest-path projects/marmot/Cargo.toml -- test
-cargo run --quiet --manifest-path projects/marmot/Cargo.toml -- test module/      # one folder
-```
+The gate stops at the first failure. See the [testing guide](docs/testing.md)
+for the test layers, gate steps, and `--only` and `--skip` examples. Build first
+when invoking checks that use the toolchain directly. The language runner
+selects the checkout's compiler and VM and puts its prelude first in `MARMOT_PATH`.
 
 The scripts are grouped by purpose under `scripts/`: `make/` (doctor, configure,
 build, clean, wasm), `testing/` (the gate and each check),
-`bench/`, `install/`, with shared helpers in `lib/`. Each runs on its own
-too, e.g. `python scripts/testing/language.py --category closure`.
+`bench/`, and `install/`, with shared helpers in `lib/`.
 
 On Linux the sources need GCC 14+ or Clang 19+ (GCC 13 has no `<print>`, and
 Clang 18 cannot use libstdc++'s `std::expected`). `CXX` overrides the compiler
