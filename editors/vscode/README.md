@@ -2,26 +2,28 @@
 
 - Syntax highlighting, comments, and bracket pairing for `.mmt` files.
 - **Format Document** and opt-in **Format on Save** using the Marmot formatter.
-- Compiler diagnostics in Problems when you open or save a file.
+- Live compiler diagnostics in Problems as you edit files and their imports.
 - Quick Fix entries that display suggestions supplied by the compiler.
 - **Marmot: Run File** and **Marmot: Run Project** in the integrated terminal.
 
 ## Install
 
 In VS Code, run **Extensions: Install from VSIX…** and select the
-`marmot-lang-0.3.0.vsix` package.
+`marmot-lang-0.4.0.vsix` package.
 
 To build the package, run these PowerShell commands from the Marmot repo root.
 The VSIX will be written to `editors/vscode`.
 
 ```powershell
 Set-Location .\editors\vscode
+npm.cmd ci
 npx.cmd @vscode/vsce package --skip-license
 ```
 
 ## Toolchain
 
 Formatting, diagnostics, and run commands use the Marmot project tool in trusted workspaces.
+Live diagnostics require a toolchain with `marmot lsp` and its matching compiler.
 Install the Marmot toolchain and put `marmot` on `PATH`
 or set `marmot.executablePath` to the full path of the project tool. The tool
 is in `<install-dir>/bin/` for an installation or under
