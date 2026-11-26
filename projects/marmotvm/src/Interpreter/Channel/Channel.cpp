@@ -7,17 +7,23 @@ Channel::Channel(MarmotInteger capacity)
 {
 }
 
-ChannelOpStatus Channel::Send(TransferPayload message, std::stop_token stop_token)
+ChannelOpStatus Channel::Send(TransferPayload&& message, std::stop_token stop_token, ChannelWait wait)
 {
 	std::unique_lock<std::mutex> lock(m_mutex);
-	const bool ready = m_not_full.wait(lock, stop_token, [this]()
+	const auto ready = [this]()
 	{
 		return m_closed || m_queue.size() < m_capacity;
-	});
-
-	if (!ready)
+	};
+	if (!ready())
 	{
-		return ChannelOpStatus::Cancelled;
+		if (wait == ChannelWait::NonBlocking)
+		{
+			return ChannelOpStatus::WouldBlock;
+		}
+		if (!m_not_full.wait(lock, stop_token, ready))
+		{
+			return ChannelOpStatus::Cancelled;
+		}
 	}
 
 	if (m_closed)
@@ -30,17 +36,23 @@ ChannelOpStatus Channel::Send(TransferPayload message, std::stop_token stop_toke
 	return ChannelOpStatus::Ok;
 }
 
-ChannelReceiveResult Channel::Receive(std::stop_token stop_token)
+ChannelReceiveResult Channel::Receive(std::stop_token stop_token, ChannelWait wait)
 {
 	std::unique_lock<std::mutex> lock(m_mutex);
-	const bool ready = m_not_empty.wait(lock, stop_token, [this]()
+	const auto ready = [this]()
 	{
 		return !m_queue.empty() || m_closed;
-	});
-
-	if (!ready)
+	};
+	if (!ready())
 	{
-		return ChannelReceiveResult{ ChannelOpStatus::Cancelled, std::nullopt };
+		if (wait == ChannelWait::NonBlocking)
+		{
+			return ChannelReceiveResult{ ChannelOpStatus::WouldBlock };
+		}
+		if (!m_not_empty.wait(lock, stop_token, ready))
+		{
+			return ChannelReceiveResult{ ChannelOpStatus::Cancelled };
+		}
 	}
 
 	if (m_queue.empty())
@@ -88,17 +100,17 @@ int ChannelRegistry::CreateChannel(MarmotInteger capacity)
 	return id;
 }
 
-ChannelOpStatus ChannelRegistry::Send(int channel_id, TransferPayload message, std::stop_token stop_token)
+ChannelOpStatus ChannelRegistry::Send(int channel_id, TransferPayload&& message, std::stop_token stop_token, ChannelWait wait)
 {
 	std::shared_ptr<Channel> channel = FindChannel(channel_id);
 	if (channel == nullptr)
 	{
 		return ChannelOpStatus::Closed;
 	}
-	return channel->Send(std::move(message), std::move(stop_token));
+	return channel->Send(std::move(message), std::move(stop_token), wait);
 }
 
-ChannelReceiveResult ChannelRegistry::Receive(int channel_id, std::stop_token stop_token)
+ChannelReceiveResult ChannelRegistry::Receive(int channel_id, std::stop_token stop_token, ChannelWait wait)
 {
 	std::shared_ptr<Channel> channel = FindChannel(channel_id);
 	if (channel == nullptr)
@@ -106,7 +118,7 @@ ChannelReceiveResult ChannelRegistry::Receive(int channel_id, std::stop_token st
 		return ChannelReceiveResult{ ChannelOpStatus::Closed, std::nullopt };
 	}
 
-	ChannelReceiveResult result = channel->Receive(std::move(stop_token));
+	ChannelReceiveResult result = channel->Receive(std::move(stop_token), wait);
 	EraseIfDrained(channel_id, channel);
 	return result;
 }

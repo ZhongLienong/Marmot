@@ -22,6 +22,8 @@
 #include <type_traits>
 #include <vector>
 
+class BlockingProcessCall;
+
 class VirtualMachine
 {
 public:
@@ -181,6 +183,17 @@ private:
 	std::vector<bool> m_installed_globals;
 	std::stop_token m_stop_token;
 	WorkerRegistry::Owner m_worker_owner;
+	MarmotInteger m_scheduled_id = 0;
+	WorkerRegistry* m_worker_registry = &WorkerRegistry::GetInstance();
+	std::optional<WorkerSuspension> m_suspension;
+	std::optional<TransferPayload> m_pending_send;
+	std::unique_ptr<void, StdlibWorkerErrorHooks::Free> m_stdlib_worker_errors{ nullptr, nullptr };
+	std::shared_ptr<BlockingProcessCall> m_pending_process;
+
+	friend class Worker;
+	friend class WorkerRegistry;
+
+	ExecuteResult ExecuteSlice() noexcept;
 
 
 public:
@@ -250,6 +263,21 @@ private:
 		return m_stop_token.stop_requested();
 	}
 
+	template<bool Cooperative>
+	MARMOT_FORCE_INLINE bool YieldAfterCheckpoint(unsigned& remaining, InstructionPointer ip, ValueStackPointer sp, ValueStackPointer bp, MarmotValue* env, MarmotTraceable* closure) noexcept
+	{
+		if constexpr (Cooperative)
+		{
+			if (--remaining == 0u)
+			{
+				m_suspension = WorkerYield{};
+				SyncMachineState(ip, sp, bp, env, closure);
+				return true;
+			}
+		}
+		return false;
+	}
+
 	MARMOT_FORCE_INLINE void TryCollect(InstructionPointer ip, ValueStackPointer sp, ValueStackPointer bp, MarmotValue* env, MarmotTraceable* closure) noexcept
 	{
 #if MARMOT_DEBUG_FULL
@@ -266,6 +294,9 @@ private:
 	bool ExecuteConcurrencyInstruction(VmOpCode instruction, InstructionPointer& ip) noexcept;
 
 	int ExecuteLoop() noexcept;
+
+	template<bool Cooperative>
+	MARMOT_NOINLINE int ExecuteInstructions() noexcept;
 
 	bool CheckWorkerOwner(MarmotInteger handle) noexcept;
 

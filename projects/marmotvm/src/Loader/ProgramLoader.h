@@ -14,6 +14,12 @@
 // line over this; nothing here compiles.
 namespace MarmotProgramLoader
 {
+	enum class WorkerMode
+	{
+		NativeThreads,
+		Cooperative
+	};
+
 	// Where the native libraries a program names are, on this machine.
 	struct NativeLibraryLocations
 	{
@@ -37,5 +43,5 @@ namespace MarmotProgramLoader
 	// runs a library's own code.
 	[[nodiscard]] std::expected<void, std::string> LoadNativeLibraries(const VmExecutable& executable, const NativeLibraryLocations& locations);
 
-	[[nodiscard]] std::expected<int, RuntimeError> Run(VmExecutable&& executable);
+	[[nodiscard]] std::expected<int, RuntimeError> Run(VmExecutable&& executable, WorkerMode worker_mode = WorkerMode::NativeThreads, size_t worker_threads = 1u);
 }

@@ -43,7 +43,7 @@ namespace
 {
 	constexpr std::string_view USAGE =
 		"Usage: marmotvm run <program.mmc> [--library <name>=<file>]... [--library-path <dir>]...\n"
-		"                [--format json] [-- <argument>...]\n"
+		"                [--cooperative-workers [--worker-threads N]] [--format json] [-- <argument>...]\n"
 		"       marmotvm disassemble <program.mmc>\n"
 #if MARMOT_ENABLE_OPCODE_METRICS
 		"Run diagnostics: --opcode-metrics, --gc-metrics (stderr).\n"
@@ -52,6 +52,9 @@ namespace
 		"                --trace (instructions and stack on stderr).\n"
 #endif
 		"Run a compiled Marmot program.\n\n"
+		"--cooperative-workers schedules Marmot VMs on N OS threads (default: 1).\n"
+		"System::RunProcess uses a bounded helper pool. Other native calls can block the scheduler.\n"
+		"Native libraries must tolerate interleaved calls. With N > 1, third-party libraries need thread_safe = true.\n\n"
 		"A native library the program names (foreign ... from \"name\") is looked for\n"
 		"at its --library file, then in each --library-path, then in MARMOT_LIBRARY_PATH,\n"
 		"then beside the module that declared it (lib/<platform>/, then the directory).\n"
@@ -75,6 +78,8 @@ namespace
 		std::vector<std::string> m_program_arguments;
 		MarmotProgramLoader::NativeLibraryLocations m_locations;
 		bool m_json = false;
+		bool m_cooperative_workers = false;
+		int m_worker_threads = 1;
 		bool m_show_help = false;
 		bool m_show_version = false;
 		bool m_standalone_version = false;
@@ -126,6 +131,8 @@ namespace
 		app.add_flag("--trace", invocation.m_trace);
 		app.add_flag("--opcode-metrics", invocation.m_opcode_metrics);
 		app.add_flag("--gc-metrics", invocation.m_gc_metrics);
+		app.add_flag("--cooperative-workers", invocation.m_cooperative_workers);
+		app.add_option("--worker-threads", invocation.m_worker_threads);
 		app.add_option("--format", formats)->expected(1)->take_all();
 		app.add_option("--library-path", library_paths)->expected(1)->take_all();
 		app.add_option("--library", libraries)->expected(1)->take_all();
@@ -230,10 +237,21 @@ namespace
 			return std::unexpected("Missing program (a .mmc file).");
 		}
 		if (invocation.m_command == CommandKind::Disassemble &&
-			(invocation.m_json || invocation.m_trace || invocation.m_opcode_metrics || invocation.m_gc_metrics ||
+			(invocation.m_json || invocation.m_cooperative_workers || invocation.m_trace || invocation.m_opcode_metrics || invocation.m_gc_metrics ||
 			 !invocation.m_locations.m_files.empty() || !invocation.m_locations.m_search_paths.empty() || !invocation.m_program_arguments.empty()))
 		{
 			return std::unexpected("disassemble takes only a .mmc file; execution options belong to run.");
+		}
+		if (app.count("--worker-threads") != 0u)
+		{
+			if (!invocation.m_cooperative_workers)
+			{
+				return std::unexpected("--worker-threads requires --cooperative-workers.");
+			}
+			if (invocation.m_worker_threads <= 0)
+			{
+				return std::unexpected("--worker-threads requires a positive integer.");
+			}
 		}
 		return invocation;
 	}
@@ -346,11 +364,15 @@ namespace
 			return FailToStart(invocation, loaded.error());
 		}
 
+		const MarmotProgramLoader::WorkerMode worker_mode = invocation.m_cooperative_workers
+			? MarmotProgramLoader::WorkerMode::Cooperative
+			: MarmotProgramLoader::WorkerMode::NativeThreads;
+		const size_t worker_threads = static_cast<size_t>(invocation.m_worker_threads);
 		if (invocation.m_json)
 		{
 			const RuntimeDiagnostics::ScopedOutput diagnostic_output;
 			MarmotUtility::OutputCapture capture;
-			const std::expected<int, RuntimeError> run_result = MarmotProgramLoader::Run(std::move(program).value());
+			const std::expected<int, RuntimeError> run_result = MarmotProgramLoader::Run(std::move(program).value(), worker_mode, worker_threads);
 			const MarmotUtility::CapturedOutput output = capture.Stop();
 			if (!run_result.has_value())
 			{
@@ -362,7 +384,7 @@ namespace
 			return run_result.value();
 		}
 
-		const std::expected<int, RuntimeError> run_result = MarmotProgramLoader::Run(std::move(program).value());
+		const std::expected<int, RuntimeError> run_result = MarmotProgramLoader::Run(std::move(program).value(), worker_mode, worker_threads);
 		if (!run_result.has_value())
 		{
 			std::print("{}", run_result.error().Rendered());

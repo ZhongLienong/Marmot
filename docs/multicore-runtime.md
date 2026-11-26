@@ -130,7 +130,7 @@ worker per chunk. It is ordinary Marmot in `MarmotPrelude/Concurrency.mmt`, not 
 primitive: the per-chunk worker is a lambda that captured `work` and crosses
 with it.
 
-## Worker Lifecycle
+## Worker Lifecycle with Native Threads
 
 1. **Spawn**: `Concurrency::Spawn(args, Proc)` creates a new `Worker` which:
    - Transfers the spawned function itself, so the worker starts in that function's
@@ -153,8 +153,8 @@ with it.
    union values itself. The compiler checks that `Result` and `WorkerError`
    have the layouts and constructor order the instruction expects.
 
-3. **Cancel**: `Concurrency::Cancel(w)` requests cooperative cancellation via
-   `std::jthread::request_stop()`. The worker observes the request at
+3. **Cancel**: `Concurrency::Cancel(w)` requests cancellation through the worker's
+   stop source. The worker observes the request at
    safepoints: loop back-edges (`JUMP_BACK`), tail calls (`TAIL_CALL`), returns
    (`RETURN`), and the return of any foreign call. A worker blocked in `Send` or `Receive` is woken
    immediately, because channel waits take the stop token, and the builtin
@@ -187,7 +187,8 @@ with it.
 
 ## FFI Under Multicore
 
-Dynamic FFI libraries declare thread safety in `package.marmot`:
+Third-party FFI libraries declare thread safety for native-thread workers and
+cooperative runs with multiple scheduler threads in `package.marmot`:
 
 ```toml
 [ffi]
@@ -229,9 +230,19 @@ like operations on a closed channel.
 
 ## Relationship to OS Threads
 
-1:1 mapping: each worker maps to one OS thread via `std::jthread`. Workers are
-meant to be few and long-lived, not lightweight tasks. Spawning thousands of
-workers will exhaust OS thread limits.
+By default, each worker runs on its own OS thread via `std::jthread`.
+`marmotvm run <program.mmc> --cooperative-workers` uses one scheduler thread by
+default. `--worker-threads N` sets the total, including the calling thread.
+Each worker owns a VM and stays on the thread assigned when it was spawned.
+The scheduler suspends
+VMs on joins, channel waits, and sleep, and gives other VMs a turn at calls,
+returns, and loop back-edges. `System::RunProcess` parks the calling VM while a
+pool of up to four helper threads launches and waits for child processes. A
+queued request can be cancelled before launch. A running request finishes before
+its worker observes cancellation. Other native calls execute synchronously on
+the scheduler thread. Native libraries must tolerate calls from interleaved workers.
+When the main VM returns or calls `System::Exit`, the scheduler stops dispatching
+workers and waits for any native calls already running.
 
 ## Single-Threaded Overhead
 

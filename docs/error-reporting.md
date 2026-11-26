@@ -100,6 +100,9 @@ Current `RuntimeErrorCode` values:
 - `UnsupportedPlatformOperation`
 - `WorkerCancelled`
 - `WorkerExited`
+- `ConcurrencyDeadlock`
+- `IncompatibleWorkerLibrary`
+- `WorkerSchedulerStartFailed`
 - `InvalidWorkerHandle`
 - `InvalidWorkerTransfer`
 - `InvalidConversion`

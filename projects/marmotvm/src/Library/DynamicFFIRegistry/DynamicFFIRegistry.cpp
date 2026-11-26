@@ -15,13 +15,13 @@ const VmNativeFunction* DynamicFFIRegistry::FindFunction(std::string_view functi
 	return it == m_functions.end() ? nullptr : &it->second;
 }
 
-std::expected<void, std::string> DynamicFFIRegistry::ValidateWorkerSafety(const std::vector<VmNativeLibraryImport>& libraries)
+std::expected<void, std::string> DynamicFFIRegistry::ValidateWorkerSafety(const std::vector<VmNativeLibraryImport>& libraries, bool managed_stdlib)
 {
 	std::vector<std::string> library_names;
 	library_names.reserve(libraries.size());
 	for (const VmNativeLibraryImport& library : libraries)
 	{
-		if (!library.m_policy.m_thread_safe)
+		if (!library.m_policy.m_thread_safe && !(managed_stdlib && library.m_name == "marmotstdlib"))
 		{
 			library_names.push_back(library.m_name);
 		}

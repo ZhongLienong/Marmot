@@ -15,7 +15,14 @@ enum class ChannelOpStatus
 {
 	Ok,
 	Closed,
-	Cancelled
+	Cancelled,
+	WouldBlock
+};
+
+enum class ChannelWait
+{
+	Blocking,
+	NonBlocking
 };
 
 struct ChannelReceiveResult
@@ -29,9 +36,10 @@ class Channel
 public:
 	explicit Channel(MarmotInteger capacity);
 
-	ChannelOpStatus Send(TransferPayload message, std::stop_token stop_token);
+	// A send that would block leaves the message with the caller.
+	ChannelOpStatus Send(TransferPayload&& message, std::stop_token stop_token, ChannelWait wait = ChannelWait::Blocking);
 
-	ChannelReceiveResult Receive(std::stop_token stop_token);
+	ChannelReceiveResult Receive(std::stop_token stop_token, ChannelWait wait = ChannelWait::Blocking);
 
 	void Close();
 
@@ -53,20 +61,20 @@ private:
 class ChannelRegistry
 {
 public:
+	ChannelRegistry() = default;
 	static ChannelRegistry& GetInstance();
 
 	int CreateChannel(MarmotInteger capacity);
 
-	ChannelOpStatus Send(int channel_id, TransferPayload message, std::stop_token stop_token);
+	ChannelOpStatus Send(int channel_id, TransferPayload&& message, std::stop_token stop_token, ChannelWait wait = ChannelWait::Blocking);
 
-	ChannelReceiveResult Receive(int channel_id, std::stop_token stop_token);
+	ChannelReceiveResult Receive(int channel_id, std::stop_token stop_token, ChannelWait wait = ChannelWait::Blocking);
 
 	void Close(int channel_id);
 
 	size_t GetChannelCount() const;
 
 private:
-	ChannelRegistry() = default;
 
 	mutable std::mutex m_mutex;
 	std::unordered_map<int, std::shared_ptr<Channel>> m_channels;

@@ -9,7 +9,9 @@ Marmot runs programs on a single `VirtualMachine` execution path.
    and pass it to `VirtualMachine`.
 3. The VM executes the bootstrap procedure, module initializers, and user code through `Execute()`.
 
-There is no secondary runtime scheduler, worker pool, or alternate execution mode.
+Both worker modes use the same VM dispatch loop. With `--cooperative-workers`,
+`marmotvm run` schedules VMs on the calling thread and any additional threads
+selected by `--worker-threads`.
 
 ## VirtualMachine
 

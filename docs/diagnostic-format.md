@@ -209,6 +209,9 @@ Current `RuntimeErrorCode` values:
 - `UnsupportedPlatformOperation`
 - `WorkerCancelled`
 - `WorkerExited`
+- `ConcurrencyDeadlock`
+- `IncompatibleWorkerLibrary`
+- `WorkerSchedulerStartFailed`
 - `InvalidWorkerHandle`
 - `InvalidWorkerTransfer`
 - `InvalidConversion`
@@ -344,6 +347,9 @@ are emitted with the same shape as the full examples above.
 | `UnsupportedPlatformOperation` | `Runtime` | `error` | `Operation not supported on this platform.` |
 | `WorkerCancelled` | `Runtime` | `error` | `Worker cancelled.` |
 | `WorkerExited` | `Runtime` | `error` | `Worker exited.` This becomes a failed outcome when joined. |
+| `ConcurrencyDeadlock` | `Runtime` | `error` | `No runnable workers or pending operations can wake the suspended program.` |
+| `IncompatibleWorkerLibrary` | `Runtime` | `error` | `Cooperative workers require a marmotstdlib build that supports per-worker native errors.` |
+| `WorkerSchedulerStartFailed` | `Runtime` | `error` | `Cannot start scheduler threads: <system error>.` |
 | `InvalidWorkerHandle` | `Runtime` | `error` | `Worker handle belongs to a different VM.` |
 | `InvalidWorkerTransfer` | `Runtime` | `error` | `References cannot cross worker boundaries.` |
 | `InvalidConversion` | `Runtime` | `error` | `'abc' is not a Float.` |

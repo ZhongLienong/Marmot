@@ -2,6 +2,7 @@
 #include "FFIAllocation/FFIAllocation.h"
 #include "TextPath.h"
 #include "ProcessState.h"
+#include "WorkerErrors.h"
 
 #include <cerrno>
 #include <cstdlib>
@@ -37,27 +38,22 @@ namespace
 		Unknown = 3
 	};
 
-	struct SystemErrorState
-	{
-		SystemErrorKind m_kind = SystemErrorKind::Success;
-		std::string m_message;
-	};
-
 	using FFIAllocation::AllocateString;
 
-	thread_local SystemErrorState s_last_system_error{};
 	std::mutex s_execute_mutex;
 
 	void ClearLastSystemError()
 	{
-		s_last_system_error.m_kind = SystemErrorKind::Success;
-		s_last_system_error.m_message.clear();
+		StdlibWorkerErrors::Status& status = StdlibWorkerErrors::Current().m_system;
+		status.m_kind = static_cast<int64_t>(SystemErrorKind::Success);
+		status.m_message.clear();
 	}
 
 	void SetLastSystemError(SystemErrorKind kind, const std::string& message)
 	{
-		s_last_system_error.m_kind = kind;
-		s_last_system_error.m_message = message;
+		StdlibWorkerErrors::Status& status = StdlibWorkerErrors::Current().m_system;
+		status.m_kind = static_cast<int64_t>(kind);
+		status.m_message = message;
 	}
 
 	void SetLastSystemErrorFromDirectoryCode(const std::error_code& ec)
@@ -347,13 +343,13 @@ extern "C"
 
 	MARMOT_FFI_EXPORT void MARMOT_FFI_CALL MARMOT_FFI_FUNC(GetLastSystemErrorKind)(void**, void* ret) noexcept
 	{
-		const int64_t result = static_cast<int64_t>(s_last_system_error.m_kind);
+		const int64_t result = StdlibWorkerErrors::Current().m_system.m_kind;
 		std::memcpy(ret, &result, sizeof(int64_t));
 	}
 
 	MARMOT_FFI_EXPORT void MARMOT_FFI_CALL MARMOT_FFI_FUNC(GetLastSystemErrorMessage)(void**, void* ret) noexcept
 	{
-		char* result = AllocateString(s_last_system_error.m_message);
+		char* result = AllocateString(StdlibWorkerErrors::Current().m_system.m_message);
 		const int64_t ptr = reinterpret_cast<int64_t>(result);
 		std::memcpy(ret, &ptr, sizeof(int64_t));
 	}

@@ -19,6 +19,15 @@ struct VmNativeFunction
 	std::shared_ptr<void> m_library;
 };
 
+struct StdlibWorkerErrorHooks
+{
+	using Exchange = void* (MARMOT_FFI_CALL*)(void*) noexcept;
+	using Free = void (MARMOT_FFI_CALL*)(void*) noexcept;
+
+	Exchange m_exchange;
+	Free m_free;
+};
+
 class SharedLibraryCache
 {
 public:
@@ -36,6 +45,7 @@ public:
 	std::optional<std::expected<void, std::string>> LoadHostLibrary(
 		const std::string& name, const std::vector<std::string>& symbols);
 	std::unordered_map<std::string, VmNativeFunction> SnapshotAllFunctions() const;
+	static std::optional<StdlibWorkerErrorHooks> FindStdlibWorkerErrorHooks(const VmNativeFunction& function);
 
 	void Clear();
 

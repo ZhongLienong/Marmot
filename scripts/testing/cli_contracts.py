@@ -404,6 +404,88 @@ def scenario_marmotvm_passes_program_arguments(tree: BuildTree) -> None:
         assert_condition(none.stdout == "0 []\n", f"no program arguments: {none.stdout!r}{none.stderr}")
 
 
+def scenario_cooperative_workers(tree: BuildTree) -> None:
+    with tempfile.TemporaryDirectory(prefix="marmot-cli-cooperative-") as temp_dir_raw:
+        temp_dir = Path(temp_dir_raw)
+        program = temp_dir / "Main.mmc"
+        spin = REPO_ROOT / "test" / "concurrency" / "success" / "worker_cancel_spin.mmt"
+        built = run_marmot(tree, ["build", str(spin), "-o", str(program), "--quiet"], env_overrides={"MARMOT_PATH": None})
+        assert_condition(built.returncode == 0, f"build: {built.stdout}{built.stderr}")
+        cooperative = ["run", str(program), "--cooperative-workers"]
+        cancelled = run_vm(tree, cooperative)
+        assert_condition(cancelled.returncode == 0 and cancelled.stdout.rstrip() == "spin worker cancelled",
+                         f"cooperative cancellation: {cancelled.stdout}{cancelled.stderr}")
+
+        prelude = PRELUDE_DIR.as_posix()
+        source = temp_dir / "Main.mmt"
+        write_text(
+            source,
+            "module Main\n"
+            f'import {{ "{prelude}/Concurrency.mmt", "{prelude}/IO.mmt", "{prelude}/System.mmt" }}\n'
+            'foreign "MARMOT_FFI_GetEnv" GetEnvRaw: fn(Text) -> Text from "marmotstdlib";\n'
+            'foreign "MARMOT_FFI_GetLastSystemErrorKind" ErrorKind: fn() -> Int from "marmotstdlib";\n'
+            "def Missing = fn() -> Int => {\n"
+            '    GetEnvRaw("MARMOT_COOPERATIVE_TEST_MISSING");\n'
+            "    System::Sleep(50);\n"
+            "    ErrorKind()\n"
+            "};\n"
+            "def child = Concurrency::Spawn((), Missing);\n"
+            'GetEnvRaw("MARMOT_COOPERATIVE_TEST_PRESENT");\n'
+            "System::Sleep(1);\n"
+            "def rootError = ErrorKind();\n"
+            'GetEnvRaw("MARMOT_COOPERATIVE_TEST_PRESENT");\n'
+            "def childError = Concurrency::JoinedOrPanic(Concurrency::Join(child));\n"
+            'IO::PrintLine((rootError as Text) ++ " " ++ (childError as Text));\n',
+        )
+        built = run_marmot(tree, ["build", str(source), "-o", str(program), "--quiet"], env_overrides={"MARMOT_PATH": None})
+        assert_condition(built.returncode == 0, f"build: {built.stdout}{built.stderr}")
+        completed = run_vm(tree, [*cooperative, "--format", "json"],
+                           env_overrides={"MARMOT_COOPERATIVE_TEST_PRESENT": "yes", "MARMOT_COOPERATIVE_TEST_MISSING": None})
+        payload = parse_command_json("cooperative_workers", completed)
+        assert_condition(completed.returncode == 0 and payload.get("stdout") == "0 1\n",
+                         f"cooperative native error state: {payload}")
+
+        write_text(
+            source,
+            "module Main\n"
+            f'import {{ "{prelude}/Concurrency.mmt", "{prelude}/System.mmt", "{prelude}/TextUtil.mmt" }}\n'
+            "def Park = fn(ch: Channel<Int>, text: Text) -> Int => {\n"
+            "    Concurrency::Send(ch, TextUtil::Length(text));\n"
+            "    System::Sleep(30000);\n"
+            "    TextUtil::Length(text)\n"
+            "};\n"
+            "def ready: Channel<Int> = Concurrency::MakeChannel(1);\n"
+            'def worker = Concurrency::Spawn((ready, "A transferred text long enough to allocate a buffer in the worker VM before it parks on a scheduler thread"), Park);\n'
+            "Concurrency::Receive(ready);\n"
+            "System::Exit(7);\n",
+        )
+        built = run_marmot(tree, ["build", str(source), "-o", str(program), "--quiet"], env_overrides={"MARMOT_PATH": None})
+        assert_condition(built.returncode == 0, f"build: {built.stdout}{built.stderr}")
+        exited = run_vm(tree, [*cooperative, "--worker-threads", "2", "--format", "json"])
+        payload = parse_command_json("cooperative exit", exited)
+        assert_condition(exited.returncode == 7 and payload.get("exitCode") == 7,
+                         f"cooperative exit with a parked worker: {payload}")
+
+
+def scenario_cooperative_processes(tree: BuildTree) -> None:
+    with tempfile.TemporaryDirectory(prefix="marmot-cli-processes-") as temp_dir_raw:
+        program = Path(temp_dir_raw) / "Main.mmc"
+        fixtures = (
+            ("concurrency/success/stdlib_worker_process_state", "stdlib worker process state: PASS"),
+            ("prelude/success/run_process", "prelude_run_process: PASS"),
+        )
+        for fixture, expected in fixtures:
+            source = REPO_ROOT / "test" / (fixture + ".mmt")
+            built = run_marmot(tree, ["build", str(source), "-o", str(program), "--quiet"], env_overrides={"MARMOT_PATH": None})
+            assert_condition(built.returncode == 0, f"{fixture}: {built.stdout}{built.stderr}")
+            completed = run_vm(tree, ["run", str(program), "--cooperative-workers"])
+            assert_condition(completed.returncode == 0 and (completed.stdout + completed.stderr).strip() == expected,
+                             f"{fixture} under cooperative scheduling: {completed.stdout}{completed.stderr}")
+            parallel = run_vm(tree, ["run", str(program), "--cooperative-workers", "--worker-threads", "2"])
+            assert_condition(parallel.returncode == 0 and (parallel.stdout + parallel.stderr).strip() == expected,
+                             f"{fixture} on two scheduler threads: {parallel.stdout}{parallel.stderr}")
+
+
 def scenario_marmotvm_command_line(tree: BuildTree) -> None:
     version = run_vm(tree, ["--version"])
     assert_condition(version.returncode == 0 and re.fullmatch(r"marmotvm \d+\.\d+\.\d+\s*", version.stdout) is not None, f"Unexpected version output:\n{version.stdout}{version.stderr}")
@@ -416,6 +498,16 @@ def scenario_marmotvm_command_line(tree: BuildTree) -> None:
 
     malformed = run_vm(tree, ["run", "x.mmc", "--library", "no-equals-sign"])
     assert_condition(malformed.returncode != 0 and "--library takes <name>=<file>" in malformed.stderr, f"marmotvm --library: {malformed.stdout}{malformed.stderr}")
+
+    disassemble = run_vm(tree, ["disassemble", "x.mmc", "--cooperative-workers"])
+    assert_condition(disassemble.returncode != 0 and "execution options belong to run" in disassemble.stderr,
+                     f"marmotvm disassemble: {disassemble.stdout}{disassemble.stderr}")
+    no_scheduler = run_vm(tree, ["run", "x.mmc", "--worker-threads", "2"])
+    assert_condition(no_scheduler.returncode != 0 and "requires --cooperative-workers" in no_scheduler.stderr,
+                     f"marmotvm --worker-threads: {no_scheduler.stdout}{no_scheduler.stderr}")
+    zero_threads = run_vm(tree, ["run", "x.mmc", "--cooperative-workers", "--worker-threads", "0"])
+    assert_condition(zero_threads.returncode != 0 and "requires a positive integer" in zero_threads.stderr,
+                     f"marmotvm --worker-threads 0: {zero_threads.stdout}{zero_threads.stderr}")
 
 
 def scenario_build_command_compiles_without_running(tree: BuildTree) -> None:
@@ -797,6 +889,8 @@ SCENARIOS: list[tuple[str, Any]] = [
     ("emit_ast_feature", scenario_emit_ast_feature),
     ("marmotvm_runs_what_marmotc_built", scenario_marmotvm_runs_what_marmotc_built),
     ("marmotvm_passes_program_arguments", scenario_marmotvm_passes_program_arguments),
+    ("cooperative_workers", scenario_cooperative_workers),
+    ("cooperative_processes", scenario_cooperative_processes),
     ("typed_line_input_distinguishes_blank_lines_from_eof", scenario_typed_line_input_distinguishes_blank_lines_from_eof),
     ("marmotvm_command_line", scenario_marmotvm_command_line),
     ("build_command_compiles_without_running", scenario_build_command_compiles_without_running),

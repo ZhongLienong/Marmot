@@ -117,6 +117,18 @@ void SharedLibraryCache::Clear()
 	m_functions.clear();
 }
 
+std::optional<StdlibWorkerErrorHooks> SharedLibraryCache::FindStdlibWorkerErrorHooks(const VmNativeFunction& function)
+{
+	void* const library = function.m_library.get();
+	const StdlibWorkerErrorHooks::Exchange exchange = reinterpret_cast<StdlibWorkerErrorHooks::Exchange>(GetPlatformFunction(library, "MARMOT_STDLIB_ExchangeWorkerErrors"));
+	const StdlibWorkerErrorHooks::Free free = reinterpret_cast<StdlibWorkerErrorHooks::Free>(GetPlatformFunction(library, "MARMOT_STDLIB_FreeWorkerErrors"));
+	if (exchange == nullptr || free == nullptr)
+	{
+		return std::nullopt;
+	}
+	return StdlibWorkerErrorHooks{ exchange, free };
+}
+
 std::expected<void*, std::string> SharedLibraryCache::LoadPlatformLibrary(const std::filesystem::path& path)
 {
 #ifdef _WIN32

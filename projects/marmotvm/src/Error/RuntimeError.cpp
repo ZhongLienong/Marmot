@@ -32,6 +32,12 @@ std::string_view RuntimeErrorCodeName(RuntimeErrorCode code)
 		return "WorkerCancelled";
 	case RuntimeErrorCode::WorkerExited:
 		return "WorkerExited";
+	case RuntimeErrorCode::ConcurrencyDeadlock:
+		return "ConcurrencyDeadlock";
+	case RuntimeErrorCode::IncompatibleWorkerLibrary:
+		return "IncompatibleWorkerLibrary";
+	case RuntimeErrorCode::WorkerSchedulerStartFailed:
+		return "WorkerSchedulerStartFailed";
 	case RuntimeErrorCode::InvalidWorkerHandle:
 		return "InvalidWorkerHandle";
 	case RuntimeErrorCode::InvalidWorkerTransfer:
@@ -69,6 +75,9 @@ namespace
 		case RuntimeErrorCode::FFIFunctionNotFound:
 		case RuntimeErrorCode::DivisionByZero:
 		case RuntimeErrorCode::WorkerCancelled:
+		case RuntimeErrorCode::ConcurrencyDeadlock:
+		case RuntimeErrorCode::IncompatibleWorkerLibrary:
+		case RuntimeErrorCode::WorkerSchedulerStartFailed:
 		case RuntimeErrorCode::InvalidWorkerHandle:
 		case RuntimeErrorCode::InvalidWorkerTransfer:
 		case RuntimeErrorCode::InvalidConversion:

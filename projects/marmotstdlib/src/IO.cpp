@@ -4,6 +4,7 @@
 #include "Checksum.h"
 #include "TextPath.h"
 #include "ProcessState.h"
+#include "WorkerErrors.h"
 
 #include <algorithm>
 #include <cstdio>
@@ -39,16 +40,9 @@ namespace
 		Unknown = 4
 	};
 
-	struct IOErrorState
-	{
-		IOErrorKind m_kind = IOErrorKind::Success;
-		std::string m_message;
-	};
-
 	using FFIAllocation::AllocateString;
 	using FFIAllocation::AllocateStringArray;
 
-	thread_local IOErrorState s_last_io_error{};
 	std::mutex s_input_mutex;
 
 #ifdef _WIN32
@@ -76,14 +70,16 @@ namespace
 
 	void ClearLastIOError()
 	{
-		s_last_io_error.m_kind = IOErrorKind::Success;
-		s_last_io_error.m_message.clear();
+		StdlibWorkerErrors::Status& status = StdlibWorkerErrors::Current().m_io;
+		status.m_kind = static_cast<int64_t>(IOErrorKind::Success);
+		status.m_message.clear();
 	}
 
 	void SetLastIOError(IOErrorKind kind, const std::string& message)
 	{
-		s_last_io_error.m_kind = kind;
-		s_last_io_error.m_message = message;
+		StdlibWorkerErrors::Status& status = StdlibWorkerErrors::Current().m_io;
+		status.m_kind = static_cast<int64_t>(kind);
+		status.m_message = message;
 	}
 
 	IOErrorKind ClassifyIOError(const std::error_code& ec)
@@ -715,13 +711,13 @@ extern "C"
 
 	MARMOT_FFI_EXPORT void MARMOT_FFI_CALL MARMOT_FFI_FUNC(GetLastIOErrorKind)(void**, void* ret) noexcept
 	{
-		const int64_t result = static_cast<int64_t>(s_last_io_error.m_kind);
+		const int64_t result = StdlibWorkerErrors::Current().m_io.m_kind;
 		std::memcpy(ret, &result, sizeof(int64_t));
 	}
 
 	MARMOT_FFI_EXPORT void MARMOT_FFI_CALL MARMOT_FFI_FUNC(GetLastIOErrorMessage)(void**, void* ret) noexcept
 	{
-		char* result = AllocateString(s_last_io_error.m_message);
+		char* result = AllocateString(StdlibWorkerErrors::Current().m_io.m_message);
 		const int64_t ptr = reinterpret_cast<int64_t>(result);
 		std::memcpy(ret, &ptr, sizeof(int64_t));
 	}

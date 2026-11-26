@@ -150,9 +150,13 @@ namespace MarmotProgramLoader
 		return {};
 	}
 
-	std::expected<int, RuntimeError> Run(VmExecutable&& executable)
+	std::expected<int, RuntimeError> Run(VmExecutable&& executable, WorkerMode worker_mode, size_t worker_threads)
 	{
 		VirtualMachine vm(std::move(executable));
+		if (worker_mode == WorkerMode::Cooperative)
+		{
+			return WorkerRegistry::RunCooperatively(vm, worker_threads);
+		}
 		std::expected<int, RuntimeError> run_result = vm.Execute();
 		WorkerRegistry::GetInstance().Shutdown();
 		return run_result;

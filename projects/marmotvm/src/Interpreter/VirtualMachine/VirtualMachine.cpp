@@ -7,6 +7,8 @@
 #include "Bytecode/Scalar/IntegerArithmetic.h"
 #include "Interpreter/Channel/Channel.h"
 #include "Interpreter/ValueTransfer/ValueTransfer.h"
+#include "Interpreter/Worker/BlockingProcessCall.h"
+#include "Interpreter/Worker/CooperativeScheduler.h"
 #include "Bytecode/Disassembler/Disassembler.h"
 #include "VirtualMachine.h"
 
@@ -33,6 +35,7 @@
 #include <execution>
 #include <fstream>
 #include <format>
+#include <mutex>
 #include <numeric>
 #include <print>
 #include <ranges>
@@ -223,6 +226,12 @@ namespace
 	{
 		sigjmp_buf* m_jump_buffer = nullptr;
 		UnixSignalInfo* m_signal_info = nullptr;
+	};
+
+	struct UnixSignalHandlers
+	{
+		std::mutex m_mutex;
+		size_t m_users = 0u;
 		struct sigaction m_previous_sigsegv {};
 		struct sigaction m_previous_sigfpe {};
 #if defined(SIGBUS)
@@ -230,6 +239,7 @@ namespace
 #endif
 	};
 
+	UnixSignalHandlers s_unix_signal_handlers;
 	thread_local UnixSignalHandlerState* s_active_unix_signal_handler = nullptr;
 
 	void HandleVirtualMachineSignal(int signal_number, siginfo_t* signal_info, void*)
@@ -247,43 +257,57 @@ namespace
 		siglongjmp(*s_active_unix_signal_handler->m_jump_buffer, 1);
 	}
 
-	bool InstallVirtualMachineSignalHandlers(UnixSignalHandlerState& handler_state)
+	bool InstallVirtualMachineSignalHandlers()
 	{
+		UnixSignalHandlers& handlers = s_unix_signal_handlers;
+		const std::lock_guard<std::mutex> lock(handlers.m_mutex);
+		if (handlers.m_users != 0u)
+		{
+			++handlers.m_users;
+			return true;
+		}
 		struct sigaction action {};
 		std::memset(&action, 0, sizeof(action));
 		sigemptyset(&action.sa_mask);
 		action.sa_sigaction = HandleVirtualMachineSignal;
 		action.sa_flags = SA_SIGINFO;
 
-		if (sigaction(SIGSEGV, &action, &handler_state.m_previous_sigsegv) != 0)
+		if (sigaction(SIGSEGV, &action, &handlers.m_previous_sigsegv) != 0)
 		{
 			return false;
 		}
 
-		if (sigaction(SIGFPE, &action, &handler_state.m_previous_sigfpe) != 0)
+		if (sigaction(SIGFPE, &action, &handlers.m_previous_sigfpe) != 0)
 		{
-			static_cast<void>(sigaction(SIGSEGV, &handler_state.m_previous_sigsegv, nullptr));
+			static_cast<void>(sigaction(SIGSEGV, &handlers.m_previous_sigsegv, nullptr));
 			return false;
 		}
 
 #if defined(SIGBUS)
-		if (sigaction(SIGBUS, &action, &handler_state.m_previous_sigbus) != 0)
+		if (sigaction(SIGBUS, &action, &handlers.m_previous_sigbus) != 0)
 		{
-			static_cast<void>(sigaction(SIGFPE, &handler_state.m_previous_sigfpe, nullptr));
-			static_cast<void>(sigaction(SIGSEGV, &handler_state.m_previous_sigsegv, nullptr));
+			static_cast<void>(sigaction(SIGFPE, &handlers.m_previous_sigfpe, nullptr));
+			static_cast<void>(sigaction(SIGSEGV, &handlers.m_previous_sigsegv, nullptr));
 			return false;
 		}
 #endif
+		++handlers.m_users;
 
 		return true;
 	}
 
-	void RestoreVirtualMachineSignalHandlers(const UnixSignalHandlerState& handler_state)
+	void RestoreVirtualMachineSignalHandlers()
 	{
-		static_cast<void>(sigaction(SIGSEGV, &handler_state.m_previous_sigsegv, nullptr));
-		static_cast<void>(sigaction(SIGFPE, &handler_state.m_previous_sigfpe, nullptr));
+		UnixSignalHandlers& handlers = s_unix_signal_handlers;
+		const std::lock_guard<std::mutex> lock(handlers.m_mutex);
+		if (--handlers.m_users != 0u)
+		{
+			return;
+		}
+		static_cast<void>(sigaction(SIGSEGV, &handlers.m_previous_sigsegv, nullptr));
+		static_cast<void>(sigaction(SIGFPE, &handlers.m_previous_sigfpe, nullptr));
 #if defined(SIGBUS)
-		static_cast<void>(sigaction(SIGBUS, &handler_state.m_previous_sigbus, nullptr));
+		static_cast<void>(sigaction(SIGBUS, &handlers.m_previous_sigbus, nullptr));
 #endif
 	}
 #endif
@@ -496,6 +520,7 @@ MARMOT_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(VmOpCode inst
 	static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::UnsupportedPlatformOperation, "Concurrency is not supported in the WebAssembly build.", GetLine())));
 	return false;
 #else
+	CooperativeScheduler* const scheduler = m_worker_registry->GetScheduler();
 	switch (instruction)
 	{
 	case VmOpCode::SPAWN_WORKER:
@@ -517,7 +542,7 @@ MARMOT_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(VmOpCode inst
 			static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InvalidWorkerTransfer, payload.error(), GetLine())));
 			return false;
 		}
-		const std::optional<MarmotInteger> worker_id = WorkerRegistry::GetInstance().SpawnWorker(m_worker_owner, m_owned_executable, std::move(*payload), result_is_pointer);
+		const std::optional<MarmotInteger> worker_id = m_worker_registry->SpawnWorker(m_worker_owner, m_owned_executable, std::move(*payload), result_is_pointer);
 		if (!worker_id.has_value())
 		{
 			static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InvalidWorkerHandle, "Worker handle limit reached.", GetLine())));
@@ -539,12 +564,19 @@ MARMOT_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(VmOpCode inst
 		static constexpr int s_err_tag = 1;
 		static constexpr int s_cancelled_tag = 0;
 		static constexpr int s_failed_tag = 1;
-		const MarmotInteger worker_id = Pop().GetInteger();
+		const MarmotInteger worker_id = PeekValue().GetInteger();
 		if (!CheckWorkerOwner(worker_id))
 		{
 			return false;
 		}
-		std::expected<TransferPayload, WorkerError> worker_result = WorkerRegistry::GetInstance().JoinWorkerValue(worker_id);
+		const std::optional<std::expected<TransferPayload, WorkerError>> joined = m_worker_registry->JoinWorkerValue(worker_id, m_scheduled_id, m_stop_token);
+		if (!joined.has_value())
+		{
+			m_suspension = WorkerWait{ WorkerWait::Kind::Join, worker_id };
+			return false;
+		}
+		Pop();
+		const std::expected<TransferPayload, WorkerError>& worker_result = *joined;
 
 		MarmotValue payload;
 		int result_tag = s_ok_tag;
@@ -574,22 +606,34 @@ MARMOT_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(VmOpCode inst
 	case VmOpCode::CHANNEL_CREATE:
 	{
 		const MarmotInteger capacity = Pop().GetInteger();
-		const int channel_id = ChannelRegistry::GetInstance().CreateChannel(capacity);
+		const int channel_id = scheduler == nullptr ? ChannelRegistry::GetInstance().CreateChannel(capacity) : scheduler->CreateChannel(capacity);
 		Push(static_cast<MarmotInteger>(channel_id));
 		return true;
 	}
 	case VmOpCode::CHANNEL_SEND:
 	{
 		const bool value_is_pointer = ReadByte(ip) != VmOpCode{ 0u };
-		MarmotValue value = Pop();
-		const int channel_id = static_cast<int>(Pop().GetInteger());
-		std::expected<TransferPayload, std::string_view> payload = ValueTransfer::Serialize(value, value_is_pointer, *this);
-		if (!payload.has_value())
+		const int channel_id = static_cast<int>(m_value_stack_pointer[-2].GetInteger());
+		if (!m_pending_send.has_value())
 		{
-			static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InvalidWorkerTransfer, payload.error(), GetLine())));
+			std::expected<TransferPayload, std::string_view> payload = ValueTransfer::Serialize(PeekValue(), value_is_pointer, *this);
+			if (!payload.has_value())
+			{
+				static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InvalidWorkerTransfer, payload.error(), GetLine())));
+				return false;
+			}
+			m_pending_send = std::move(*payload);
+		}
+		const ChannelOpStatus send_status = scheduler == nullptr
+			? ChannelRegistry::GetInstance().Send(channel_id, std::move(*m_pending_send), m_stop_token)
+			: scheduler->Send(m_scheduled_id, channel_id, std::move(*m_pending_send), m_stop_token);
+		if (send_status == ChannelOpStatus::WouldBlock)
+		{
+			m_suspension = WorkerWait{ WorkerWait::Kind::ChannelSend, channel_id };
 			return false;
 		}
-		const ChannelOpStatus send_status = ChannelRegistry::GetInstance().Send(channel_id, std::move(*payload), m_stop_token);
+		m_pending_send.reset();
+		m_value_stack_pointer -= 2;
 		if (send_status == ChannelOpStatus::Cancelled)
 		{
 			m_instruction_pointer = ip;
@@ -605,8 +649,16 @@ MARMOT_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(VmOpCode inst
 		static constexpr int s_none_tag = 0;
 		static constexpr int s_some_tag = 1;
 		const uint16_t payload_shape = ReadByte(ip) != VmOpCode{ 0u } ? VM_FIRST_FIELD_SHAPE : VM_SCALAR_SHAPE;
-		const int channel_id = static_cast<int>(Pop().GetInteger());
-		const ChannelReceiveResult received_value = ChannelRegistry::GetInstance().Receive(channel_id, m_stop_token);
+		const int channel_id = static_cast<int>(PeekValue().GetInteger());
+		const ChannelReceiveResult received_value = scheduler == nullptr
+			? ChannelRegistry::GetInstance().Receive(channel_id, m_stop_token)
+			: scheduler->Receive(m_scheduled_id, channel_id, m_stop_token);
+		if (received_value.m_status == ChannelOpStatus::WouldBlock)
+		{
+			m_suspension = WorkerWait{ WorkerWait::Kind::ChannelReceive, channel_id };
+			return false;
+		}
+		Pop();
 		if (received_value.m_status == ChannelOpStatus::Cancelled)
 		{
 			static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::WorkerCancelled, "Worker cancelled.", GetLine())));
@@ -625,7 +677,14 @@ MARMOT_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(VmOpCode inst
 	case VmOpCode::CHANNEL_CLOSE:
 	{
 		const int channel_id = static_cast<int>(Pop().GetInteger());
-		ChannelRegistry::GetInstance().Close(channel_id);
+		if (scheduler != nullptr)
+		{
+			scheduler->Close(channel_id);
+		}
+		else
+		{
+			ChannelRegistry::GetInstance().Close(channel_id);
+		}
 		Push(MarmotValue());
 		return true;
 	}
@@ -636,7 +695,7 @@ MARMOT_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(VmOpCode inst
 		{
 			return false;
 		}
-		const bool is_done = WorkerRegistry::GetInstance().IsWorkerDone(worker_id);
+		const bool is_done = m_worker_registry->IsWorkerDone(worker_id);
 		Push(is_done);
 		return true;
 	}
@@ -647,7 +706,7 @@ MARMOT_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(VmOpCode inst
 		{
 			return false;
 		}
-		const bool cancelled = WorkerRegistry::GetInstance().CancelWorker(worker_id);
+		const bool cancelled = m_worker_registry->CancelWorker(worker_id);
 		Push(cancelled);
 		return true;
 	}
@@ -1181,6 +1240,17 @@ void VirtualMachine::BuildGarbageCollectionRoots(GarbageCollector::GarbageCollec
 
 int VirtualMachine::ExecuteLoop() noexcept
 {
+	// Select once so scheduler checkpoints cannot change native dispatch.
+	if (m_worker_registry->GetScheduler() == nullptr)
+	{
+		return ExecuteInstructions<false>();
+	}
+	return ExecuteInstructions<true>();
+}
+
+template<bool Cooperative>
+int VirtualMachine::ExecuteInstructions() noexcept
+{
 	InstructionPointer ip = m_instruction_pointer;
 	ValueStackPointer sp = m_value_stack_pointer;
 	ValueStackPointer bp = m_value_stack_base_pointer;
@@ -1188,6 +1258,16 @@ int VirtualMachine::ExecuteLoop() noexcept
 	MarmotTraceable* closure = m_curr_closure_traceable;
 	CallStackPointer csp = m_call_stack_pointer;
 	const InstructionPointer* const proc_entries = m_proc_entry_cache.data();
+	unsigned remaining_checkpoints = 1024u;
+	if constexpr (Cooperative)
+	{
+		if (m_pending_process != nullptr)
+		{
+			const MarmotWord bits = static_cast<MarmotWord>(reinterpret_cast<uintptr_t>(m_pending_process->ReleaseResult()));
+			Push(sp, TakeNativeResult(MARMOT_FFI_RETURN_ARRAY_STRINGS, bits, m_pending_process->GetFreeResult()));
+			m_pending_process.reset();
+		}
+	}
 
 #if MARMOT_ENABLE_OPCODE_METRICS
 	const bool opcode_metrics = RuntimeDiagnostics::OpcodeMetricsEnabled();
@@ -1200,7 +1280,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 		{
 			if (m_enabled)
 			{
-				std::print(RuntimeDiagnostics::Output(), "Opcode metrics (this VM):\n");
+				std::print(RuntimeDiagnostics::Output(), "Opcode metrics ({}):\n", Cooperative ? "this VM slice" : "this VM");
 				for (size_t index = 0uz; index < m_counts.size(); index += 1uz)
 				{
 					if (m_counts[index] != 0u)
@@ -2389,6 +2469,10 @@ int VirtualMachine::ExecuteLoop() noexcept
 				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::WorkerCancelled, "Worker cancelled.", GetLine()));
 			}
 			TryCollect(ip, sp, bp, env, closure);
+			if (YieldAfterCheckpoint<Cooperative>(remaining_checkpoints, ip, sp, bp, env, closure)) [[unlikely]]
+			{
+				return 0;
+			}
 			break;
 		}
 		MARMOT_HANDLER(IF_INTEGER_LESS)
@@ -2564,6 +2648,17 @@ int VirtualMachine::ExecuteLoop() noexcept
 				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::FFIFunctionNotFound, std::format("Failed to load foreign function '{}'.", name), GetLine()));
 			}
 
+			constexpr std::string_view run_process_symbol = "marmotstdlib\x1f" "MARMOT_FFI_RunProcess";
+			const bool offload_process = Cooperative && name == run_process_symbol;
+			constexpr uint8_t process_argument_kinds = MmcWire::FFI_ARGUMENT_ARRAY_STRINGS
+				| (MmcWire::FFI_ARGUMENT_C_STRING << MmcWire::FFI_ARGUMENT_BITS);
+			if (offload_process && (arity != 2 || argument_kinds != process_argument_kinds ||
+				(return_type & MmcWire::FFI_RETURN_KIND_MASK) != MmcWire::FFI_RETURN_ARRAY_STRINGS))
+			{
+				SyncMachineState(ip, sp, bp, env, closure);
+				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalFFITypeError, "RunProcess requires an array of text arguments and a text directory, and returns an array of text.", GetLine()));
+			}
+
 			for (int i = arity - 1; i >= 0; i -= 1)
 			{
 				const int shift = MmcWire::FFI_ARGUMENT_BITS * i;
@@ -2573,6 +2668,17 @@ int VirtualMachine::ExecuteLoop() noexcept
 					SyncMachineState(ip, sp, bp, env, closure);
 					return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InvalidConversion, std::format("Cannot pass foreign argument {} as a C string because it contains a NUL byte.", i + 1), GetLine()));
 				}
+			}
+			if (offload_process)
+			{
+				m_pending_process = std::make_shared<BlockingProcessCall>
+				(
+					*function, *m_worker_registry->GetStdlibWorkerErrorHooks(),
+					*static_cast<const MarmotFFIArray*>(m_ffi_args[0u]), static_cast<const char*>(m_ffi_args[1u])
+				);
+				m_suspension = m_worker_registry->GetScheduler()->StartProcess(m_scheduled_id, m_pending_process, m_stop_token);
+				SyncMachineState(ip, sp, bp, env, closure);
+				return 0;
 			}
 			MarmotWord result = 0;
 			function->m_call(m_ffi_args.data(), &result);
@@ -2596,6 +2702,31 @@ int VirtualMachine::ExecuteLoop() noexcept
 				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::WorkerExited, "Worker exited. Exiting the process from a worker would end the whole program, so the worker fails instead and the joiner receives Err(Failed(...)). A panic inside a worker takes this path.", GetLine()));
 			}
 
+			if constexpr (Cooperative)
+			{
+				if (intrinsic_id == static_cast<uint8_t>(VmIntrinsics::Id::Exit))
+				{
+					SyncMachineState(ip, sp, bp, env, closure);
+					return static_cast<int>(sp[-1].GetInteger());
+				}
+				if (intrinsic_id == static_cast<uint8_t>(VmIntrinsics::Id::Sleep))
+				{
+					const std::chrono::milliseconds delay(sp[-1].GetInteger());
+					if (delay.count() > 0)
+					{
+						using Clock = CooperativeScheduler::Clock;
+						const Clock::time_point now = Clock::now();
+						const Clock::time_point latest = (Clock::time_point::max)();
+						const std::chrono::milliseconds available = std::chrono::duration_cast<std::chrono::milliseconds>(latest - now);
+						const Clock::time_point deadline = delay > available ? latest : now + delay;
+						m_worker_registry->GetScheduler()->Sleep(m_scheduled_id, deadline, m_stop_token);
+						m_suspension = deadline;
+						sp[-1] = MarmotValue();
+						SyncMachineState(ip, sp, bp, env, closure);
+						return 0;
+					}
+				}
+			}
 			const VmIntrinsics::Intrinsic& intrinsic = VmIntrinsics::TABLE[intrinsic_id];
 			sp -= intrinsic.m_arity;
 			const MarmotValue result = intrinsic.m_call(*this, std::span<const MarmotValue>(sp, intrinsic.m_arity), holds_pointers);
@@ -2631,6 +2762,10 @@ int VirtualMachine::ExecuteLoop() noexcept
 			ip = proc_entries[static_cast<size_t>(closure->GetIndex())];
 			bp = sp - arity;
 
+			if (YieldAfterCheckpoint<Cooperative>(remaining_checkpoints, ip, sp, bp, env, closure)) [[unlikely]]
+			{
+				return 0;
+			}
 			break;
 		}
 		MARMOT_HANDLER(CALL_0)
@@ -2658,6 +2793,10 @@ int VirtualMachine::ExecuteLoop() noexcept
 			ip = proc_entries[static_cast<size_t>(closure->GetIndex())];
 			bp = sp - arity;
 
+			if (YieldAfterCheckpoint<Cooperative>(remaining_checkpoints, ip, sp, bp, env, closure)) [[unlikely]]
+			{
+				return 0;
+			}
 			break;
 		}
 		MARMOT_HANDLER(CALL_PROC_WIDE)
@@ -2673,6 +2812,10 @@ int VirtualMachine::ExecuteLoop() noexcept
 			ip = proc_entries[static_cast<size_t>(proc_index)];
 			bp = sp - arity;
 
+			if (YieldAfterCheckpoint<Cooperative>(remaining_checkpoints, ip, sp, bp, env, closure)) [[unlikely]]
+			{
+				return 0;
+			}
 			break;
 		}
 		MARMOT_HANDLER(CALL_GLOBAL_WIDE)
@@ -2697,6 +2840,10 @@ int VirtualMachine::ExecuteLoop() noexcept
 			ip = proc_entries[static_cast<size_t>(closure->GetIndex())];
 			bp = sp - arity;
 
+			if (YieldAfterCheckpoint<Cooperative>(remaining_checkpoints, ip, sp, bp, env, closure)) [[unlikely]]
+			{
+				return 0;
+			}
 			break;
 		}
 		MARMOT_HANDLER(TAIL_CALL)
@@ -2735,6 +2882,10 @@ int VirtualMachine::ExecuteLoop() noexcept
 			// loop the compiler cannot turn into JUMP_BACK, and without a
 			// safepoint here it never collects.
 			TryCollect(ip, sp, bp, env, closure);
+			if (YieldAfterCheckpoint<Cooperative>(remaining_checkpoints, ip, sp, bp, env, closure)) [[unlikely]]
+			{
+				return 0;
+			}
 
 			break;
 		}
@@ -2956,6 +3107,10 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			TryCollect(ip, sp, bp, env, closure);
 
+			if (YieldAfterCheckpoint<Cooperative>(remaining_checkpoints, ip, sp, bp, env, closure)) [[unlikely]]
+			{
+				return 0;
+			}
 			break;
 		}
 		MARMOT_HANDLER(HALT)
@@ -2983,6 +3138,15 @@ int VirtualMachine::ExecuteLoop() noexcept
 			InstructionPointer operands = ip;
 			if (!ExecuteConcurrencyInstruction(instruction, operands))
 			{
+				if constexpr (Cooperative)
+				{
+					if (m_suspension.has_value())
+					{
+						// The operands are still on the stack for the retry.
+						m_instruction_pointer = inst_ip;
+						return 0;
+					}
+				}
 				return EXIT_FAILURE;
 			}
 			ip = operands;
@@ -3094,9 +3258,27 @@ bool VirtualMachine::CommitStackPages(uintptr_t fault_address) noexcept
 }
 #endif
 
+VirtualMachine::ExecuteResult VirtualMachine::ExecuteSlice() noexcept
+{
+	const StdlibWorkerErrorHooks* const hooks = m_worker_registry->GetStdlibWorkerErrorHooks();
+	if (hooks == nullptr)
+	{
+		return Execute();
+	}
+	if (m_pending_process != nullptr)
+	{
+		m_stdlib_worker_errors = m_pending_process->TakeWorkerErrors();
+	}
+	void* const previous = hooks->m_exchange(m_stdlib_worker_errors.release());
+	ExecuteResult result = Execute();
+	m_stdlib_worker_errors = std::unique_ptr<void, StdlibWorkerErrorHooks::Free>(hooks->m_exchange(previous), hooks->m_free);
+	return result;
+}
+
 VirtualMachine::ExecuteResult VirtualMachine::Execute() noexcept
 {
 	m_last_error.reset();
+	m_suspension.reset();
 
 #ifdef _WIN32
 	uintptr_t exception_code = 0u;
@@ -3144,7 +3326,7 @@ VirtualMachine::ExecuteResult VirtualMachine::Execute() noexcept
 	handler_state.m_jump_buffer = &jump_buffer;
 	handler_state.m_signal_info = &signal_info;
 
-	if (!InstallVirtualMachineSignalHandlers(handler_state))
+	if (!InstallVirtualMachineSignalHandlers())
 	{
 		const int result = ExecuteLoop();
 		if (m_last_error.has_value())
@@ -3160,7 +3342,7 @@ VirtualMachine::ExecuteResult VirtualMachine::Execute() noexcept
 	{
 		const int result = ExecuteLoop();
 		s_active_unix_signal_handler = nullptr;
-		RestoreVirtualMachineSignalHandlers(handler_state);
+		RestoreVirtualMachineSignalHandlers();
 		if (m_last_error.has_value())
 		{
 			return std::unexpected(std::move(*m_last_error));
@@ -3169,7 +3351,7 @@ VirtualMachine::ExecuteResult VirtualMachine::Execute() noexcept
 	}
 
 	s_active_unix_signal_handler = nullptr;
-	RestoreVirtualMachineSignalHandlers(handler_state);
+	RestoreVirtualMachineSignalHandlers();
 
 	if (IsStackGuardFault(signal_info.m_fault_address))
 	{
