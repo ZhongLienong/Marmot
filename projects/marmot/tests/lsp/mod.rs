@@ -237,9 +237,8 @@ fn lsp_definitions_follow_unsaved_imports_and_local_bindings() {
     let main_uri = Url::from_file_path(project.path("src/Main.mmt"))
         .unwrap()
         .to_string();
-    let helper_uri = Url::from_file_path(project.path("src/Helper.mmt"))
-        .unwrap()
-        .to_string();
+    let helper_path = project.path("src/Helper.mmt");
+    let helper_uri = Url::from_file_path(&helper_path).unwrap().to_string();
 
     let mut server = LanguageServer::start(&compiler, &project.0);
     server.open(&main_uri, main);
@@ -262,7 +261,9 @@ fn lsp_definitions_follow_unsaved_imports_and_local_bindings() {
             }
         })
     };
-    let original = location(&helper_uri, 3, 4, 9);
+    // Closed imports use the compiler's canonical path, which can expand Windows short names.
+    let disk_helper_uri = Url::from_file_path(helper_path.canonicalize().unwrap()).unwrap();
+    let original = location(disk_helper_uri.as_str(), 3, 4, 9);
     assert_eq!(definition(3, 3, 34), original);
     assert_eq!(definition(4, 4, 16), original);
     assert_eq!(definition(5, 5, 27), original);
