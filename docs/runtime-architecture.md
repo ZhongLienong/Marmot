@@ -1,17 +1,24 @@
 # Runtime Architecture
 
-Marmot runs programs on a single `VirtualMachine` execution path.
+Marmot runs bytecode in isolated `VirtualMachine` instances.
 
 ## Execution Flow
 
 1. The compiler links a `MarmotExecutable` and writes it to a `.mmc` file.
 2. Native and WebAssembly entry points decode the `.mmc` into a `VmExecutable`
    and pass it to `VirtualMachine`.
-3. The VM executes the bootstrap procedure, module initializers, and user code through `Execute()`.
+3. The main VM executes the bootstrap procedure, module initializers, and user code.
+   Native-thread mode calls `Execute()` directly. Cooperative mode drives the
+   main VM and its workers through `ExecuteSlice()`, which calls `Execute()` and
+   preserves standard-library error state across slices.
 
-Both worker modes use the same VM dispatch loop. With `--cooperative-workers`,
-`marmotvm run` schedules VMs on the calling thread and any additional threads
-selected by `--worker-threads`.
+`ExecuteLoop()` selects a compiled specialization of `ExecuteInstructions` at
+entry. Both specializations share opcode implementations. The cooperative
+specialization adds scheduling checkpoints at calls, tail calls, returns, and
+loop back-edges. When a VM yields or parks, it saves its instruction and stack
+state so the scheduler can resume it on its assigned thread. Native-thread
+dispatch omits the scheduler checks. See [Multicore Runtime](multicore-runtime.md)
+for scheduling and blocking behavior.
 
 ## VirtualMachine
 

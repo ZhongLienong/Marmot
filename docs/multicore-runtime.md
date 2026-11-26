@@ -7,8 +7,8 @@ Marmot uses an **isolated-worker** concurrency model. Each worker is a full
 stack, call stack, and global variables. Workers share read-only bytecode
 (`std::shared_ptr<const VmExecutable>`) but cannot share mutable values.
 
-Communication between workers happens exclusively through message passing
-(typed binary-serialized values via channels).
+Workers exchange typed values through spawn arguments, join results, and
+channel messages. The VM copies those values across heaps.
 
 ## What Is Shared vs Isolated
 
@@ -30,7 +30,7 @@ Communication between workers happens exclusively through message passing
 
 Cross-worker value transfer is governed by the `Transferable<T>` typeclass.
 Types that satisfy `Transferable` can be deep-copied across worker boundaries
-by `ValueTransfer`: the sending thread copies the value into a `TransferPayload`,
+by `ValueTransfer`: the sending VM copies the value into a `TransferPayload`,
 and the receiving VM rebuilds it in its own heap. Spawns, joins and channels
 all cross this way.
 
@@ -38,7 +38,7 @@ all cross this way.
 - `Int`, `Float`, `Byte`, `Word`, `Bool`, `Unit` — bitwise copy (no heap allocation)
 - `Text` — new allocation in target VM, bytes copied
 - `Array<T>` where `Transferable<T>` — new allocation, elements recursively transferred
-- `Channel<T>` where `Transferable<T>` — handle copy (process-wide registry index)
+- `Channel<T>` where `Transferable<T>` — handle copy (index in the channel registry)
 
 **Derivable for user types**:
 - Structs and unions can `deriving (Transferable)` if all fields/variants satisfy `Transferable`
@@ -130,43 +130,32 @@ worker per chunk. It is ordinary Marmot in `MarmotPrelude/Concurrency.mmt`, not 
 primitive: the per-chunk worker is a lambda that captured `work` and crosses
 with it.
 
-## Worker Lifecycle with Native Threads
+## Worker Lifecycle
 
-1. **Spawn**: `Concurrency::Spawn(args, Proc)` creates a new `Worker` which:
-   - Transfers the spawned function itself, so the worker starts in that function's
-     own environment and a captured value is available inside it
-   - Creates a `std::jthread`
-   - Constructs a new `VirtualMachine` sharing the executable's bytecode
-   - Takes a snapshot of dynamic FFI functions from `SharedLibraryCache`
-   - Validates FFI thread safety before execution
-   - Installs the globals its code can read, copied on the spawning thread at
-     the spawn. Globals are defined once and never reassigned, so the spawned
-     function sees exactly what it would see if called directly. Module
-     initializers are not re-run, so their effects happen once per program,
-     not once per worker.
-   - Deep-copies arguments via `ValueTransfer` into the worker VM's stack
-   - Calls `VirtualMachine::Execute()` — the same dispatch loop the main VM uses
+1. **Spawn** copies the function, its captures, its arguments, and the globals
+   it can read into a payload. Native-thread mode starts a dedicated
+   `std::jthread`. Cooperative mode queues the worker on its assigned thread.
+   On its first run, the worker validates FFI thread safety where required,
+   creates its VM, and installs the payload. The VM shares executable bytecode
+   and takes a snapshot of dynamic FFI functions. Module initializers run once
+   per program.
 
-2. **Join**: `Concurrency::Join(w)` blocks until the worker finishes. The worker's value is
-   deserialized from its `TransferPayload` and wrapped in `Ok`; a failure or
-   cancellation becomes `Err(WorkerError)` instead. `JOIN_WORKER` builds these
-   union values itself. The compiler checks that `Result` and `WorkerError`
-   have the layouts and constructor order the instruction expects.
+2. **Join** waits for the worker to finish. In native-thread mode the caller's
+   OS thread waits. In cooperative mode the scheduler parks the calling VM.
+   `JOIN_WORKER` deserializes the result into the calling VM and builds the
+   private outcome that `Concurrency::Join` converts to `Result<T, WorkerError>`.
 
-3. **Cancel**: `Concurrency::Cancel(w)` requests cancellation through the worker's
-   stop source. The worker observes the request at
-   safepoints: loop back-edges (`JUMP_BACK`), tail calls (`TAIL_CALL`), returns
-   (`RETURN`), and the return of any foreign call. A worker blocked in `Send` or `Receive` is woken
-   immediately, because channel waits take the stop token, and the builtin
-   `Sleep` is interruptible for the same reason. On observing cancellation the
-   worker terminates with the `WorkerCancelled` runtime error.
+3. **Cancel** requests cancellation through the worker's
+   stop source. Running code checks for cancellation at loop back-edges, tail
+   calls, returns, and after foreign calls return. In native-thread mode,
+   channel waits and `Sleep` observe the stop token. In cooperative mode the
+   scheduler wakes a parked worker to observe cancellation, except when
+   `RunProcess` has already started. Blocking stdin reads and synchronous
+   third-party native calls run to completion before the worker can observe
+   cancellation.
 
-   Cancellation is cooperative, so it is bounded by whatever the worker is
-   currently doing. Blocking calls that do not consult the stop token — stdin
-   reads and third-party dynamic FFI — still run to completion first. See
-   `projects/marmotvm/src/Support/Cancellation/Cancellation.h`.
-
-4. **Poll**: `Concurrency::IsDone(w)` checks if the worker has completed without blocking.
+4. **Poll** checks whether the worker has completed. `Concurrency::IsDone(w)`
+   returns immediately.
 
 ## Failure Propagation
 
@@ -196,13 +185,11 @@ enabled = true
 thread_safe = true
 ```
 
-- Default: `thread_safe = false` (safe by default)
-- Validation happens at worker construction time, before `ExecuteLoop()`
-- If any native library the program imports has `thread_safe = false`,
-  worker creation fails with a clear error naming the offending libraries.
-  Libraries loaded for another program in the same process do not count
-- `thread_safe = true` means the native code uses no global mutable state, or
-  manages its own synchronization
+- The flag defaults to `false`. When validation applies, a worker fails on its
+  first run if any third-party library imported by its program has
+  `thread_safe = false`.
+- Single-thread cooperative runs can interleave calls from different VMs on the
+  same OS thread. See [FFI ABI](ffi-abi.md) for native state and call behavior.
 
 ## Channels
 
@@ -218,59 +205,49 @@ Channels provide typed message passing between workers:
 There is no bounded or non-blocking receive at the language level: a receive
 waits until a value arrives, the channel closes, or the worker is cancelled.
 
-Internally: `std::mutex` + `std::condition_variable_any` +
-`std::deque<TransferPayload>`. The waits are stop-token-aware, which is what
-makes a channel-blocked worker cancellable.
+Native-thread mode uses stop-token-aware condition-variable waits. In
+cooperative mode the scheduler parks any VM whose send or receive would block
+and makes it runnable when the channel can make progress or closes.
 
 Channel handles are raw `Int` values managed by `ChannelRegistry`, not
 VM-heap objects. `Channel<T>` is itself `Transferable`, so channels can be
-passed directly to spawned workers. A channel is reclaimed from the registry
-once it is both closed and drained; operations on a reclaimed handle behave
-like operations on a closed channel.
+passed directly to spawned workers. The cooperative scheduler owns the registry
+for its run. The registry reclaims a channel once it is closed and drained.
+Operations on a reclaimed handle behave like operations on a closed channel.
 
 ## Relationship to OS Threads
 
-By default, each worker runs on its own OS thread via `std::jthread`.
-`marmotvm run <program.mmc> --cooperative-workers` uses one scheduler thread by
-default. `--worker-threads N` sets the total, including the calling thread.
-Each worker owns a VM and stays on the thread assigned when it was spawned.
-The scheduler suspends
-VMs on joins, channel waits, and sleep, and gives other VMs a turn at calls,
-returns, and loop back-edges. `System::RunProcess` parks the calling VM while a
-pool of up to four helper threads launches and waits for child processes. A
-queued request can be cancelled before launch. A running request finishes before
-its worker observes cancellation. Other native calls execute synchronously on
-the scheduler thread. Native libraries must tolerate calls from interleaved workers.
+By default, each spawned worker runs on its own OS thread via `std::jthread`.
+`marmotvm run <program.mmc> --cooperative-workers` enables green threads, with
+one scheduler thread by default. `--worker-threads N` sets the total, including
+the calling thread, which runs the main VM. The scheduler assigns each spawned
+worker to a thread in round-robin order and keeps it there.
+
+The scheduler parks VMs on joins, channel waits, and positive sleeps. It
+requeues a running VM after 1,024 scheduling checkpoints, reached at calls,
+tail calls, returns, and loop back-edges. `System::RunProcess` parks the calling
+VM while a pool of up to four helper threads launches and waits for child
+processes. A queued request can be cancelled before launch. A running request
+finishes before its worker observes cancellation. Other native calls execute
+synchronously on the scheduler thread and can block other VMs assigned to it.
+
 When the main VM returns or calls `System::Exit`, the scheduler stops dispatching
 workers and waits for any native calls already running.
+If all VMs are parked and no timer or native process completion can wake one,
+the scheduler reports `ConcurrencyDeadlock`.
 
-## Single-Threaded Overhead
+## Dispatch and Cancellation
 
-Nearly all of the concurrency system — `Worker`, `Channel`, the registries,
-`ValueTransfer`, FFI thread-safety validation — lives outside
-`VirtualMachine::ExecuteLoop()` and costs the main VM nothing.
-
-The exception is cancellation. Making a running worker stoppable requires
-safepoints *inside* the dispatch loop, so `ExecuteLoop()` now checks
-`IsCancellationRequested()` at loop back-edges, at tail calls, at returns, and
-after foreign calls return. The check is `m_stop_token.stop_requested()`, which
-reads the token's atomic only when the token has a stop state, and the main
-VM's token never has one because only `Worker` ever calls `SetStopToken`. The
-main VM therefore pays one never-taken, correctly predicted branch at those
-sites and never touches the atomic. GC triggers, allocator
-calls, stack operations, and FFI dispatch remain identical for main and worker
-VMs.
-
-The `DynamicFFIRegistry` refactor replaces a Meyer's singleton `GetInstance()`
-(hidden branch + pointer load on every call) with a direct member lookup on the
-VM instance (equal or cheaper).
+Both dispatch specializations retain cancellation checks. The main VM's stop
+token has no stop state, so those checks require no atomic read. The
+cooperative specialization also counts scheduling checkpoints. Each VM
+continues to manage its own heap, garbage collector, and stacks.
 
 ## Future Extensibility
 
 None of the following is scheduled work.
 
 - Bounded and multi-channel waiting (`try_receive`, `select`, timeouts)
-- M:N scheduling (green threads mapped to a thread pool)
 - Work stealing for automatic load balancing
 - Shared-memory opt-in for performance-critical workloads
 - `Future<T>` / `Promise<T>` as single-value channels
