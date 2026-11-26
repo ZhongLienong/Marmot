@@ -225,6 +225,41 @@ def value = /* inline */ 1;
 	CHECK(block_comment->m_column == 12);
 }
 
+TEST_CASE("Lexing the same source twice preserves tokens and doc comment locations", "[lexer]")
+{
+	const Lexer lexer(" \t/// first\r\n/* gap\n */\n\"a\nb\" // ignored\r\n  /// second\r\n", "Repeat.mmt");
+	for (int run = 0; run < 2; run += 1)
+	{
+		MarmotResult::LexerResult result = lexer.Lex();
+		REQUIRE(result.HasValue());
+		const TokenStream& tokens = result.Value();
+		REQUIRE(tokens.Size() == 2);
+		CHECK(tokens[0].m_token_name == Token::Name::TEXT_LITERAL);
+		CHECK(tokens[0].m_lexeme == "a\nb");
+		CHECK(tokens[0].m_line == 4);
+		CHECK(tokens[0].m_column == 0);
+		CHECK(tokens[0].m_source_length == 5u);
+		CHECK(tokens[1].m_token_name == Token::Name::END_OF_FILE);
+		CHECK(tokens[1].m_line == 5);
+		CHECK(tokens[1].m_column == 2);
+		CHECK(std::move(result).Value().TakeDocCommentLines() == std::vector<int>{ 1, 6 });
+	}
+}
+
+TEST_CASE("Lexer preserves EOF markers for NUL bytes", "[lexer]")
+{
+	const MarmotResult::LexerResult result = Lexer(std::string("a\0b\0", 4), "Nul.mmt").Lex();
+	REQUIRE(result.HasValue());
+	const TokenStream& tokens = result.Value();
+	REQUIRE(tokens.Size() == 4);
+	CHECK(tokens[0].m_lexeme == "a");
+	CHECK(tokens[1].m_token_name == Token::Name::END_OF_FILE);
+	CHECK(tokens[1].m_column == 1);
+	CHECK(tokens[2].m_lexeme == "b");
+	CHECK(tokens[3].m_token_name == Token::Name::END_OF_FILE);
+	CHECK(tokens[3].m_column == 3);
+}
+
 TEST_CASE("Lexer records exact token columns and source spans", "[lexer]")
 {
 	const std::string source_code =

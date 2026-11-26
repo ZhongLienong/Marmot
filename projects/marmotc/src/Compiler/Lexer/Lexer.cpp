@@ -1,30 +1,107 @@
 #include "Lexer.h"
 
 #include "Compiler/Source/Source.h"
-#include "Support/Expected.h"
 
-#include <sstream>
-
-using namespace std::string_literals;
+#include <algorithm>
+#include <ranges>
 
 namespace
 {
+	using TokenName = Token::Name;
+	using MarmotCompiler::Failure;
+	using namespace std::string_view_literals;
+
+	struct Lexeme
+	{
+		TokenName m_name;
+		size_t m_length;
+		std::string m_decoded_text{};
+	};
+
+	struct ScanError
+	{
+		std::string m_message;
+		size_t m_offset = 0;
+	};
+
+	using ScanResult = MarmotCompiler::Expected<Lexeme, ScanError>;
+
+	bool IsDigit(char c)
+	{
+		return c >= '0' && c <= '9';
+	}
+
+	bool IsAlpha(char c)
+	{
+		return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
+	}
+
+	bool IsAlphaNumeric(char c)
+	{
+		return IsAlpha(c) || IsDigit(c);
+	}
+
+	bool IsHexDigit(char c)
+	{
+		return IsDigit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+	}
+
+	bool IsBinaryDigit(char c)
+	{
+		return c == '0' || c == '1';
+	}
+
+	bool IsWhitespace(char c)
+	{
+		return " \t\r\n"sv.contains(c);
+	}
+
+	template<typename Predicate>
+	size_t ScanWhile(std::string_view source, size_t offset, Predicate predicate)
+	{
+		while (offset < source.size() && predicate(source[offset]))
+		{
+			offset += 1;
+		}
+		return offset;
+	}
+
+	Lexeme ScanNumber(std::string_view source)
+	{
+		if (source.starts_with("0x") || source.starts_with("0X"))
+		{
+			return { TokenName::INTEGER_LITERAL, ScanWhile(source, 2, IsHexDigit) };
+		}
+		if (source.starts_with("0b") || source.starts_with("0B"))
+		{
+			return { TokenName::INTEGER_LITERAL, ScanWhile(source, 2, IsBinaryDigit) };
+		}
+
+		const size_t digits_end = ScanWhile(source, 1, IsDigit);
+		if (digits_end + 1 < source.size() && source[digits_end] == '.' && IsDigit(source[digits_end + 1]))
+		{
+			return { TokenName::FLOAT_LITERAL, ScanWhile(source, digits_end + 2, IsDigit) };
+		}
+		return { TokenName::INTEGER_LITERAL, digits_end };
+	}
+
 	unsigned HexDigitValue(char digit)
 	{
-		if (digit >= '0' && digit <= '9')
+		if (IsDigit(digit))
 		{
 			return static_cast<unsigned>(digit - '0');
 		}
 		return static_cast<unsigned>((digit | 0x20) - 'a' + 10);
 	}
 
-	void AppendUtf8(std::string& text, unsigned scalar)
+	std::string EncodeUtf8(unsigned scalar)
 	{
+		std::string text;
 		const auto append = [&text](unsigned byte) { text += static_cast<char>(byte); };
 		if (scalar <= 0x7F)
 		{
 			append(scalar);
-			return;
+			return text;
 		}
 		if (scalar <= 0x7FF)
 		{
@@ -44,725 +121,237 @@ namespace
 			append(0x80 | ((scalar >> 6) & 0x3F));
 		}
 		append(0x80 | (scalar & 0x3F));
+		return text;
 	}
-}
 
-template<typename Predicate>
-int Lexer::ConsumeWhile(Predicate&& pred)
-{
-	int count = 0;
-	while (!IsAtEnd(0) && pred(LookAhead(0)))
+	struct Escape
 	{
-		Advance();
-		count += 1;
-	}
-	return count;
-}
+		std::string m_text;
+		size_t m_length;
+	};
 
-bool Lexer::IsAtEnd(int offset) const
-{
-	return static_cast<size_t>(m_cursor.m_current + offset) >= m_source.m_code.size();
-}
+	using EscapeResult = MarmotCompiler::Expected<Escape, std::string_view>;
 
-bool Lexer::IsDigit(char c)
-{
-	return c >= '0' && c <= '9';
-}
-
-bool Lexer::IsAlpha(char c)
-{
-	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c == '_');
-}
-
-bool Lexer::IsAlphaNumeric(char c)
-{
-	return IsDigit(c) || IsAlpha(c);
-}
-
-char Lexer::Advance()
-{
-	return m_source.m_code[m_cursor.m_current++];
-}
-
-char Lexer::LookAhead(int offset) const
-{
-	return IsAtEnd(offset) ? '\0' : m_source.m_code[static_cast<size_t>(m_cursor.m_current + offset)];
-}
-
-bool Lexer::MatchNext(char expected)
-{
-	if (!IsAtEnd(0) && m_source.m_code[m_cursor.m_current] == expected)
+	EscapeResult ScanUnicodeEscape(std::string_view source)
 	{
-		m_cursor.m_current += 1;
-		return true;
-	}
-	return false;
-}
-
-Lexer& Lexer::BeginToken()
-{
-	m_cursor.m_begin = m_cursor.m_current;
-	m_cursor.m_begin_line = m_cursor.m_line;
-	m_cursor.m_begin_line_start = m_cursor.m_line_start;
-	return *this;
-}
-
-Lexer& Lexer::AdvanceLine()
-{
-	m_cursor.m_line += 1;
-	Advance();
-	m_cursor.m_line_start = m_cursor.m_current;
-	return *this;
-}
-
-int Lexer::CurrentColumn() const
-{
-	return m_cursor.m_current - m_cursor.m_line_start;
-}
-
-int Lexer::BeginColumn() const
-{
-	return m_cursor.m_begin - m_cursor.m_begin_line_start;
-}
-
-Token Lexer::MakeToken(Token::Name type) const
-{
-	return Token
-	(
-		m_source.m_code.substr(m_cursor.m_begin, m_cursor.m_current - m_cursor.m_begin),
-		type,
-		m_cursor.m_begin_line,
-		m_source.m_file_name,
-		BeginColumn(),
-		static_cast<size_t>(m_cursor.m_current - m_cursor.m_begin)
-	);
-}
-
-Token Lexer::MakeToken(Token::Name type, std::string&& lexeme) const
-{
-	return Token
-	(
-		std::move(lexeme),
-		type,
-		m_cursor.m_begin_line,
-		m_source.m_file_name,
-		BeginColumn(),
-		static_cast<size_t>(m_cursor.m_current - m_cursor.m_begin)
-	);
-}
-
-Token Lexer::MakeEndOfFileToken() const
-{
-	const int line = m_cursor.m_has_last_token_end ? m_cursor.m_last_token_end_line : m_cursor.m_line;
-	const int column = m_cursor.m_has_last_token_end ? m_cursor.m_last_token_end_column : CurrentColumn();
-	return Token(std::string{}, Token::Name::END_OF_FILE, line, m_source.m_file_name, column, 0u);
-}
-
-MarmotResult::TokenResult Lexer::MakeTokenResult(Token::Name type) const
-{
-	return MakeToken(type);
-}
-
-MarmotResult::TokenResult Lexer::MakeTokenResult(Token::Name type, std::string&& lexeme) const
-{
-	return MakeToken(type, std::move(lexeme));
-}
-
-MarmotResult::TokenResult Lexer::MakeEndOfFileTokenResult() const
-{
-	return MakeEndOfFileToken();
-}
-
-int Lexer::ConsumeDigits()
-{
-	return ConsumeWhile(IsDigit);
-}
-
-int Lexer::ConsumeAlphaNumeric()
-{
-	return ConsumeWhile(IsAlphaNumeric);
-}
-
-MarmotResult::VoidResult Lexer::SkipLineComment()
-{
-	ConsumeWhile([](char c) { return c != '\n'; });
-	return {};
-}
-
-MarmotResult::VoidResult Lexer::SkipBlockComment()
-{
-	while (true)
-	{
-		if (LookAhead(0) == '*' && LookAhead(1) == '/')
+		if (source.size() < 4 || source[2] != '{' || !IsHexDigit(source[3]))
 		{
-			Advance(); // '*'
-			Advance(); // '/'
-			return {};
+			return Failure("Expected a Unicode escape of the form '\\u{...}'."sv);
 		}
 
-		if (IsAtEnd(0))
+		const std::string_view invalid_scalar = "Unicode escape is outside the Unicode scalar range.";
+		size_t offset = 3;
+		unsigned scalar = 0;
+		while (offset < source.size() && IsHexDigit(source[offset]))
 		{
-			return MarmotCompiler::Failure(MarmotError::GenerateLexerErrorWithContext("Unterminated block comment", m_cursor.m_begin_line, BeginColumn(), m_source.m_file_name, m_source.m_lines));
-		}
-
-		if (LookAhead(0) == '\n')
-		{
-			AdvanceLine();
-			continue;
-		}
-
-		Advance();
-	}
-}
-
-MarmotResult::VoidResult Lexer::SkipWhitespaceAndComments()
-{
-	while (true)
-	{
-		if (IsAtEnd(0))
-		{
-			return {};
-		}
-
-		const char c = LookAhead(0);
-
-		switch (c)
-		{
-		case ' ':
-		case '\r':
-		case '\t':
-			Advance();
-			continue;
-		case '\n':
-			AdvanceLine();
-			continue;
-		case '/':
-		{
-			if (LookAhead(1) == '/')
+			scalar = (scalar << 4) | HexDigitValue(source[offset]);
+			if (scalar > 0x10FFFF)
 			{
-				if (m_options.m_preserve_comments)
-				{
-					return {};
-				}
-
-				if (LookAhead(2) == '/' && std::string_view(m_source.m_code)
-					.substr(m_cursor.m_line_start, CurrentColumn()).find_first_not_of(" \t\r") == std::string_view::npos)
-				{
-					m_doc_comment_lines.push_back(m_cursor.m_line);
-				}
-
-				Advance(); // '/'
-				Advance(); // '/'
-				return SkipLineComment()
-					.AndThen([this]() -> MarmotResult::VoidResult { return SkipWhitespaceAndComments(); });
+				return Failure(invalid_scalar);
 			}
-			else if (LookAhead(1) == '*')
-			{
-				if (m_options.m_preserve_comments)
-				{
-					return {};
-				}
-
-				BeginToken();
-				Advance(); // '/'
-				Advance(); // '*'
-				return SkipBlockComment()
-					.AndThen([this]() -> MarmotResult::VoidResult { return SkipWhitespaceAndComments(); });
-			}
-			return {};
+			offset += 1;
 		}
-		default:
-			return {};
+		if (offset == source.size() || source[offset] != '}')
+		{
+			return Failure("Expected '}' after the Unicode escape."sv);
 		}
+		if (scalar >= 0xD800 && scalar <= 0xDFFF)
+		{
+			return Failure(invalid_scalar);
+		}
+		return Escape{ EncodeUtf8(scalar), offset + 1 };
 	}
-}
 
-MarmotResult::TokenResult Lexer::MatchString()
-{
-	std::string text;
-	while (true)
+	EscapeResult ScanEscape(std::string_view source)
 	{
-		if (IsAtEnd(0))
+		switch (source[1])
 		{
-			return MarmotCompiler::Failure(MarmotError::GenerateLexerErrorWithContext("Unterminated string", m_cursor.m_begin_line, BeginColumn(), m_source.m_file_name, m_source.m_lines));
-		}
-
-		if (LookAhead(0) == '"')
-		{
-			Advance();
-			return MakeToken(Token::Name::TEXT_LITERAL, std::move(text));
-		}
-
-		if (LookAhead(0) == '\n')
-		{
-			AdvanceLine();
-			text += '\n';
-			continue;
-		}
-
-		if (LookAhead(0) != '\\' || IsAtEnd(1))
-		{
-			text += Advance();
-			continue;
-		}
-
-		const int column = CurrentColumn();
-		const auto invalid_escape = [this, column](std::string_view message) -> MarmotResult::TokenResult
-		{
-			return MarmotCompiler::Failure(MarmotError::GenerateLexerErrorWithContext(message, m_cursor.m_line, column, m_source.m_file_name, m_source.m_lines));
-		};
-		Advance();
-		const char escape = Advance();
-
-		switch (escape)
-		{
-		case 't': text += '\t'; break;
-		case 'n': text += '\n'; break;
-		case 'b': text += '\b'; break;
-		case 'f': text += '\f'; break;
-		case 'r': text += '\r'; break;
-		case '0': text += '\0'; break;
-		case '"': text += '"'; break;
-		case '\\': text += '\\'; break;
+		case 't': return Escape{ "\t", 2 };
+		case 'n': return Escape{ "\n", 2 };
+		case 'b': return Escape{ "\b", 2 };
+		case 'f': return Escape{ "\f", 2 };
+		case 'r': return Escape{ "\r", 2 };
+		case '0': return Escape{ std::string(1, '\0'), 2 };
+		case '"': return Escape{ "\"", 2 };
+		case '\\': return Escape{ "\\", 2 };
 		case 'x':
 		{
-			if (!IsHexDigit(LookAhead(0)) || !IsHexDigit(LookAhead(1)))
+			if (source.size() < 4 || !IsHexDigit(source[2]) || !IsHexDigit(source[3]))
 			{
-				return invalid_escape("Expected two hexadecimal digits after '\\x'.");
+				return Failure("Expected two hexadecimal digits after '\\x'."sv);
 			}
-			const unsigned high = HexDigitValue(Advance());
-			text += static_cast<char>((high << 4) | HexDigitValue(Advance()));
-			break;
+			const unsigned byte = (HexDigitValue(source[2]) << 4) | HexDigitValue(source[3]);
+			return Escape{ std::string(1, static_cast<char>(byte)), 4 };
 		}
 		case 'u':
-		{
-			if (!MatchNext('{') || !IsHexDigit(LookAhead(0)))
-			{
-				return invalid_escape("Expected a Unicode escape of the form '\\u{...}'.");
-			}
-			unsigned scalar = 0;
-			while (IsHexDigit(LookAhead(0)))
-			{
-				scalar = (scalar << 4) | HexDigitValue(Advance());
-				if (scalar > 0x10FFFF)
-				{
-					return invalid_escape("Unicode escape is outside the Unicode scalar range.");
-				}
-			}
-			if (!MatchNext('}'))
-			{
-				return invalid_escape("Expected '}' after the Unicode escape.");
-			}
-			if (scalar >= 0xD800 && scalar <= 0xDFFF)
-			{
-				return invalid_escape("Unicode escape is outside the Unicode scalar range.");
-			}
-			AppendUtf8(text, scalar);
-			break;
-		}
+			return ScanUnicodeEscape(source);
 		default:
-			return invalid_escape("Unknown string escape.");
+			return Failure("Unknown string escape."sv);
 		}
 	}
-}
 
-MarmotResult::TokenResult Lexer::MatchNumber()
-{
-	if (IsHexPrefix())
+	ScanResult ScanString(std::string_view source)
 	{
-		return MatchPrefixedInteger(IsHexDigit);
-	}
-
-	if (IsBinaryPrefix())
-	{
-		return MatchPrefixedInteger(IsBinaryDigit);
-	}
-
-	return MatchDecimalNumber();
-}
-
-MarmotResult::TokenResult Lexer::MatchDecimalNumber()
-{
-	ConsumeDigits();
-
-	const bool is_float = LookAhead(0) == '.' && IsDigit(LookAhead(1));
-
-	if (!is_float)
-	{
-		return MakeTokenResult(Token::Name::INTEGER_LITERAL);
-	}
-
-	Advance();
-	ConsumeDigits();
-	return MakeTokenResult(Token::Name::FLOAT_LITERAL);
-}
-
-MarmotResult::TokenResult Lexer::MatchPrefixedInteger(bool (*predicate)(char))
-{
-	Advance();
-	ConsumeWhile(predicate);
-	return MakeTokenResult(Token::Name::INTEGER_LITERAL);
-}
-
-bool Lexer::IsHexPrefix() const
-{
-	return LookAhead(-1) == '0' && (LookAhead(0) == 'x' || LookAhead(0) == 'X');
-}
-
-bool Lexer::IsBinaryPrefix() const
-{
-	return LookAhead(-1) == '0' && (LookAhead(0) == 'b' || LookAhead(0) == 'B');
-}
-
-bool Lexer::IsHexDigit(char c)
-{
-	return IsDigit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
-}
-
-bool Lexer::IsBinaryDigit(char c)
-{
-	return c == '0' || c == '1';
-}
-
-MarmotResult::TokenResult Lexer::MatchIdentifierOrReserved()
-{
-	ConsumeAlphaNumeric();
-
-	std::string identifier = m_source.m_code.substr(m_cursor.m_begin, m_cursor.m_current - m_cursor.m_begin);
-
-	return MakeTokenResult(Token::KeywordName(identifier).ValueOr(Token::Name::IDENTIFIER_LITERAL));
-}
-
-MarmotResult::TokenResult Lexer::LexTokenAfterWhitespace()
-{
-	return IsAtEnd(0)
-		? MakeEndOfFileTokenResult()
-		: BeginToken().LexTokenFrom(Advance());
-}
-
-MarmotResult::TokenResult Lexer::LexTokenFrom(char next_char)
-{
-	switch (next_char)
-	{
-	case '(':
-		return MakeTokenResult(Token::Name::LEFT_PAREN);
-	case ')':
-		return MakeTokenResult(Token::Name::RIGHT_PAREN);
-	case '{':
-		return MakeTokenResult(Token::Name::LEFT_BRACE);
-	case '}':
-		return MakeTokenResult(Token::Name::RIGHT_BRACE);
-	case '[':
-		return MakeTokenResult(Token::Name::LEFT_BRACKET);
-	case ']':
-		return MakeTokenResult(Token::Name::RIGHT_BRACKET);
-	case ',':
-		return MakeTokenResult(Token::Name::COMMA);
-	case '.':
-		return MatchDot();
-	case ';':
-		return MakeTokenResult(Token::Name::SINGLE_SEMICOLON);
-	case '+':
-		return MatchPlus();
-	case '-':
-		return MatchMinus();
-	case ':':
-		return MatchColon();
-	case '%':
-		return MatchPercent();
-	case '*':
-		return MatchStar();
-	case '/':
-		return MatchSlash();
-	case '|':
-		return MatchPipe();
-	case '^':
-		return MatchCaret();
-	case '&':
-		return MatchAmpersand();
-	case '!':
-		return MatchBang();
-	case '=':
-		return MatchEqual();
-	case '>':
-		return MatchGreater();
-	case '<':
-		return MatchLess();
-	case '~':
-		return MatchTilde();
-	case '#':
-		return MakeTokenResult(Token::Name::HASH);
-	case '"':
-		return MatchString();
-	default:
-		return MatchLiteralOrIdentifier(next_char);
-	}
-}
-
-MarmotResult::TokenResult Lexer::MatchDot()
-{
-	if (IsDigit(LookAhead(0)))
-	{
-		return MatchNumber();
-	}
-
-	return MatchNext('.')
-		? MakeTokenResult(Token::Name::DOUBLE_DOT)
-		: MakeTokenResult(Token::Name::SINGLE_DOT);
-}
-
-MarmotResult::TokenResult Lexer::MatchPlus()
-{
-	return MatchNext('+')
-		? MakeTokenResult(Token::Name::DOUBLE_PLUS)
-		: MakeTokenResult(Token::Name::SINGLE_PLUS);
-}
-
-MarmotResult::TokenResult Lexer::MatchMinus()
-{
-	if (MatchNext('>'))
-	{
-		return MakeTokenResult(Token::Name::THIN_ARROW);
-	}
-
-	return MakeTokenResult(Token::Name::SINGLE_MINUS);
-}
-
-MarmotResult::TokenResult Lexer::MatchColon()
-{
-	if (MatchNext(':'))
-	{
-		return MakeTokenResult(Token::Name::DOUBLE_COLON);
-	}
-	return MatchNext('=')
-		? MakeTokenResult(Token::Name::COLON_EQUAL)
-		: MakeTokenResult(Token::Name::SINGLE_COLON);
-}
-
-MarmotResult::TokenResult Lexer::MatchPercent()
-{
-	return MakeTokenResult(Token::Name::PERCENT);
-}
-
-MarmotResult::TokenResult Lexer::MatchStar()
-{
-	return MakeTokenResult(Token::Name::STAR);
-}
-
-MarmotResult::TokenResult Lexer::MatchSlash()
-{
-	if (m_options.m_preserve_comments && LookAhead(0) == '/')
-	{
-		return MatchLineComment();
-	}
-
-	if (m_options.m_preserve_comments && LookAhead(0) == '*')
-	{
-		return MatchBlockComment();
-	}
-
-	return MakeTokenResult(Token::Name::SLASH);
-}
-
-MarmotResult::TokenResult Lexer::MatchLineComment()
-{
-	Advance();
-	ConsumeWhile([](char c) { return c != '\n' && c != '\r'; });
-	return MakeTokenResult(Token::Name::LINE_COMMENT);
-}
-
-MarmotResult::TokenResult Lexer::MatchBlockComment()
-{
-	Advance();
-
-	while (true)
-	{
-		if (LookAhead(0) == '*' && LookAhead(1) == '/')
+		std::string text;
+		size_t offset = 1;
+		while (offset < source.size())
 		{
-			Advance();
-			Advance();
-			return MakeTokenResult(Token::Name::BLOCK_COMMENT);
-		}
-
-		if (IsAtEnd(0))
-		{
-			return MarmotCompiler::Failure(MarmotError::GenerateLexerErrorWithContext("Unterminated block comment", m_cursor.m_begin_line, BeginColumn(), m_source.m_file_name, m_source.m_lines));
-		}
-
-		if (LookAhead(0) == '\n')
-		{
-			AdvanceLine();
-			continue;
-		}
-
-		Advance();
-	}
-}
-
-MarmotResult::TokenResult Lexer::MatchPipe()
-{
-	if (MatchNext('|'))
-	{
-		return MakeTokenResult(Token::Name::DOUBLE_BAR);
-	}
-
-	if (MatchNext('>'))
-	{
-		return MakeTokenResult(Token::Name::BAR_BRACKET);
-	}
-
-	return MakeTokenResult(Token::Name::SINGLE_BAR);
-}
-
-MarmotResult::TokenResult Lexer::MatchCaret()
-{
-	return MakeTokenResult(Token::Name::CARET);
-}
-
-MarmotResult::TokenResult Lexer::MatchAmpersand()
-{
-	if (MatchNext('&'))
-	{
-		return MakeTokenResult(Token::Name::DOUBLE_AMPERSAND);
-	}
-
-	return MakeTokenResult(Token::Name::SINGLE_AMPERSAND);
-}
-
-MarmotResult::TokenResult Lexer::MatchBang()
-{
-	return MatchNext('=')
-		? MakeTokenResult(Token::Name::BANG_EQUAL)
-		: MakeTokenResult(Token::Name::BANG);
-}
-
-MarmotResult::TokenResult Lexer::MatchEqual()
-{
-	if (MatchNext('='))
-	{
-		return MakeTokenResult(Token::Name::DOUBLE_EQUAL);
-	}
-
-	if (MatchNext('>'))
-	{
-		return MakeTokenResult(Token::Name::FAT_ARROW);
-	}
-
-	return MakeTokenResult(Token::Name::SINGLE_EQUAL);
-}
-
-MarmotResult::TokenResult Lexer::MatchGreater()
-{
-	if (MatchNext('>'))
-	{
-		return MatchRightShift();
-	}
-
-	return MatchNext('=')
-		? MakeTokenResult(Token::Name::GREATER_EQUAL)
-		: MakeTokenResult(Token::Name::RIGHT_ANGLE);
-}
-
-MarmotResult::TokenResult Lexer::MatchLess()
-{
-	if (MatchNext('<'))
-	{
-		return MatchLeftShift();
-	}
-
-	if (MatchNext('='))
-	{
-		return MakeTokenResult(Token::Name::LESS_EQUAL);
-	}
-
-	return MakeTokenResult(Token::Name::LEFT_ANGLE);
-}
-
-MarmotResult::TokenResult Lexer::MatchLeftShift()
-{
-	return MakeTokenResult(Token::Name::LEFT_SHIFT);
-}
-
-MarmotResult::TokenResult Lexer::MatchTilde()
-{
-	return MakeTokenResult(Token::Name::TILDE);
-}
-
-MarmotResult::TokenResult Lexer::MatchRightShift()
-{
-	return MakeTokenResult(Token::Name::RIGHT_SHIFT);
-}
-
-MarmotResult::TokenResult Lexer::MatchLiteralOrIdentifier(char next_char)
-{
-	if (IsDigit(next_char))
-	{
-		return MatchNumber();
-	}
-
-	if (IsAlpha(next_char))
-	{
-		return MatchIdentifierOrReserved();
-	}
-
-	if (next_char == '\0')
-	{
-		return MakeEndOfFileTokenResult();
-	}
-
-	return MakeInvalidCharacterError(next_char);
-}
-
-MarmotResult::TokenResult Lexer::MakeInvalidCharacterError(char next_char) const
-{
-	return MarmotCompiler::Failure(MarmotError::GenerateLexerErrorWithContext("Invalid character: "s + next_char, m_cursor.m_line, BeginColumn(), m_source.m_file_name, m_source.m_lines));
-}
-
-MarmotResult::Result<Lexer::LexState> Lexer::RecordTokenOrError(LexState state)
-{
-	return LexOneToken()
-		.Transform
-		(
-			[state = std::move(state), this](Token&& token) mutable -> LexState
+			const char c = source[offset];
+			if (c == '"')
 			{
-				if (token.m_token_name != Token::Name::END_OF_FILE)
-				{
-					m_cursor.m_last_token_end_line = m_cursor.m_line;
-					m_cursor.m_last_token_end_column = CurrentColumn();
-					m_cursor.m_has_last_token_end = true;
-				}
-
-				state.m_tokens.AddToken(std::move(token));
-				return std::move(state);
+				return Lexeme{ TokenName::TEXT_LITERAL, offset + 1, std::move(text) };
 			}
-		);
-}
+			if (c != '\\' || offset + 1 == source.size())
+			{
+				text += c;
+				offset += 1;
+				continue;
+			}
 
-MarmotResult::TokenResult Lexer::LexOneToken()
-{
-	return SkipWhitespaceAndComments()
-		.AndThen([this]() -> MarmotResult::TokenResult { return LexTokenAfterWhitespace(); });
-}
-
-std::vector<std::string> Lexer::SplitIntoLines(const std::string& source)
-{
-	std::istringstream iss(source);
-	std::vector<std::string> lines;
-	std::string line;
-
-	while (std::getline(iss, line))
-	{
-		lines.emplace_back(std::move(line));
+			const EscapeResult escape = ScanEscape(source.substr(offset));
+			if (!escape)
+			{
+				return Failure(ScanError{ std::string(escape.Error()), offset });
+			}
+			text += escape->m_text;
+			offset += escape->m_length;
+		}
+		return Failure(ScanError{ "Unterminated string" });
 	}
 
-	return lines;
-}
+	MarmotCompiler::Optional<TokenName> ScanSymbol(char first, char second)
+	{
+		switch (first)
+		{
+		case '(': return TokenName::LEFT_PAREN;
+		case ')': return TokenName::RIGHT_PAREN;
+		case '{': return TokenName::LEFT_BRACE;
+		case '}': return TokenName::RIGHT_BRACE;
+		case '[': return TokenName::LEFT_BRACKET;
+		case ']': return TokenName::RIGHT_BRACKET;
+		case ',': return TokenName::COMMA;
+		case ';': return TokenName::SINGLE_SEMICOLON;
+		case '%': return TokenName::PERCENT;
+		case '*': return TokenName::STAR;
+		case '/': return TokenName::SLASH;
+		case '^': return TokenName::CARET;
+		case '~': return TokenName::TILDE;
+		case '#': return TokenName::HASH;
+		case '.': return second == '.' ? TokenName::DOUBLE_DOT : TokenName::SINGLE_DOT;
+		case '+': return second == '+' ? TokenName::DOUBLE_PLUS : TokenName::SINGLE_PLUS;
+		case '-': return second == '>' ? TokenName::THIN_ARROW : TokenName::SINGLE_MINUS;
+		case '&': return second == '&' ? TokenName::DOUBLE_AMPERSAND : TokenName::SINGLE_AMPERSAND;
+		case '!': return second == '=' ? TokenName::BANG_EQUAL : TokenName::BANG;
+		case ':':
+			if (second == ':')
+			{
+				return TokenName::DOUBLE_COLON;
+			}
+			return second == '=' ? TokenName::COLON_EQUAL : TokenName::SINGLE_COLON;
+		case '|':
+			if (second == '|')
+			{
+				return TokenName::DOUBLE_BAR;
+			}
+			return second == '>' ? TokenName::BAR_BRACKET : TokenName::SINGLE_BAR;
+		case '=':
+			if (second == '=')
+			{
+				return TokenName::DOUBLE_EQUAL;
+			}
+			return second == '>' ? TokenName::FAT_ARROW : TokenName::SINGLE_EQUAL;
+		case '>':
+			if (second == '>')
+			{
+				return TokenName::RIGHT_SHIFT;
+			}
+			return second == '=' ? TokenName::GREATER_EQUAL : TokenName::RIGHT_ANGLE;
+		case '<':
+			if (second == '<')
+			{
+				return TokenName::LEFT_SHIFT;
+			}
+			return second == '=' ? TokenName::LESS_EQUAL : TokenName::LEFT_ANGLE;
+		default:
+			return MarmotCompiler::None;
+		}
+	}
 
-Lexer::Source Lexer::BuildSource(std::string&& source_code, std::string_view file_name)
-{
-	MarmotSource::RemoveByteOrderMark(source_code);
-	std::vector<std::string> lines = SplitIntoLines(source_code);
-	return Source{ std::move(source_code), std::string(file_name), std::move(lines) };
+	ScanResult ScanLexeme(std::string_view source, bool preserve_comments)
+	{
+		const char first = source.front();
+		const char second = source.size() > 1 ? source[1] : '\0';
+		if (first == '\0')
+		{
+			// A NUL byte emits an EOF token without discarding the rest of the source.
+			return Lexeme{ TokenName::END_OF_FILE, 1 };
+		}
+		if (IsWhitespace(first))
+		{
+			return Lexeme{ TokenName::WHITESPACE, ScanWhile(source, 1, IsWhitespace) };
+		}
+		if (IsAlpha(first))
+		{
+			const size_t end = ScanWhile(source, 1, IsAlphaNumeric);
+			const TokenName name = Token::KeywordName(source.substr(0, end)).ValueOr(TokenName::IDENTIFIER_LITERAL);
+			return Lexeme{ name, end };
+		}
+		if (IsDigit(first) || (first == '.' && IsDigit(second)))
+		{
+			return ScanNumber(source);
+		}
+		if (first == '"')
+		{
+			return ScanString(source);
+		}
+		if (first == '/' && second == '/')
+		{
+			const size_t end = source.find_first_of(preserve_comments ? "\r\n" : "\n", 2);
+			return Lexeme{ TokenName::LINE_COMMENT, std::min(end, source.size()) };
+		}
+		if (first == '/' && second == '*')
+		{
+			const size_t close = source.find("*/", 2);
+			if (close == std::string_view::npos)
+			{
+				return Failure(ScanError{ "Unterminated block comment" });
+			}
+			return Lexeme{ TokenName::BLOCK_COMMENT, close + 2 };
+		}
+		if (const MarmotCompiler::Optional<TokenName> name = ScanSymbol(first, second))
+		{
+			return Lexeme{ *name, Token::Spelling(*name).size() };
+		}
+		return Failure(ScanError{ std::string("Invalid character: ") + first });
+	}
+
+	MarmotSource::Position PositionAfter(MarmotSource::Position position, std::string_view consumed)
+	{
+		size_t line_start = 0;
+		for (size_t newline = consumed.find('\n'); newline != std::string_view::npos; newline = consumed.find('\n', line_start))
+		{
+			position.m_line += 1;
+			position.m_column = 0;
+			line_start = newline + 1;
+		}
+		position.m_column += consumed.size() - line_start;
+		return position;
+	}
+
+	Token MakeEndOfFileToken(MarmotSource::Position anchor, std::string_view file_name)
+	{
+		return Token({}, TokenName::END_OF_FILE, anchor.m_line, file_name, static_cast<int>(anchor.m_column), 0);
+	}
+
+	std::vector<std::string> SplitIntoLines(std::string_view source)
+	{
+		auto lines = source | std::views::split('\n') | std::ranges::to<std::vector<std::string>>();
+		if (source.ends_with('\n'))
+		{
+			lines.pop_back();
+		}
+		return lines;
+	}
 }
 
 Lexer::Lexer(std::string&& source_code, std::string_view file_name) noexcept
@@ -771,47 +360,66 @@ Lexer::Lexer(std::string&& source_code, std::string_view file_name) noexcept
 }
 
 Lexer::Lexer(std::string&& source_code, std::string_view file_name, Options options) noexcept
-	: m_source(BuildSource(std::move(source_code), file_name)),
+	: m_source_code(std::move(source_code)),
+	m_file_name(file_name),
 	m_options(options)
 {
+	MarmotSource::RemoveByteOrderMark(m_source_code);
 }
 
-MarmotResult::LexerResult Lexer::LexRecursive(LexState state)
+MarmotResult::LexerResult Lexer::Lex() const
 {
-	while (!IsAtEnd(0))
+	const std::string_view source = m_source_code;
+	std::string_view remaining = source;
+	MarmotSource::Position position{ 1, 0 };
+	MarmotCompiler::Optional<MarmotSource::Position> last_token_end;
+	TokenStream tokens;
+	std::vector<int> doc_comment_lines;
+
+	while (!remaining.empty())
 	{
-		MarmotResult::VoidResult step = RecordTokenOrError(std::move(state))
-			.AndThen
-			(
-				[&state](LexState&& next_state) -> MarmotResult::VoidResult
-				{
-					state = std::move(next_state);
-					return {};
-				}
-			);
-		if (!step)
+		ScanResult scanned = ScanLexeme(remaining, m_options.m_preserve_comments);
+		if (!scanned)
 		{
-			return MarmotCompiler::Failure(step.Error());
+			const ScanError& error = scanned.Error();
+			const MarmotSource::Position at = PositionAfter(position, remaining.substr(0, error.m_offset));
+			return Failure(MarmotError::GenerateLexerErrorWithContext(
+				error.m_message, at.m_line, static_cast<int>(at.m_column), m_file_name, SplitIntoLines(source)));
 		}
+
+		Lexeme& lexeme = *scanned;
+		const std::string_view spelling = remaining.substr(0, lexeme.m_length);
+		const MarmotSource::Position end = PositionAfter(position, spelling);
+		if (lexeme.m_name == TokenName::END_OF_FILE)
+		{
+			// The final EOF token also covers a NUL at the end of the source.
+			if (lexeme.m_length < remaining.size())
+			{
+				tokens.AddToken(MakeEndOfFileToken(last_token_end.ValueOr(end), m_file_name));
+			}
+		}
+		else if (!m_options.m_preserve_comments && lexeme.m_name == TokenName::LINE_COMMENT)
+		{
+			const size_t line_start = source.size() - remaining.size() - position.m_column;
+			if (spelling.starts_with("///") &&
+				source.substr(line_start, position.m_column).find_first_not_of(" \t\r") == std::string_view::npos)
+			{
+				doc_comment_lines.push_back(position.m_line);
+			}
+		}
+		else if (lexeme.m_name != TokenName::WHITESPACE &&
+			(m_options.m_preserve_comments || lexeme.m_name != TokenName::BLOCK_COMMENT))
+		{
+			std::string text = lexeme.m_name == TokenName::TEXT_LITERAL ? std::move(lexeme.m_decoded_text) : std::string(spelling);
+			tokens.AddToken(Token(std::move(text), lexeme.m_name, position.m_line, m_file_name, static_cast<int>(position.m_column), spelling.size()));
+			last_token_end = end;
+		}
+
+		remaining.remove_prefix(lexeme.m_length);
+		position = end;
 	}
 
-	if (state.m_tokens.Size() == 0 || (std::prev(state.m_tokens.cend())->m_token_name != Token::Name::END_OF_FILE))
-	{
-		BeginToken();
-		state.m_tokens.AddToken(MakeEndOfFileToken());
-	}
-
-	state.m_tokens.SetDocCommentLines(std::move(m_doc_comment_lines));
-	return std::move(state.m_tokens);
+	tokens.AddToken(MakeEndOfFileToken(last_token_end.ValueOr(position), m_file_name));
+	tokens.SetDocCommentLines(std::move(doc_comment_lines));
+	return tokens;
 }
-
-MarmotResult::LexerResult Lexer::Lex() &
-{
-	return LexRecursive(LexState{ TokenStream{} });
-}
-
-MarmotResult::LexerResult Lexer::Lex() &&
-{
-	return LexRecursive(LexState{ TokenStream{} });
-}
-
