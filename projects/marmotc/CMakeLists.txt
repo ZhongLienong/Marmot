@@ -210,6 +210,10 @@ add_library(MarmotSema STATIC
     src/Compiler/TypeMatching/InstanceTypeMatcher.cpp
 )
 target_link_libraries(MarmotSema PUBLIC MarmotSyntax)
+if(MSVC)
+    # Recursive type checking of long expressions can exceed the default 1 MiB stack.
+    target_link_options(MarmotSema INTERFACE /STACK:4194304)
+endif()
 
 add_library(MarmotIR STATIC
     src/Compiler/Lowering/FunctionLowering.cpp
