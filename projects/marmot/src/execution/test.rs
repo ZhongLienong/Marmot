@@ -41,6 +41,7 @@ pub(crate) struct TestRequest<'a> {
     pub(crate) compiler: &'a Path,
     pub(crate) vm: &'a Path,
     pub(crate) jobs: Option<NonZeroUsize>,
+    pub(crate) worker_threads: Option<i32>,
 }
 
 #[derive(Debug, Default)]
@@ -310,6 +311,10 @@ fn run_one(request: &TestRequest, test: &Path, compiler_jobs: usize) -> TestResu
     if built.code == Some(0) {
         let mut vm = Command::new(request.vm);
         vm.current_dir(request.root).arg("run").arg(&program);
+        if let Some(threads) = request.worker_threads {
+            vm.args(["--cooperative-workers", "--worker-threads"])
+                .arg(threads.to_string());
+        }
         for library in &request.plan.native_libraries {
             vm.arg("--library")
                 .arg(format!("{}={}", library.name, library.path));

@@ -40,6 +40,7 @@ Options:
   --pattern TEXT        Run tests whose path contains TEXT (test)
   --test FILE           Run one test file (test)
   --timeout-ms N        Each test's time limit, over [test].timeout_ms (test)
+  --worker-threads N    Use N cooperative scheduler threads in each VM (test)
   --jobs N              Maximum compiler workers (run, check, build); total
                         worker budget across tests and compilers (test)
   --timings             Print compiler stage times and worker utilization
@@ -126,6 +127,7 @@ pub(crate) struct Options {
     pub(crate) pattern: Option<String>,
     pub(crate) test_file: Option<String>,
     pub(crate) timeout_ms: Option<NonZeroU64>,
+    pub(crate) worker_threads: Option<i32>,
     pub(crate) package: bool,
     pub(crate) rebuild: bool,
     pub(crate) name: Option<String>,
@@ -213,6 +215,14 @@ pub(crate) fn parse_options(kind: CommandKind, args: &[String]) -> Result<Option
             "--version" if kind == CommandKind::Install => options.constraint = Some(value()?),
             "--pattern" if kind == CommandKind::Test => options.pattern = Some(value()?),
             "--test" if kind == CommandKind::Test => options.test_file = Some(value()?),
+            "--worker-threads" if kind == CommandKind::Test => {
+                let threads = value()?
+                    .parse::<i32>()
+                    .ok()
+                    .filter(|threads| *threads > 0)
+                    .ok_or_else(|| "--worker-threads requires a positive integer".to_string())?;
+                options.worker_threads = Some(threads);
+            }
             "--timeout-ms" if kind == CommandKind::Test => {
                 options.timeout_ms = Some(
                     value()?
@@ -308,5 +318,32 @@ mod tests {
             assert!(parse_options(kind, &["--jobs".into()]).is_err());
         }
         assert!(parse_options(CommandKind::Plan, &["--jobs".into(), "4".into()]).is_err());
+    }
+
+    #[test]
+    fn test_accepts_a_positive_cooperative_scheduler_thread_count() {
+        let options = parse_options(
+            CommandKind::Test,
+            &["concurrency", "--worker-threads", "4", "--jobs", "2"].map(String::from),
+        )
+        .unwrap();
+        assert_eq!(options.worker_threads, Some(4));
+        assert_eq!(options.jobs.unwrap().get(), 2);
+        for value in ["0", "-1", "1.5", "2147483648"] {
+            assert!(
+                parse_options(
+                    CommandKind::Test,
+                    &["--worker-threads", value].map(String::from)
+                )
+                .is_err()
+            );
+        }
+        assert!(
+            parse_options(
+                CommandKind::Run,
+                &["--worker-threads", "4"].map(String::from)
+            )
+            .is_err()
+        );
     }
 }

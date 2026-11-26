@@ -14,6 +14,7 @@ In order, stopping at the first failure:
     benchmarks  every program under benchmarks/ compiles cleanly
     tool        the Rust marmot tool's tests, against the compiler just built
     language    the language suite under test/, through `marmot test`
+    cooperative the concurrency suite with one and four scheduler threads
 
 Examples:
     python scripts/dev.py gate
@@ -38,7 +39,8 @@ from lib.presets import BuildTree, UNIT_TARGETS, add_build_arguments
 from make import generate_mmc
 from testing import benchmarks, cli_contracts, doc_examples, formatting, language, layering, mmc_contract, tool, unit
 
-STEPS = ["generate-mmc", "layering", "build", "unit", "mmc", "docs", "cli", "format", "benchmarks", "tool", "language"]
+STEPS = ["generate-mmc", "layering", "build", "unit", "mmc", "docs", "cli", "format", "benchmarks", "tool",
+         "language", "cooperative"]
 
 
 # What a step stopped part way can leave behind: build output, extracted doc
@@ -60,6 +62,15 @@ def build_everything(tree: BuildTree) -> int:
     return tree.build(["marmotc", "marmotvm", "marmotstdlib", *UNIT_TARGETS])
 
 
+def cooperative_tests(common: list[str]) -> int:
+    for threads in (1, 4):
+        print(f"Concurrency suite with {threads} cooperative scheduler thread(s)", flush=True)
+        status = language.main([*common, "--category", "concurrency", "--worker-threads", str(threads)])
+        if status != 0:
+            return status
+    return 0
+
+
 def steps(args: argparse.Namespace, tree: BuildTree) -> dict[str, Callable[[], int]]:
     common = tree_arguments(args)
     verbose = ["--verbose"] if args.verbose else []
@@ -75,6 +86,7 @@ def steps(args: argparse.Namespace, tree: BuildTree) -> dict[str, Callable[[], i
         "benchmarks": lambda: benchmarks.main(common),
         "tool": lambda: tool.main(common),
         "language": lambda: language.main(common),
+        "cooperative": lambda: cooperative_tests(common),
     }
 
 

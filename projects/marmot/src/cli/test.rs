@@ -72,6 +72,7 @@ pub(super) fn execute(
         compiler,
         vm: &vm,
         jobs: options.jobs,
+        worker_threads: options.worker_threads,
     };
     let tests = test::discover(
         &test_directory,

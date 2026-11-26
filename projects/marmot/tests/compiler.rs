@@ -879,6 +879,35 @@ fn test_checks_exit_status_and_snapshots_outside_a_project() {
     assert!(rendered.contains("Total: 1/1 passed"), "{rendered}");
 }
 
+#[test]
+fn test_forwards_cooperative_scheduling_to_the_vm() {
+    let Some(compiler) = compiler() else { return };
+    let project = Project::new("test-cooperative-scheduler");
+    project.write(
+        "test/failure/deadlock.mmt",
+        r#"module Deadlock
+import { "<Concurrency>" }
+def channel: Channel<Int> = Concurrency::MakeChannel(1);
+Concurrency::Receive(channel);
+"#,
+    );
+    let tested = marmot(
+        &compiler,
+        &project.0,
+        &["test", "--worker-threads", "4", "--format", "json"],
+    );
+    let payload: serde_json::Value = serde_json::from_slice(&succeeded(&tested).stdout).unwrap();
+    let result = &payload["results"][0];
+    assert_eq!(result["passed"], true, "{payload}");
+    assert!(
+        result["output"]
+            .as_str()
+            .unwrap()
+            .contains("No runnable workers or pending operations can wake the suspended program."),
+        "{payload}"
+    );
+}
+
 /// When a file was last written, to see whether a build happened.
 fn written_at(path: &Path) -> std::time::SystemTime {
     std::fs::metadata(path).unwrap().modified().unwrap()

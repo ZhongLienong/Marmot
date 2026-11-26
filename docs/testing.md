@@ -180,9 +180,11 @@ python scripts/dev.py gate --only docs cli format
 ```
 
 Its steps, in order, are `generate-mmc`, `layering`, `build`, `unit`, `mmc`,
-`docs`, `cli`, `format`, `benchmarks`, `tool` and `language`. After building,
+`docs`, `cli`, `format`, `benchmarks`, `tool`, `language` and `cooperative`. After building,
 you can also run individual checks directly. The `tool` step includes package
 integration tests that query the GitHub API and download test packages.
+The `cooperative` step runs the concurrency language suite with one and four
+scheduler threads per VM. Run it on its own with `python scripts/dev.py gate --only cooperative`.
 
 ```bash
 python scripts/testing/layering.py
@@ -249,6 +251,7 @@ python scripts/testing/language.py --category closure
 python scripts/testing/language.py --category static_analyzer --build Debug
 python scripts/testing/language.py --pattern recursive
 python scripts/testing/language.py --test closure/simple.mmt
+python scripts/testing/language.py --category concurrency --worker-threads 4
 ```
 
 The marmot tool runs it too, from the repository root, with `MARMOTC` naming
