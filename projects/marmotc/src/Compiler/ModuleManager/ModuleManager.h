@@ -5,10 +5,9 @@
 #include "Compiler/Module/Module.h"
 #include "Compiler/Result/Result.h"
 #include "Compiler/Token/Token.h"
+#include "Support/Optional.h"
 
-#include <filesystem>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 namespace MarmotResult
@@ -16,19 +15,13 @@ namespace MarmotResult
 	using ModuleManagerResult = Result<BuildGraph>;
 }
 
-class ModuleSourceLoader;
-
 class ModuleManager
 {
+public:
+	static MarmotResult::ModuleManagerResult GenerateBuildGraph(TokenStream tokens, std::string_view file_name, std::vector<std::string> source_lines, const CompilationInputs& inputs);
+
 private:
-	struct DiscoveryState
-	{
-		// The modules being discovered, outermost first.
-		std::vector<std::string> m_active_modules;
-		// An import cycle, kept by the module it leads back to until that
-		// module's own imports are done.
-		std::unordered_map<std::string, CompilerError> m_cycles;
-	};
+	struct DiscoveryState;
 
 	enum class StatementType { MODULE, EXPORT, IMPORT, USE };
 
@@ -40,30 +33,32 @@ private:
 		int m_line;
 	};
 
-	TokenStream m_main_token_stream;
-	std::string m_main_file_name;
-	std::vector<std::string> m_main_source_lines;
-	CompilationInputs m_inputs;
+	struct SourceImport
+	{
+		std::string m_specifier;
+		Token m_token;
+		MarmotCompiler::Optional<std::string> m_resolved_path = MarmotCompiler::None;
+	};
 
-public:
-	ModuleManager(TokenStream&& main_file_tokens, std::string_view main_file_name, std::vector<std::string> main_source_lines = {}, CompilationInputs inputs = {});
+	TokenStream m_tokens;
+	std::string m_file_name;
+	std::vector<std::string> m_source_lines;
 
-	MarmotResult::ModuleManagerResult GenerateBuildGraph();
+	ModuleManager(TokenStream tokens, std::string_view file_name, std::vector<std::string> source_lines);
 
-private:
-	MarmotResult::VoidResult GenerateBuildGraphImpl(BuildGraph& build_graph, ModuleSourceLoader& source_loader, DiscoveryState& discovery);
+	MarmotResult::VoidResult DiscoverModule(DiscoveryState& discovery);
 
 	std::vector<StatementSpan> ScanModuleStatements(const TokenStream& tokens);
 
 	int ComputeStatementEnd(const TokenStream& tokens, int start, StatementType type);
 
-	MarmotResult::VoidResult ValidateModuleDeclarationPolicy(const TokenStream& tokens, const std::vector<StatementSpan>& spans) const;
+	MarmotResult::Result<const StatementSpan*> FindModuleDeclaration(const TokenStream& tokens, const std::vector<StatementSpan>& spans) const;
 
 	MarmotResult::Result<std::string> ExtractModuleName(const TokenStream& tokens, const StatementSpan& module_span) const;
 
-	MarmotResult::Result<std::tuple<std::string, std::vector<ModuleExport>>> ExtractModuleDeclaration(const TokenStream& tokens, const std::vector<StatementSpan>& spans);
+	MarmotResult::Result<ModuleDeclaration> ExtractModuleDeclaration(const TokenStream& tokens, const std::vector<StatementSpan>& spans) const;
 
-	MarmotResult::Result<std::vector<std::pair<std::string, Token>>> ExtractImports(const TokenStream& tokens, const std::vector<StatementSpan>& spans);
+	MarmotResult::Result<std::vector<SourceImport>> ExtractImports(const TokenStream& tokens, const std::vector<StatementSpan>& spans) const;
 
 	MarmotResult::Result<std::vector<UseImport>> ExtractUseStatements(const TokenStream& tokens, const std::vector<StatementSpan>& spans);
 

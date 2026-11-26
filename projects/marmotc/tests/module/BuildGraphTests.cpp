@@ -42,7 +42,7 @@ namespace
 			return MarmotCompiler::Failure(std::move(lex_result.Error()));
 		}
 
-		return ModuleManager(std::move(lex_result.Value()), source_fixture.FileName(), source_fixture.SourceLines(), MarmotDriver::EnvironmentCompilationInputs().WithJobs(jobs)).GenerateBuildGraph();
+		return ModuleManager::GenerateBuildGraph(std::move(lex_result.Value()), source_fixture.FileName(), source_fixture.SourceLines(), MarmotDriver::EnvironmentCompilationInputs().WithJobs(jobs));
 	}
 
 	void CheckDiagnosticLocation(const CompilerError& error, const std::filesystem::path& expected_file_path, int expected_line)

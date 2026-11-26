@@ -420,30 +420,22 @@ Parser::DeferredInstantiation::DeferredInstantiation(std::shared_ptr<MarmotType>
 
 MarmotResult::TokenResult Parser::ConsumeTypeRightAngle(std::string_view message)
 {
-	if (Check(Token::Name::RIGHT_ANGLE, 0))
+	Token& current = Peek(0);
+	if (current.m_token_name == Token::Name::RIGHT_SHIFT)
+	{
+		// Keep the current token's address and leave a second '>' for the
+		// enclosing type argument list.
+		TokenStream remaining;
+		remaining.AddToken(Token(Token::Name::RIGHT_ANGLE, current));
+		current = Token(Token::Name::RIGHT_ANGLE, current);
+		m_context.m_tokens.Insert(m_context.m_tokens.begin() + m_state.m_current_token_index + 1, std::move(remaining));
+	}
+	if (current.m_token_name == Token::Name::RIGHT_ANGLE)
 	{
 		return Advance();
 	}
 
-	if (Check(Token::Name::RIGHT_SHIFT, 0))
-	{
-		const Token anchor = Peek(0);
-		Token first_right_angle(Token::Name::RIGHT_ANGLE, anchor);
-		Token second_right_angle(Token::Name::RIGHT_ANGLE, anchor);
-
-		m_context.m_tokens[m_state.m_current_token_index] = std::move(first_right_angle);
-
-		// The insert shifts later tokens, so the enclosing level closes on the second
-		// '>'. TokenStream keeps each Token at a stable address precisely so that the
-		// parse frames holding Token& across this call survive the insert.
-		TokenStream split_tokens;
-		split_tokens.AddToken(std::move(second_right_angle));
-		m_context.m_tokens.Insert(m_context.m_tokens.begin() + m_state.m_current_token_index + 1, std::move(split_tokens));
-
-		return Advance();
-	}
-
-	return MarmotCompiler::Failure(GenerateParserError(std::string(message), Peek(0)));
+	return MarmotCompiler::Failure(GenerateParserError(std::string(message), current));
 }
 
 MarmotResult::TokenResult Parser::ConsumeReturnTypeSeparator(std::string_view message)

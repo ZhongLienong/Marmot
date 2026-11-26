@@ -17,7 +17,13 @@ namespace
 	// Two types as a person reads them. The module comes back only when the
 	// short names are the same, which is the one case where a short name says
 	// nothing.
-	std::pair<std::string, std::string> DescribeTypePair(const MarmotType& first, const MarmotType& second)
+	struct TypeDescriptions
+	{
+		std::string m_left;
+		std::string m_right;
+	};
+
+	TypeDescriptions DescribeTypePair(const MarmotType& first, const MarmotType& second)
 	{
 		std::string first_name = first.DisplayString();
 		std::string second_name = second.DisplayString();
@@ -177,39 +183,102 @@ std::vector<MarmotType::ClassConstraint> TypeChecker::CollectSignatureConstraint
 	return constraints;
 }
 
-class NominalUnifyGuard
+namespace
 {
-private:
-	TypeChecker& m_type_checker;
-	std::string m_name;
-	bool m_entered;
+	using NominalTypes = std::unordered_set<std::string>;
 
-public:
-	NominalUnifyGuard(TypeChecker& tc, const std::string& name)
-		: m_type_checker(tc), m_name(name), m_entered(tc.m_unify_nominal_active.insert(name).second)
+	class NominalWalkGuard
 	{
-	}
-
-	~NominalUnifyGuard()
-	{
-		if (m_entered)
+	public:
+		NominalWalkGuard(NominalTypes& active_types, std::string name)
+			: m_active_types(active_types), m_name(std::move(name)), m_entered(m_active_types.insert(m_name).second)
 		{
-			m_type_checker.m_unify_nominal_active.erase(m_name);
 		}
-	}
 
-	bool Entered() const { return m_entered; }
+		~NominalWalkGuard()
+		{
+			if (m_entered)
+			{
+				m_active_types.erase(m_name);
+			}
+		}
 
-	NominalUnifyGuard(const NominalUnifyGuard&) = delete;
-	NominalUnifyGuard& operator=(const NominalUnifyGuard&) = delete;
+		bool Entered() const { return m_entered; }
+
+		NominalWalkGuard(const NominalWalkGuard&) = delete;
+		NominalWalkGuard& operator=(const NominalWalkGuard&) = delete;
+
+	private:
+		NominalTypes& m_active_types;
+		std::string m_name;
+		bool m_entered;
+	};
+
+	struct TypePair
+	{
+		const MarmotType* m_left;
+		const MarmotType* m_right;
+
+		bool operator==(const TypePair&) const = default;
+	};
+
+	struct TypePairHash
+	{
+		std::size_t operator()(const TypePair& pair) const noexcept
+		{
+			const std::size_t left = std::hash<const MarmotType*>{}(pair.m_left);
+			const std::size_t right = std::hash<const MarmotType*>{}(pair.m_right);
+			return left ^ (right * 0x9e3779b97f4a7c15 + 0x9e3779b9 + (left << 6) + (left >> 2));
+		}
+	};
+
+	using ActiveTypePairs = std::unordered_set<TypePair, TypePairHash>;
+
+	class ActiveTypePairGuard
+	{
+	public:
+		ActiveTypePairGuard(ActiveTypePairs& active, TypePair original, TypePair substituted)
+			: m_active(active), m_original(original), m_substituted(substituted)
+		{
+			m_active.insert(m_original);
+			if (m_substituted != m_original)
+			{
+				m_active.insert(m_substituted);
+			}
+		}
+
+		~ActiveTypePairGuard()
+		{
+			m_active.erase(m_original);
+			if (m_substituted != m_original)
+			{
+				m_active.erase(m_substituted);
+			}
+		}
+
+		ActiveTypePairGuard(const ActiveTypePairGuard&) = delete;
+		ActiveTypePairGuard& operator=(const ActiveTypePairGuard&) = delete;
+
+	private:
+		ActiveTypePairs& m_active;
+		TypePair m_original;
+		TypePair m_substituted;
+	};
+}
+
+struct TypeChecker::UnificationState
+{
+	// Leaf comparisons do not descend. Allocate recursion state only when
+	// comparing components that can lead back to the same type.
+	MarmotCompiler::Optional<ActiveTypePairs> m_pairs;
+	MarmotCompiler::Optional<NominalTypes> m_nominal;
 };
 
-std::size_t TypePairHash::operator()(const std::pair<MarmotType*, MarmotType*>& pair) const noexcept
+struct TypeChecker::OccursCheckState
 {
-	std::size_t h1 = std::hash<MarmotType*>{}(pair.first);
-	std::size_t h2 = std::hash<MarmotType*>{}(pair.second);
-	return h1 ^ (h2 * 0x9e3779b97f4a7c15 + 0x9e3779b9 + (h1 << 6) + (h1 >> 2));
-}
+	std::unordered_set<const MarmotType*> m_visited;
+	MarmotCompiler::Optional<NominalTypes> m_nominal;
+};
 
 std::string TypeChecker::DescribeConstraint(const CheckingContext& context, const MarmotType::ClassConstraint& constraint) const
 {
@@ -544,8 +613,8 @@ MarmotCompiler::Optional<CompilerError> TypeChecker::DischargeEqualityConstraint
 		}
 	}
 
-	const std::pair<std::string, std::string> described = DescribeTypePair(*resolved_lhs, *resolved_rhs);
-	return MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnsatisfiedConstraint, std::format("Equality constraint is not satisfied: '{}' resolves to '{}', not '{}'", constraint.m_equality_lhs->DisplayString(), described.first, described.second), token, m_file_name, m_source_lines);
+	const TypeDescriptions described = DescribeTypePair(*resolved_lhs, *resolved_rhs);
+	return MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnsatisfiedConstraint, std::format("Equality constraint is not satisfied: '{}' resolves to '{}', not '{}'", constraint.m_equality_lhs->DisplayString(), described.m_left, described.m_right), token, m_file_name, m_source_lines);
 }
 
 bool TypeChecker::IsSatisfiedByActiveConstraint(const CheckingContext& context, const MarmotType::ClassConstraint& resolved_constraint)
@@ -822,13 +891,14 @@ MarmotCompiler::Optional<CompilerError> TypeChecker::TryMakeGenericParameterMism
 			continue;
 		}
 
+		const TypeDescriptions described = DescribeTypePair(*left_arg, *right_arg);
 		const std::string message = std::format
 		(
 			"In type {}: parameter '{}' is {} in one context but {} in another",
 			type_signature,
 			param_name,
-			DescribeTypePair(*left_arg, *right_arg).first,
-			DescribeTypePair(*left_arg, *right_arg).second
+			described.m_left,
+			described.m_right
 		);
 		return MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, message, token, m_file_name, m_source_lines);
 	}
@@ -845,8 +915,8 @@ CompilerError TypeChecker::MakeUnificationError(const Token& token, const std::s
 
 	auto build_expected_message = [](const std::shared_ptr<MarmotType>& expected, const std::shared_ptr<MarmotType>& actual)
 	{
-		const std::pair<std::string, std::string> described = DescribeTypePair(*expected, *actual);
-		return std::format("Expected type '{}' but got '{}'", described.first, described.second);
+		const TypeDescriptions described = DescribeTypePair(*expected, *actual);
+		return std::format("Expected type '{}' but got '{}'", described.m_left, described.m_right);
 	};
 
 	if (diagnostic_mode == UnifyDiagnosticMode::ActualExpected)
@@ -858,17 +928,18 @@ CompilerError TypeChecker::MakeUnificationError(const Token& token, const std::s
 		return MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, build_expected_message(left, right), token, m_file_name, m_source_lines);
 	}
 
+	const TypeDescriptions described = DescribeTypePair(*left, *right);
 	return MarmotError::GenerateTypeCheckerErrorWithContext
 	(
 		CompilerErrorCode::TypeMismatch,
-		std::format("Type mismatch between '{}' and '{}'", DescribeTypePair(*left, *right).first, DescribeTypePair(*left, *right).second),
+		std::format("Type mismatch between '{}' and '{}'", described.m_left, described.m_right),
 		token,
 		m_file_name,
 		m_source_lines
 	);
 }
 
-MarmotResult::TypeResult TypeChecker::UnifyTypeArguments(const CheckingContext& context, const Token& token, std::vector<std::shared_ptr<MarmotType>>& left, std::vector<std::shared_ptr<MarmotType>>& right)
+MarmotResult::TypeResult TypeChecker::UnifyTypeArguments(UnificationState& walk, const CheckingContext& context, const Token& token, const std::vector<std::shared_ptr<MarmotType>>& left, const std::vector<std::shared_ptr<MarmotType>>& right)
 {
 	if (left.size() != right.size())
 	{
@@ -879,7 +950,7 @@ MarmotResult::TypeResult TypeChecker::UnifyTypeArguments(const CheckingContext& 
 	{
 		// A nominal parameter may occur anywhere in the representation, including
 		// within a writable field or a function's parameter.
-		MarmotResult::TypeResult result = Unify(context, token, left[idx], right[idx]);
+		MarmotResult::TypeResult result = Unify(walk, context, token, left[idx], right[idx]);
 		if (!result.HasValue())
 		{
 			return result;
@@ -891,48 +962,22 @@ MarmotResult::TypeResult TypeChecker::UnifyTypeArguments(const CheckingContext& 
 
 MarmotResult::TypeResult TypeChecker::Unify(const CheckingContext& context, const Token& token, const std::shared_ptr<MarmotType>& left, const std::shared_ptr<MarmotType>& right, UnifyDiagnosticMode diagnostic_mode)
 {
+	UnificationState walk;
+	return Unify(walk, context, token, left, right, diagnostic_mode);
+}
+
+MarmotResult::TypeResult TypeChecker::Unify(UnificationState& walk, const CheckingContext& context, const Token& token, const std::shared_ptr<MarmotType>& left, const std::shared_ptr<MarmotType>& right, UnifyDiagnosticMode diagnostic_mode)
+{
 	// Apply current substitutions first
 	std::shared_ptr<MarmotType> left_subst = ApplySubstitution(context, left);
 	std::shared_ptr<MarmotType> right_subst = ApplySubstitution(context, right);
 
-	// Recursion guard to prevent infinite loops when unifying recursive types
-	std::pair<MarmotType*, MarmotType*> orig_pair{ left.get(), right.get() };
-	std::pair<MarmotType*, MarmotType*> subst_pair{ left_subst.get(), right_subst.get() };
-	if (m_unify_visited.contains(orig_pair) || m_unify_visited.contains(subst_pair))
+	const TypePair original{ left.get(), right.get() };
+	const TypePair substituted{ left_subst.get(), right_subst.get() };
+	if (walk.m_pairs && (walk.m_pairs->contains(original) || walk.m_pairs->contains(substituted)))
 	{
 		return left_subst;
 	}
-
-	struct RecursionGuard
-	{
-		std::unordered_set<std::pair<MarmotType*, MarmotType*>, TypePairHash>& m_visited;
-		std::vector<std::pair<MarmotType*, MarmotType*>> m_pairs;
-
-		RecursionGuard(std::unordered_set<std::pair<MarmotType*, MarmotType*>, TypePairHash>& visited, std::pair<MarmotType*, MarmotType*> first, std::pair<MarmotType*, MarmotType*> second)
-			: m_visited(visited)
-		{
-			m_pairs.push_back(first);
-			if (second != first)
-			{
-				m_pairs.push_back(second);
-			}
-
-			for (const std::pair<MarmotType*, MarmotType*>& pair : m_pairs)
-			{
-				m_visited.emplace(pair);
-			}
-		}
-
-		~RecursionGuard()
-		{
-			for (const std::pair<MarmotType*, MarmotType*>& pair : m_pairs)
-			{
-				m_visited.erase(pair);
-			}
-		}
-	};
-
-	RecursionGuard guard(m_unify_visited, orig_pair, subst_pair);
 
 	bool is_complex_type = 
 		left_subst->IsType<MarmotType::StructType>() ||
@@ -1023,9 +1068,11 @@ MarmotResult::TypeResult TypeChecker::Unify(const CheckingContext& context, cons
 		*right = *left_subst;
 		return left;
 	}
-	else if (left_subst->IsType<MarmotType::ArrayType>() && right_subst->IsType<MarmotType::ArrayType>())
+
+	ActiveTypePairGuard guard(walk.m_pairs ? *walk.m_pairs : walk.m_pairs.Emplace(), original, substituted);
+	if (left_subst->IsType<MarmotType::ArrayType>() && right_subst->IsType<MarmotType::ArrayType>())
 	{
-		MarmotResult::TypeResult result = Unify(context, token, left_subst->GetType<MarmotType::ArrayType>().m_element_type, right_subst->GetType<MarmotType::ArrayType>().m_element_type, diagnostic_mode);
+		MarmotResult::TypeResult result = Unify(walk, context, token, left_subst->GetType<MarmotType::ArrayType>().m_element_type, right_subst->GetType<MarmotType::ArrayType>().m_element_type, diagnostic_mode);
 		if (!result.HasValue())
 		{
 			return result;
@@ -1038,7 +1085,7 @@ MarmotResult::TypeResult TypeChecker::Unify(const CheckingContext& context, cons
 	}
 	else if (left_subst->IsType<MarmotType::WorkerType>() && right_subst->IsType<MarmotType::WorkerType>())
 	{
-		MarmotResult::TypeResult result = Unify(context, token, left_subst->GetType<MarmotType::WorkerType>().m_result_type, right_subst->GetType<MarmotType::WorkerType>().m_result_type, diagnostic_mode);
+		MarmotResult::TypeResult result = Unify(walk, context, token, left_subst->GetType<MarmotType::WorkerType>().m_result_type, right_subst->GetType<MarmotType::WorkerType>().m_result_type, diagnostic_mode);
 		if (!result.HasValue())
 		{
 			return result;
@@ -1051,7 +1098,7 @@ MarmotResult::TypeResult TypeChecker::Unify(const CheckingContext& context, cons
 	}
 	else if (left_subst->IsType<MarmotType::ChannelType>() && right_subst->IsType<MarmotType::ChannelType>())
 	{
-		MarmotResult::TypeResult result = Unify(context, token, left_subst->GetType<MarmotType::ChannelType>().m_element_type, right_subst->GetType<MarmotType::ChannelType>().m_element_type);
+		MarmotResult::TypeResult result = Unify(walk, context, token, left_subst->GetType<MarmotType::ChannelType>().m_element_type, right_subst->GetType<MarmotType::ChannelType>().m_element_type);
 		if (!result.HasValue())
 		{
 			return result;
@@ -1060,7 +1107,7 @@ MarmotResult::TypeResult TypeChecker::Unify(const CheckingContext& context, cons
 	}
 	else if (left_subst->IsType<MarmotType::CellType>() && right_subst->IsType<MarmotType::CellType>())
 	{
-		MarmotResult::TypeResult result = Unify(context, token, left_subst->GetType<MarmotType::CellType>().m_element_type, right_subst->GetType<MarmotType::CellType>().m_element_type);
+		MarmotResult::TypeResult result = Unify(walk, context, token, left_subst->GetType<MarmotType::CellType>().m_element_type, right_subst->GetType<MarmotType::CellType>().m_element_type);
 		if (!result.HasValue())
 		{
 			return result;
@@ -1069,7 +1116,7 @@ MarmotResult::TypeResult TypeChecker::Unify(const CheckingContext& context, cons
 	}
 	else if (left_subst->IsType<MarmotType::RangeType>() && right_subst->IsType<MarmotType::RangeType>())
 	{
-		MarmotResult::TypeResult result = Unify(context, token, left_subst->GetType<MarmotType::RangeType>().m_element_type, right_subst->GetType<MarmotType::RangeType>().m_element_type, diagnostic_mode);
+		MarmotResult::TypeResult result = Unify(walk, context, token, left_subst->GetType<MarmotType::RangeType>().m_element_type, right_subst->GetType<MarmotType::RangeType>().m_element_type, diagnostic_mode);
 		if (!result.HasValue())
 		{
 			return result;
@@ -1100,14 +1147,14 @@ MarmotResult::TypeResult TypeChecker::Unify(const CheckingContext& context, cons
 		{
 			// A function supplied by the caller must accept every argument the
 			// expected signature permits, including callbacks without a guarantee.
-			result = Unify(context, token, right_func.m_param_types[idx], left_func.m_param_types[idx], join_types ? UnifyDiagnosticMode::Symmetric : diagnostic_mode);
+			result = Unify(walk, context, token, right_func.m_param_types[idx], left_func.m_param_types[idx], join_types ? UnifyDiagnosticMode::Symmetric : diagnostic_mode);
 			if (!result.HasValue())
 			{
 				return result;
 			}
 		}
 
-		result = Unify(context, token, left_func.m_return_type, right_func.m_return_type, diagnostic_mode);
+		result = Unify(walk, context, token, left_func.m_return_type, right_func.m_return_type, diagnostic_mode);
 		if (!result.HasValue())
 		{
 			return result;
@@ -1131,7 +1178,7 @@ MarmotResult::TypeResult TypeChecker::Unify(const CheckingContext& context, cons
 		}
 
 		// The type arguments decide the representation, so they are all there is to unify.
-		MarmotResult::TypeResult type_argument_result = UnifyTypeArguments(context, token, left_new_type.m_type_arguments, right_new_type.m_type_arguments);
+		MarmotResult::TypeResult type_argument_result = UnifyTypeArguments(walk, context, token, left_new_type.m_type_arguments, right_new_type.m_type_arguments);
 		if (!type_argument_result.HasValue())
 		{
 			return type_argument_result;
@@ -1154,7 +1201,7 @@ MarmotResult::TypeResult TypeChecker::Unify(const CheckingContext& context, cons
 			return MarmotCompiler::Failure(std::move(*generic_mismatch));
 		}
 
-		MarmotResult::TypeResult type_argument_result = UnifyTypeArguments(context, token, left_struct.m_type_arguments, right_struct.m_type_arguments);
+		MarmotResult::TypeResult type_argument_result = UnifyTypeArguments(walk, context, token, left_struct.m_type_arguments, right_struct.m_type_arguments);
 		if (!type_argument_result.HasValue())
 		{
 			return type_argument_result;
@@ -1163,7 +1210,7 @@ MarmotResult::TypeResult TypeChecker::Unify(const CheckingContext& context, cons
 		// Unify each member type
 		for (size_t idx : std::views::iota(0u, left_struct.m_member_types.size()))
 		{
-			MarmotResult::TypeResult result = Unify(context, token, left_struct.m_member_types[idx], right_struct.m_member_types[idx], diagnostic_mode);
+			MarmotResult::TypeResult result = Unify(walk, context, token, left_struct.m_member_types[idx], right_struct.m_member_types[idx], diagnostic_mode);
 			if (!result.HasValue())
 			{
 				return result;
@@ -1188,7 +1235,7 @@ MarmotResult::TypeResult TypeChecker::Unify(const CheckingContext& context, cons
 			return MarmotCompiler::Failure(std::move(*generic_mismatch));
 		}
 
-		MarmotResult::TypeResult type_argument_result = UnifyTypeArguments(context, token, left_union.m_type_arguments, right_union.m_type_arguments);
+		MarmotResult::TypeResult type_argument_result = UnifyTypeArguments(walk, context, token, left_union.m_type_arguments, right_union.m_type_arguments);
 		if (!type_argument_result.HasValue())
 		{
 			return type_argument_result;
@@ -1198,7 +1245,7 @@ MarmotResult::TypeResult TypeChecker::Unify(const CheckingContext& context, cons
 		// arguments, which have just been unified. Descending again is redundant,
 		// and does not terminate when a member reaches the type through a fresh
 		// node such as Array<Self>.
-		NominalUnifyGuard nominal_guard(*this, ConstructorKey(left_union.m_module_name, left_union.m_name));
+		NominalWalkGuard nominal_guard(walk.m_nominal ? *walk.m_nominal : walk.m_nominal.Emplace(), ConstructorKey(left_union.m_module_name, left_union.m_name));
 		if (!nominal_guard.Entered())
 		{
 			return left;
@@ -1220,7 +1267,7 @@ MarmotResult::TypeResult TypeChecker::Unify(const CheckingContext& context, cons
 
 			for (size_t idx : std::views::iota(0u, left_ctx.m_member_types.size()))
 			{
-				MarmotResult::TypeResult result = Unify(context, token, left_ctx.m_member_types[idx], right_ctx.m_member_types[idx], diagnostic_mode);
+				MarmotResult::TypeResult result = Unify(walk, context, token, left_ctx.m_member_types[idx], right_ctx.m_member_types[idx], diagnostic_mode);
 				if (!result.HasValue())
 				{
 					return result;
@@ -1245,7 +1292,7 @@ MarmotResult::TypeResult TypeChecker::Unify(const CheckingContext& context, cons
 		std::vector<std::shared_ptr<MarmotType>> common_elements;
 		for (size_t idx : std::views::iota(0u, left_tuple.m_element_types.size()))
 		{
-			MarmotResult::TypeResult result = Unify(context, token, left_tuple.m_element_types[idx], right_tuple.m_element_types[idx], diagnostic_mode);
+			MarmotResult::TypeResult result = Unify(walk, context, token, left_tuple.m_element_types[idx], right_tuple.m_element_types[idx], diagnostic_mode);
 			if (!result.HasValue())
 			{
 				return result;
@@ -1453,29 +1500,29 @@ std::shared_ptr<MarmotType> TypeChecker::ApplySubstitution(const CheckingContext
 
 bool TypeChecker::OccursCheck(const CheckingContext& context, int var_id, const std::shared_ptr<MarmotType>& type)
 {
-	std::unordered_set<const MarmotType*> visited;
-	return OccursCheck(context, var_id, type, visited);
+	OccursCheckState walk;
+	return OccursCheck(context, var_id, type, walk);
 }
 
-bool TypeChecker::OccursCheck(const CheckingContext& context, int var_id, const std::shared_ptr<MarmotType>& type, std::unordered_set<const MarmotType*>& visited)
+bool TypeChecker::OccursCheck(const CheckingContext& context, int var_id, const std::shared_ptr<MarmotType>& type, OccursCheckState& walk)
 {
 	// Guard on the incoming node before substituting. ApplySubstitution rebuilds any
 	// type that still carries type variables, so it hands back a fresh pointer on
 	// every call; keying the guard only on that result means a cyclic generic type
 	// is never recognised as already visited and the walk does not terminate.
-	if (visited.contains(type.get()))
+	if (walk.m_visited.contains(type.get()))
 	{
 		return false;
 	}
-	visited.insert(type.get());
+	walk.m_visited.insert(type.get());
 
 	std::shared_ptr<MarmotType> subst_type = ApplySubstitution(context, type);
 
-	if (visited.contains(subst_type.get()))
+	if (walk.m_visited.contains(subst_type.get()))
 	{
 		return false;
 	}
-	visited.insert(subst_type.get());
+	walk.m_visited.insert(subst_type.get());
 
 	if (subst_type->IsType<MarmotType::TypeVariable>())
 	{
@@ -1483,49 +1530,49 @@ bool TypeChecker::OccursCheck(const CheckingContext& context, int var_id, const 
 	}
 	else if (subst_type->IsType<MarmotType::ArrayType>())
 	{
-		return OccursCheck(context, var_id, subst_type->GetType<MarmotType::ArrayType>().m_element_type, visited);
+		return OccursCheck(context, var_id, subst_type->GetType<MarmotType::ArrayType>().m_element_type, walk);
 	}
 	else if (subst_type->IsType<MarmotType::RangeType>())
 	{
-		return OccursCheck(context, var_id, subst_type->GetType<MarmotType::RangeType>().m_element_type, visited);
+		return OccursCheck(context, var_id, subst_type->GetType<MarmotType::RangeType>().m_element_type, walk);
 	}
 	else if (subst_type->IsType<MarmotType::WorkerType>())
 	{
-		return OccursCheck(context, var_id, subst_type->GetType<MarmotType::WorkerType>().m_result_type, visited);
+		return OccursCheck(context, var_id, subst_type->GetType<MarmotType::WorkerType>().m_result_type, walk);
 	}
 	else if (subst_type->IsType<MarmotType::ChannelType>())
 	{
-		return OccursCheck(context, var_id, subst_type->GetType<MarmotType::ChannelType>().m_element_type, visited);
+		return OccursCheck(context, var_id, subst_type->GetType<MarmotType::ChannelType>().m_element_type, walk);
 	}
 	else if (subst_type->IsType<MarmotType::CellType>())
 	{
-		return OccursCheck(context, var_id, subst_type->GetType<MarmotType::CellType>().m_element_type, visited);
+		return OccursCheck(context, var_id, subst_type->GetType<MarmotType::CellType>().m_element_type, walk);
 	}
 	else if (subst_type->IsType<MarmotType::FunctionType>())
 	{
 		MarmotType::FunctionType& func_type = subst_type->GetType<MarmotType::FunctionType>();
 		for (const std::shared_ptr<MarmotType>& param_type : func_type.m_param_types)
 		{
-			if (OccursCheck(context, var_id, param_type, visited))
+			if (OccursCheck(context, var_id, param_type, walk))
 			{
 				return true;
 			}
 		}
-		return OccursCheck(context, var_id, func_type.m_return_type, visited);
+		return OccursCheck(context, var_id, func_type.m_return_type, walk);
 	}
 	else if (subst_type->IsType<MarmotType::StructType>())
 	{
 		MarmotType::StructType& struct_type = subst_type->GetType<MarmotType::StructType>();
 		for (const std::shared_ptr<MarmotType>& member_type : struct_type.m_member_types)
 		{
-			if (OccursCheck(context, var_id, member_type, visited))
+			if (OccursCheck(context, var_id, member_type, walk))
 			{
 				return true;
 			}
 		}
 		for (const std::shared_ptr<MarmotType>& type_argument : struct_type.m_type_arguments)
 		{
-			if (OccursCheck(context, var_id, type_argument, visited))
+			if (OccursCheck(context, var_id, type_argument, walk))
 			{
 				return true;
 			}
@@ -1538,14 +1585,14 @@ bool TypeChecker::OccursCheck(const CheckingContext& context, int var_id, const 
 		// A variable can only reach a nominal type through its type arguments, which
 		// are checked below. Walking the members again is redundant and does not
 		// terminate when a member reaches the type through a fresh node.
-		NominalUnifyGuard occurs_guard(*this, "occurs:" + ConstructorKey(union_type.m_module_name, union_type.m_name));
+		NominalWalkGuard occurs_guard(walk.m_nominal ? *walk.m_nominal : walk.m_nominal.Emplace(), ConstructorKey(union_type.m_module_name, union_type.m_name));
 		if (occurs_guard.Entered())
 		{
 			for (const auto& [member_name, member_ctx] : union_type.m_member_info)
 			{
 				for (const std::shared_ptr<MarmotType>& member_type : member_ctx.m_member_types)
 				{
-					if (OccursCheck(context, var_id, member_type, visited))
+					if (OccursCheck(context, var_id, member_type, walk))
 					{
 						return true;
 					}
@@ -1554,7 +1601,7 @@ bool TypeChecker::OccursCheck(const CheckingContext& context, int var_id, const 
 		}
 		for (const std::shared_ptr<MarmotType>& type_argument : union_type.m_type_arguments)
 		{
-			if (OccursCheck(context, var_id, type_argument, visited))
+			if (OccursCheck(context, var_id, type_argument, walk))
 			{
 				return true;
 			}
@@ -1566,7 +1613,7 @@ bool TypeChecker::OccursCheck(const CheckingContext& context, int var_id, const 
 		MarmotType::TupleType& tuple_type = subst_type->GetType<MarmotType::TupleType>();
 		for (const std::shared_ptr<MarmotType>& element_type : tuple_type.m_element_types)
 		{
-			if (OccursCheck(context, var_id, element_type, visited))
+			if (OccursCheck(context, var_id, element_type, walk))
 			{
 				return true;
 			}
@@ -1578,7 +1625,7 @@ bool TypeChecker::OccursCheck(const CheckingContext& context, int var_id, const 
 		MarmotType::AssociatedType& associated_type = subst_type->GetType<MarmotType::AssociatedType>();
 		for (const std::shared_ptr<MarmotType>& type_arg : associated_type.m_type_args)
 		{
-			if (OccursCheck(context, var_id, type_arg, visited))
+			if (OccursCheck(context, var_id, type_arg, walk))
 			{
 				return true;
 			}
@@ -1846,25 +1893,27 @@ MarmotResult::TypeResult TypeChecker::CheckInstanceMethod(const CheckingContext&
 		}
 
 		TypeEnvironment substitutions = std::move(matcher).TakeBindings();
-		std::shared_ptr<MarmotType> resolved_method_type = ApplySubstitution(context, TypeTransform::Instantiate(candidate_method_type, substitutions));
-		candidates.emplace_back(std::move(resolved_method_type), &instance_info, std::move(substitutions), matches_expected_type);
+		candidates.emplace_back(std::move(candidate_method_type), &instance_info, std::move(substitutions), matches_expected_type);
 	}
 
 	if (candidates.empty())
 	{
 		return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Call expression type error: no matching concrete instance for '" + qualifier + NameSeparator.data() + method_name + "'", token, m_file_name, m_source_lines));
 	}
+	const ConcreteMethodCandidate* selected = &candidates.front();
 	if (candidates.size() != 1u)
 	{
-		if (std::ranges::count_if(candidates, &ConcreteMethodCandidate::m_matches_expected_type) != 1)
+		const auto first_expected = std::ranges::find_if(candidates, &ConcreteMethodCandidate::m_matches_expected_type);
+		if (first_expected == candidates.end() || std::ranges::any_of(std::ranges::subrange(first_expected + 1, candidates.end()), &ConcreteMethodCandidate::m_matches_expected_type))
 		{
 			return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Call expression type error: ambiguous concrete instance for '" + qualifier + NameSeparator.data() + method_name + "'", token, m_file_name, m_source_lines));
 		}
 
-		std::erase_if(candidates, [](const ConcreteMethodCandidate& candidate) -> bool { return !candidate.m_matches_expected_type; });
+		selected = &*first_expected;
 	}
 
-	MarmotType::FunctionType& function_type = candidates[0u].m_method_type->GetType<MarmotType::FunctionType>();
+	const std::shared_ptr<MarmotType> resolved_method_type = ApplySubstitution(context, TypeTransform::Instantiate(selected->m_method_type, selected->m_substitutions));
+	const MarmotType::FunctionType& function_type = resolved_method_type->GetType<MarmotType::FunctionType>();
 	for (size_t idx : std::views::iota(0u, arg_results.size()))
 	{
 		MarmotResult::TypeResult result = Unify(context, token, arg_results[idx], function_type.m_param_types[idx], UnifyDiagnosticMode::ActualExpected);
@@ -1882,13 +1931,13 @@ MarmotResult::TypeResult TypeChecker::CheckInstanceMethod(const CheckingContext&
 
 	// function_type comes from the class declaration, so it never carries the
 	// selected instance's where-clause - that lives on InstanceInfo instead.
-	MarmotResult::TypeResult instance_constraint_result = ValidateInstanceConstraints(context, token, *candidates[0u].m_instance, candidates[0u].m_substitutions, 0u);
+	MarmotResult::TypeResult instance_constraint_result = ValidateInstanceConstraints(context, token, *selected->m_instance, selected->m_substitutions, 0u);
 	if (!instance_constraint_result.HasValue())
 	{
 		return instance_constraint_result;
 	}
 
-	return ApplySubstitution(context, candidates[0u].m_method_type);
+	return ApplySubstitution(context, resolved_method_type);
 }
 
 // The waiting instances from `from` on whose types are now decided, each checked

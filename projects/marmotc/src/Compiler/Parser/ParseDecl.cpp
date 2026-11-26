@@ -12,39 +12,27 @@ using namespace std::string_literals;
 
 namespace
 {
-	using StructMemberTuple = std::tuple<std::shared_ptr<MarmotType>, std::string>;
-	using UnionMemberTuple = std::tuple<std::string, std::vector<std::shared_ptr<MarmotType>>, int>;
-	using UnionMemberInfo = std::unordered_map<std::string, MarmotType::UnionType::UnionMemberContext>;
-
-	struct StructMemberSplit
+	struct ParsedField
 	{
-		std::vector<std::shared_ptr<MarmotType>> m_types;
-		std::vector<std::string> m_names;
+		std::string m_name;
+		std::shared_ptr<MarmotType> m_type;
 	};
 
-	StructMemberSplit SplitStructMemberTuples(std::vector<StructMemberTuple>&& tuples)
+	struct ParsedVariant
 	{
-		StructMemberSplit result;
-		result.m_types.reserve(tuples.size());
-		result.m_names.reserve(tuples.size());
-		for (StructMemberTuple& tuple : tuples)
-		{
-			result.m_types.emplace_back(std::move(std::get<0>(tuple)));
-			result.m_names.emplace_back(std::move(std::get<1>(tuple)));
-		}
-		return result;
-	}
+		std::string m_name;
+		MarmotType::UnionType::UnionMemberContext m_info;
+	};
 
-	UnionMemberInfo BuildUnionMemberInfo(std::vector<UnionMemberTuple>&& members)
+	using UnionMemberInfo = std::unordered_map<std::string, MarmotType::UnionType::UnionMemberContext>;
+
+	UnionMemberInfo BuildUnionMemberInfo(std::vector<ParsedVariant>&& members)
 	{
 		UnionMemberInfo info;
 		info.reserve(members.size());
-		for (UnionMemberTuple& member : members)
+		for (ParsedVariant& member : members)
 		{
-			std::string& name = std::get<0>(member);
-			std::vector<std::shared_ptr<MarmotType>>& types = std::get<1>(member);
-			int tag = std::get<2>(member);
-			info.emplace(std::move(name), MarmotType::UnionType::UnionMemberContext{ std::move(types), tag });
+			info.emplace(std::move(member.m_name), std::move(member.m_info));
 		}
 		return info;
 	}
@@ -272,14 +260,14 @@ Parser::ParsedTypeResult Parser::ParseStructBody(TypeDeclarationHeader&& header)
 	struct_type->GetType<MarmotType::StructType>().m_constraints = header.m_constraints;
 	m_state.m_scopes[header.m_scope_index].m_defined_types[header.m_name.m_lexeme] = struct_type;
 
-	MarmotResult::Result<std::vector<StructMemberTuple>> members_result = InContext
+	MarmotResult::Result<std::vector<ParsedField>> members_result = InContext
 	(
 		[this, &struct_type]()
 		{
 			m_state.m_types_being_declared.push_back(struct_type);
-			return ParseDelimitedZeroOrMoreLimited<StructMemberTuple>
+			return ParseDelimitedZeroOrMoreLimited<ParsedField>
 			(
-				[this]() -> MarmotResult::Result<StructMemberTuple>
+				[this]() -> MarmotResult::Result<ParsedField>
 				{
 					MarmotResult::TokenResult member_name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected struct member name.");
 					if (!member_name_result.HasValue())
@@ -301,7 +289,7 @@ Parser::ParsedTypeResult Parser::ParseStructBody(TypeDeclarationHeader&& header)
 						return MarmotCompiler::Failure(member_type_result.Error());
 					}
 
-					return std::make_tuple(std::move(member_type_result.Value()), member_name.m_lexeme);
+					return ParsedField{ std::move(member_name.m_lexeme), std::move(member_type_result).Value() };
 				},
 				[this]() { return Consume(Token::Name::COMMA, "Expected ',' struct member."); },
 				[this]() { return Consume(Token::Name::RIGHT_BRACE, "Expected '}' struct members."); }
@@ -331,9 +319,14 @@ Parser::ParsedTypeResult Parser::ParseStructBody(TypeDeclarationHeader&& header)
 		return MarmotCompiler::Failure(semicolon_result.Error());
 	}
 
-	StructMemberSplit member_split = SplitStructMemberTuples(std::move(members_result.Value()));
-	struct_type->GetType<MarmotType::StructType>().m_member_types = std::move(member_split.m_types);
-	struct_type->GetType<MarmotType::StructType>().m_member_names = std::move(member_split.m_names);
+	MarmotType::StructType& record = struct_type->GetType<MarmotType::StructType>();
+	record.m_member_names.reserve(members_result->size());
+	record.m_member_types.reserve(members_result->size());
+	for (ParsedField& field : members_result.Value())
+	{
+		record.m_member_names.emplace_back(std::move(field.m_name));
+		record.m_member_types.emplace_back(std::move(field.m_type));
+	}
 	CompleteType(struct_type);
 
 	m_state.m_scopes[header.m_scope_index].m_struct_constructors[header.m_name.m_lexeme] = struct_type;
@@ -364,15 +357,15 @@ Parser::ParsedTypeResult Parser::ParseUnionBody(TypeDeclarationHeader&& header)
 			std::vector<Token> constructor_names;
 			int tag = 0;
 
-			MarmotResult::Result<std::vector<UnionMemberTuple>> members_result = InContext
+			MarmotResult::Result<std::vector<ParsedVariant>> members_result = InContext
 			(
 				[&constructor_names, &tag, &union_type, this]()
 				{
 					m_state.m_types_being_declared.push_back(union_type);
 
-					return ParseDelimitedOneOrMoreUnlimited<UnionMemberTuple>
+					return ParseDelimitedOneOrMoreUnlimited<ParsedVariant>
 					(
-						[&constructor_names, &tag, this]() -> MarmotResult::Result<UnionMemberTuple>
+						[&constructor_names, &tag, this]() -> MarmotResult::Result<ParsedVariant>
 						{
 							MarmotResult::TokenResult member_name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected union member name.");
 							if (!member_name_result.HasValue())
@@ -410,7 +403,7 @@ Parser::ParsedTypeResult Parser::ParseUnionBody(TypeDeclarationHeader&& header)
 								member_types = std::move(member_types_result.Value());
 							}
 
-							UnionMemberTuple member = std::make_tuple(member_name.m_lexeme, std::move(member_types), tag);
+							ParsedVariant member{ member_name.m_lexeme, { std::move(member_types), tag } };
 							tag += 1;
 							return member;
 						},
@@ -457,34 +450,25 @@ Parser::ParsedTypeResult Parser::ParseUnionBody(TypeDeclarationHeader&& header)
 	);
 }
 
-bool Parser::TypeBodyHasTopLevelBar()
+bool Parser::TypeBodyHasTopLevelBar() const
 {
-	// Bounded scan from the current token to the depth-0 ';' that ends the
-	// declaration, capped by MmcWire::MAX_ARRAY_SIZE and bailing out as soon as any
-	// depth counter would go negative, following the ProbeArrayComprehension
-	// and ProbeRecordUpdate precedent: unlike those, this scan has no closing
-	// delimiter of its own to bound it, so both guards are needed to keep a
-	// malformed declaration from running this to true EOF. A depth-0 '|'
-	// means a sum; anything else is a newtype over a type expression.
-	//
-	// The lexer merges adjacent '>' characters into one RIGHT_SHIFT token
-	// (e.g. the '>>' closing Array<Array<Int>>), so RIGHT_SHIFT closes two
-	// angle-bracket levels here, mirroring how ConsumeTypeRightAngle later
-	// splits that same token into two synthetic RIGHT_ANGLE tokens when the
-	// real type parser consumes it. LEFT_SHIFT gets no symmetric treatment:
-	// two '<' are never adjacent in well-formed type syntax (every '<' that
-	// opens a type argument list is preceded by a type name), and ParseType
-	// has no LEFT_SHIFT-splitting counterpart to ConsumeTypeRightAngle, so
-	// treating '<<' as two opens here would only desynchronize this probe
-	// from what the real parser does with it.
+	// A top-level '|' before the terminating ';' distinguishes a union from a
+	// newtype. Count '>>' as two closers to agree with ConsumeTypeRightAngle.
+	const TokenStream& tokens = m_context.m_tokens;
+	const int start = m_state.m_current_token_index;
+	const int scan_length = std::min(tokens.Size() - start, MmcWire::MAX_ARRAY_SIZE + 2);
 	int paren_depth = 0;
 	int angle_depth = 0;
 	int brace_depth = 0;
 	int bracket_depth = 0;
 
-	for (int offset = 0; !Check(Token::Name::END_OF_FILE, offset); offset += 1)
+	for (int offset = 0; offset < scan_length; offset += 1)
 	{
-		const Token::Name token_name = Peek(offset).m_token_name;
+		const Token::Name token_name = tokens[start + offset].m_token_name;
+		if (token_name == Token::Name::END_OF_FILE)
+		{
+			return false;
+		}
 
 		if (token_name == Token::Name::LEFT_PAREN)
 		{
@@ -538,11 +522,6 @@ bool Parser::TypeBodyHasTopLevelBar()
 		if (at_top_level && token_name == Token::Name::SINGLE_BAR)
 		{
 			return true;
-		}
-
-		if (offset > MmcWire::MAX_ARRAY_SIZE)
-		{
-			return false;
 		}
 	}
 

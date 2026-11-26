@@ -16,8 +16,6 @@ public:
 	std::vector<CompilerWarning> Run(MarmotProgramTree& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines);
 
 protected:
-	virtual void Reset(MarmotProgramTree& program_tree);
-
 	virtual void Finish();
 
 	void EmitWarning(CompilerWarningCode code, const Token& token, std::string_view message, MarmotCompiler::Optional<std::string_view> suggestion = MarmotCompiler::None);

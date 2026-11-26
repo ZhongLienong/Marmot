@@ -5,33 +5,26 @@
 
 #include <format>
 
-void UnusedLocalDiagnostic::Reset(MarmotProgramTree&)
-{
-	m_bindings.clear();
-	m_root = Scope(nullptr);
-	m_scope = &m_root;
-}
-
 void UnusedLocalDiagnostic::Finish()
 {
 	FinishScope(m_root);
 }
 
-UnusedLocalDiagnostic::Scope::Scope(Scope* parent)
-	: m_parent(parent)
+void UnusedLocalDiagnostic::FinishScope(const std::vector<BindingId>& scope)
 {
-}
-
-void UnusedLocalDiagnostic::FinishScope(const Scope& scope)
-{
-	for (const BindingId& identity : scope.m_bindings)
+	for (const BindingId& identity : scope)
 	{
-		const BindingInfo& binding = m_bindings.at(identity);
+		const auto entry = m_bindings.find(identity);
+		const BindingInfo& binding = entry->second;
 		if (!binding.m_is_suppressed && !binding.m_is_read)
 		{
-			EmitWarning(CompilerWarningCode::UnusedLocal, binding.m_token, std::format("Binding '{}' is never read.", binding.m_display_name));
+			const std::string name = MarmotAnalysis::DemangleDisplayName(binding.m_token.m_lexeme);
+			if (!MarmotAnalysis::IsIgnoredBindingName(name))
+			{
+				EmitWarning(CompilerWarningCode::UnusedLocal, binding.m_token, std::format("Binding '{}' is never read.", name));
+			}
 		}
-		m_bindings.erase(identity);
+		m_bindings.erase(entry);
 	}
 }
 
@@ -41,10 +34,10 @@ void UnusedLocalDiagnostic::RegisterBinding(const Token& token, const MarmotComp
 	{
 		return;
 	}
-	const bool inserted = m_bindings.emplace(binding.Value(), BindingInfo{ token, MarmotAnalysis::DemangleDisplayName(token.m_lexeme), false, suppressed }).second;
+	const bool inserted = m_bindings.try_emplace(binding.Value(), BindingInfo{ token, suppressed }).second;
 	if (inserted)
 	{
-		m_scope->m_bindings.push_back(binding.Value());
+		m_scope->push_back(binding.Value());
 	}
 }
 
@@ -52,8 +45,7 @@ void UnusedLocalDiagnostic::RegisterParameterBindings(const FunctionParameters& 
 {
 	for (size_t index = 0u; index < params.Size(); index += 1u)
 	{
-		const Token& token = params.SourceToken(index);
-		RegisterBinding(token, params.BindingAt(index), params.GeneratedBindingAt(index) != nullptr || MarmotAnalysis::IsIgnoredBindingName(MarmotAnalysis::DemangleDisplayName(token.m_lexeme)));
+		RegisterBinding(params.SourceToken(index), params.BindingAt(index), params.GeneratedBindingAt(index) != nullptr);
 	}
 }
 
@@ -80,7 +72,7 @@ void UnusedLocalDiagnostic::MarkRead(const MarmotExpression::NameContext::Tag& n
 
 void UnusedLocalDiagnostic::operator()(MarmotStatement::VariableDefinition& def)
 {
-	RegisterBinding(def.m_name, def.m_binding, def.m_is_elided || MarmotAnalysis::IsIgnoredBindingName(MarmotAnalysis::DemangleDisplayName(def.m_name.m_lexeme)));
+	RegisterBinding(def.m_name, def.m_binding, def.m_is_elided);
 	VisitExpression(def.m_value);
 }
 
@@ -88,9 +80,7 @@ void UnusedLocalDiagnostic::operator()(MarmotStatement::TupleDefinition& def_tup
 {
 	for (std::size_t index = 0u; index < def_tuple.m_names.size(); index += 1u)
 	{
-		const Token& token = def_tuple.m_names[index];
-		const MarmotCompiler::Optional<BindingId>& binding = def_tuple.m_bindings[index];
-		RegisterBinding(token, binding, MarmotAnalysis::IsIgnoredBindingName(MarmotAnalysis::DemangleDisplayName(token.m_lexeme)));
+		RegisterBinding(def_tuple.m_names[index], def_tuple.m_bindings[index]);
 	}
 
 	VisitExpression(def_tuple.m_value);
@@ -98,7 +88,7 @@ void UnusedLocalDiagnostic::operator()(MarmotStatement::TupleDefinition& def_tup
 
 void UnusedLocalDiagnostic::operator()(MarmotStatement::FunctionDefinition& defun)
 {
-	RegisterBinding(defun.m_name, defun.m_binding, MarmotAnalysis::IsIgnoredBindingName(MarmotAnalysis::DemangleDisplayName(defun.m_name.m_lexeme)));
+	RegisterBinding(defun.m_name, defun.m_binding);
 
 	InScope
 	(
@@ -112,12 +102,12 @@ void UnusedLocalDiagnostic::operator()(MarmotStatement::FunctionDefinition& defu
 
 void UnusedLocalDiagnostic::operator()(MarmotStatement::ForeignDefinition& foreign)
 {
-	RegisterBinding(foreign.m_function_name, foreign.m_binding, MarmotAnalysis::IsIgnoredBindingName(MarmotAnalysis::DemangleDisplayName(foreign.m_function_name.m_lexeme)));
+	RegisterBinding(foreign.m_function_name, foreign.m_binding);
 }
 
 void UnusedLocalDiagnostic::operator()(MarmotPattern::Binding& binding)
 {
-	RegisterBinding(binding.m_name, binding.m_binding, binding.m_is_generated || MarmotAnalysis::IsIgnoredBindingName(MarmotAnalysis::DemangleDisplayName(binding.m_name.m_lexeme)));
+	RegisterBinding(binding.m_name, binding.m_binding, binding.m_is_generated);
 }
 
 void UnusedLocalDiagnostic::operator()(MarmotExpression::NameAccess& access)
@@ -139,35 +129,10 @@ void UnusedLocalDiagnostic::operator()(MarmotExpression::Function& function)
 
 void UnusedLocalDiagnostic::operator()(MarmotExpression::Block& block)
 {
-	InScope
-	(
-		[&]()
-		{
-			for (std::unique_ptr<MarmotStatement>& statement : block.m_stmts)
-			{
-				VisitStatement(statement);
-			}
-
-			if (block.m_final_expr.HasValue())
-			{
-				VisitExpression(block.m_final_expr.Value());
-			}
-		}
-	);
+	InScope([&]() { MarmotAbstractSyntaxTreeWalker::operator()(block); });
 }
 
 void UnusedLocalDiagnostic::operator()(MarmotExpression::Case& case_expr)
 {
-	InScope
-	(
-		[&]()
-		{
-			VisitPattern(case_expr.m_pattern);
-			if (case_expr.HasGuard())
-			{
-				VisitExpression(case_expr.m_guard.Value());
-			}
-			VisitExpression(case_expr.m_expr);
-		}
-	);
+	InScope([&]() { MarmotAbstractSyntaxTreeWalker::operator()(case_expr); });
 }

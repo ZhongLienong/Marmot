@@ -11,8 +11,6 @@
 class ShadowingPolicyDiagnostic final : public DiagnosticPass
 {
 protected:
-	void Reset(MarmotProgramTree& program_tree) override;
-
 	void operator()(MarmotStatement::VariableDefinition& def) override;
 	void operator()(MarmotStatement::TupleDefinition& def_tuple) override;
 	void operator()(MarmotStatement::FunctionDefinition& defun) override;

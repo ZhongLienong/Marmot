@@ -7,6 +7,7 @@
 #include <array>
 #include <format>
 #include <ranges>
+#include <span>
 #include <utility>
 
 namespace
@@ -94,39 +95,45 @@ namespace
 		}
 	}
 
-	using Conversion = std::pair<std::pair<MarmotIRScalar, MarmotIRScalar>, std::vector<MarmotIROp>>;
+	struct ScalarConversion
+	{
+		MarmotIRScalar m_from;
+		MarmotIRScalar m_to;
+		std::array<MarmotIROp, 2u> m_operations;
+		std::size_t m_count = 1u;
+	};
 
-	// A conversion between two scalar types, as the ops that make it; empty
-	// when there is none.
-	std::vector<MarmotIROp> ConversionOps(MarmotIRScalar from, MarmotIRScalar to)
+	std::span<const MarmotIROp> ConversionOps(MarmotIRScalar from, MarmotIRScalar to)
 	{
 		using enum MarmotIROp;
 		using enum MarmotIRScalar;
-		const std::pair<MarmotIRScalar, MarmotIRScalar> key{ from, to };
-		static const std::array<Conversion, 18u> s_conversions =
-		{{
-			{ { Int, Float }, { IntToFloat } },
-			{ { Text, Float }, { TextToFloat } },
-			{ { Byte, Float }, { ByteToFloat } },
-			{ { Word, Float }, { WordToFloat } },
-			{ { Float, Int }, { FloatToInt } },
-			{ { Text, Int }, { TextToInt } },
-			{ { Byte, Int }, { ByteToInt } },
-			{ { Word, Int }, { WordToInt } },
-			{ { Int, Byte }, { IntToByte } },
-			{ { Word, Byte }, { WordToByte } },
-			{ { Float, Byte }, { FloatToByte } },
-			{ { Int, Word }, { IntToWord } },
-			{ { Byte, Word }, { ByteToWord } },
-			{ { Float, Word }, { FloatToWord } },
-			{ { Float, Text }, { FloatToText } },
-			{ { Int, Text }, { IntToText } },
-			{ { Byte, Text }, { ByteToInt, IntToText } },
-			{ { Word, Text }, { WordToText } }
-		}};
+		static constexpr ScalarConversion s_conversions[] =
+		{
+			{ Int, Float, { IntToFloat } },
+			{ Text, Float, { TextToFloat } },
+			{ Byte, Float, { ByteToFloat } },
+			{ Word, Float, { WordToFloat } },
+			{ Float, Int, { FloatToInt } },
+			{ Text, Int, { TextToInt } },
+			{ Byte, Int, { ByteToInt } },
+			{ Word, Int, { WordToInt } },
+			{ Int, Byte, { IntToByte } },
+			{ Word, Byte, { WordToByte } },
+			{ Float, Byte, { FloatToByte } },
+			{ Int, Word, { IntToWord } },
+			{ Byte, Word, { ByteToWord } },
+			{ Float, Word, { FloatToWord } },
+			{ Float, Text, { FloatToText } },
+			{ Int, Text, { IntToText } },
+			{ Byte, Text, { ByteToInt, IntToText }, 2u },
+			{ Word, Text, { WordToText } }
+		};
 
-		const std::array<Conversion, 18u>::const_iterator found = std::ranges::find(s_conversions, key, &Conversion::first);
-		return found == s_conversions.cend() ? std::vector<MarmotIROp>{} : found->second;
+		const ScalarConversion* found = std::ranges::find_if(s_conversions, [from, to](const ScalarConversion& conversion)
+		{
+			return conversion.m_from == from && conversion.m_to == to;
+		});
+		return found == std::end(s_conversions) ? std::span<const MarmotIROp>{} : std::span(found->m_operations).first(found->m_count);
 	}
 
 	const TypeRef& UnitType()
@@ -643,7 +650,7 @@ Lowering::Lowered Lowering::FunctionLowering::LowerAs(const MarmotExpression::As
 					return LowerBoolToText(value, keyword.m_line);
 				}
 
-				const std::vector<MarmotIROp> ops = (from.HasValue() && to.HasValue()) ? ConversionOps(from.Value(), to.Value()) : std::vector<MarmotIROp>{};
+				const std::span<const MarmotIROp> ops = (from.HasValue() && to.HasValue()) ? ConversionOps(from.Value(), to.Value()) : std::span<const MarmotIROp>{};
 				if (ops.empty())
 				{
 					return MarmotCompiler::Failure(m_owner.Unsupported(std::format("a conversion from {} to {}", from_type->DisplayString(), to_type->DisplayString()), keyword));

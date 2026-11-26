@@ -54,13 +54,13 @@ void BytecodeStream::AddByteCode(OpCode byte, int line)
 {
 	m_bytecode.push_back(byte);
 
-	if (m_line_info.empty() || m_line_info.back().first != line)
+	if (m_line_info.empty() || m_line_info.back().m_line != line)
 	{
 		m_line_info.emplace_back(line, 1);
 	}
 	else
 	{
-		m_line_info.back().second += 1;
+		m_line_info.back().m_byte_count += 1;
 	}
 }
 
@@ -74,7 +74,12 @@ const OpCode* BytecodeStream::operator[](int index) const
 	return &m_bytecode[static_cast<size_t>(index)];
 }
 
-const std::vector<std::pair<int, int>>& BytecodeStream::GetLineInfo() const
+std::span<const OpCode> BytecodeStream::Bytes() const
+{
+	return m_bytecode;
+}
+
+const std::vector<BytecodeStream::LineRun>& BytecodeStream::GetLineInfo() const
 {
 	return m_line_info;
 }

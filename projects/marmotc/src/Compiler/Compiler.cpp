@@ -391,26 +391,25 @@ namespace
 #endif
 	};
 
-	using ModuleFailures = std::unordered_map<std::string, MarmotResult::CompilerReport>;
-
-	// Warnings and errors in build-schedule order (tier order, then file path
-	// order). A module that failed keeps its warnings at its own position.
-	static MarmotResult::CompilerReport CollectFailureReport(const CompilationSchedule& schedule, const std::unordered_map<std::string, CompiledModule>& compiled_modules, ModuleFailures&& failures)
+	// A module that failed keeps its warnings at its own position in the schedule.
+	static MarmotResult::CompilerReport CollectFailureReport(const CompilationSchedule& schedule, CompilationExecution::Results& results)
 	{
 		MarmotResult::CompilerReport report;
 		for (const std::string& file_path : schedule.m_tiers | std::views::join)
 		{
-			const ModuleFailures::iterator failed = failures.find(file_path);
-			if (failed != failures.end())
+			const auto result = results.find(file_path);
+			if (result == results.end())
 			{
-				report.Append(std::move(failed->second));
+				// A dependency failed before publishing its interface.
 				continue;
 			}
-
-			const std::unordered_map<std::string, CompiledModule>::const_iterator compiled = compiled_modules.find(file_path);
-			if (compiled != compiled_modules.end())
+			if (result->second.HasValue())
 			{
-				report.m_warnings.Append(compiled->second.Warnings());
+				report.m_warnings.Append(result->second->Warnings());
+			}
+			else
+			{
+				report.Append(std::move(result->second).Error());
 			}
 		}
 		return report;
@@ -467,13 +466,13 @@ namespace
 		});
 	}
 
-	static EditorSymbols CollectEditorSymbols(const CompilationSchedule& schedule, std::unordered_map<std::string, CompiledModule>& compiled_modules, const std::string& entry)
+	static EditorSymbols CollectEditorSymbols(const CompilationSchedule& schedule, CompilationExecution::Results& results, const std::string& entry)
 	{
 		GlobalDeclarations globals;
 		ModuleDefinitions entry_definitions;
 		for (const std::string& file : schedule.m_tiers | std::views::join)
 		{
-			CompiledModule& module = compiled_modules.at(file);
+			CompiledModule& module = results.at(file).Value();
 			ModuleDefinitions definitions = std::move(module).TakeDefinitions();
 			globals.merge(definitions.m_globals);
 			for (const auto& [name, origin] : definitions.m_reexports)
@@ -502,13 +501,13 @@ namespace
 		return { std::move(links), std::move(entry_definitions.m_types) };
 	}
 
-	static BuildGraphArtifacts CollectArtifacts(const CompilationSchedule& schedule, std::unordered_map<std::string, CompiledModule>& compiled_modules, const std::string* analysis_entry)
+	static BuildGraphArtifacts CollectArtifacts(const CompilationSchedule& schedule, CompilationExecution::Results& results, const std::string* analysis_entry)
 	{
 		BuildGraphArtifacts artifacts;
 		artifacts.m_bytecode_modules.reserve(schedule.m_all_modules.size());
 		for (const std::string& file_path : schedule.m_tiers | std::views::join)
 		{
-			CompiledModule& compiled_module = compiled_modules.at(file_path);
+			CompiledModule& compiled_module = results.at(file_path).Value();
 			artifacts.m_warnings.Append(compiled_module.Warnings());
 			if (!compiled_module.MarmotIR().empty())
 			{
@@ -525,7 +524,7 @@ namespace
 		}
 		if (analysis_entry != nullptr)
 		{
-			artifacts.m_symbols = CollectEditorSymbols(schedule, compiled_modules, *analysis_entry);
+			artifacts.m_symbols = CollectEditorSymbols(schedule, results, *analysis_entry);
 		}
 
 		return artifacts;
@@ -538,29 +537,15 @@ namespace
 			CompilationTimings::Timer timer(timings, CompilationTimings::Phase::Schedule);
 			return CompilationSchedule(build_graph);
 		}();
-		const size_t total_modules = schedule.m_all_modules.size();
-		std::unordered_map<std::string, CompiledModule> compiled_modules;
-		compiled_modules.reserve(total_modules);
 		const CompilationMode mode = analysis_entry == nullptr ? CompilationMode::Build : CompilationMode::Analysis;
 		CompilationExecution::Results results = CompileModules(build_graph, schedule, inputs, timings, mode);
-		ModuleFailures failures;
-		for (auto& [file_path, result] : results)
+		const bool failed = std::ranges::any_of(results | std::views::values, [](const MarmotResult::CompiledModuleReportResult& result) { return !result; });
+		if (failed)
 		{
-			if (result.HasValue())
-			{
-				compiled_modules.emplace(file_path, std::move(result).Value());
-			}
-			else
-			{
-				failures.emplace(file_path, std::move(result).Error());
-			}
-		}
-		if (!failures.empty())
-		{
-			return MarmotCompiler::Failure(CollectFailureReport(schedule, compiled_modules, std::move(failures)));
+			return MarmotCompiler::Failure(CollectFailureReport(schedule, results));
 		}
 
-		return CollectArtifacts(schedule, compiled_modules, analysis_entry);
+		return CollectArtifacts(schedule, results, analysis_entry);
 	}
 
 	static MarmotResult::ReportResult<BuildGraph> Discover(std::string source, const std::string& file_name, const std::vector<std::string>& source_lines, const CompilationInputs& inputs, CompilationTimings& timings)
@@ -576,7 +561,7 @@ namespace
 		}
 
 		CompilationTimings::Timer timer(timings, CompilationTimings::Phase::Discovery);
-		return ModuleManager(std::move(tokens).Value(), file_name, source_lines, inputs).GenerateBuildGraph()
+		return ModuleManager::GenerateBuildGraph(std::move(tokens).Value(), file_name, source_lines, inputs)
 			.TransformError([](CompilerError error) { return MarmotResult::CompilerReport(std::move(error)); });
 	}
 
@@ -589,18 +574,6 @@ namespace
 		}
 
 		return std::filesystem::path(entry_file_name).stem().string();
-	}
-
-	static MarmotResult::CompiledProgramReportResult LinkBytecodeModules(BuildGraphArtifacts&& build_graph_artifacts, const std::string& entry_module_name)
-	{
-		MarmotResult::BytecodeLinkerResult link_result = BytecodeLinker(std::move(build_graph_artifacts.m_bytecode_modules), entry_module_name).Link();
-		if (!link_result.HasValue())
-		{
-			return MarmotCompiler::Failure(MarmotResult::CompilerReport(std::move(build_graph_artifacts.m_warnings), MarmotResult::CompilerDiagnostics(std::move(link_result.Error()))));
-		}
-
-		MarmotExecutable linked_executable = std::move(link_result.Value());
-		return MarmotResult::CompiledProgram(std::move(linked_executable), MarmotResult::CompilerReport(std::move(build_graph_artifacts.m_warnings)));
 	}
 }
 
@@ -647,48 +620,48 @@ MarmotResult::CompiledProgramReportResult Compiler::CompileWithTimings(Compilati
 	BuildGraph build_graph = std::move(build_graph_result.Value());
 	const std::string entry_module_name = ResolveEntryModuleName(build_graph, m_file_name);
 
-	std::vector<std::string> source_files;
-	source_files.reserve(build_graph.m_nodes.size());
-	for (const std::pair<const std::string, BuildGraph::BuildNode>& node : build_graph.m_nodes)
-	{
-		source_files.push_back(node.first);
-	}
+	std::vector<std::string> source_files = build_graph.m_nodes | std::views::keys | std::ranges::to<std::vector>();
 	std::ranges::sort(source_files);
 
-	MarmotResult::ReportResult<BuildGraphArtifacts> bytecode_result = CompileBuildGraph(std::move(build_graph), m_inputs, timings);
-	if (!bytecode_result.HasValue())
+	MarmotResult::ReportResult<BuildGraphArtifacts> compiled = CompileBuildGraph(std::move(build_graph), m_inputs, timings);
+	if (!compiled)
 	{
-		return MarmotCompiler::Failure(std::move(bytecode_result.Error()));
+		return MarmotCompiler::Failure(std::move(compiled).Error());
 	}
 
-	std::vector<std::string> marmot_ir = std::move(bytecode_result->m_marmot_ir);
-	std::vector<std::string> ast = std::move(bytecode_result->m_ast);
-	MarmotResult::CompiledProgramReportResult linked = [&]()
+	MarmotResult::BytecodeLinkerResult linked = [&]()
 	{
 		CompilationTimings::Timer timer(timings, CompilationTimings::Phase::Linking);
-		return LinkBytecodeModules(std::move(bytecode_result).Value(), entry_module_name);
+		return BytecodeLinker(std::move(compiled->m_bytecode_modules), entry_module_name).Link();
 	}();
-	if (linked.HasValue())
+	if (!linked)
 	{
-		linked->m_source_files = std::move(source_files);
-		linked->m_marmot_ir = std::move(marmot_ir);
-		linked->m_ast = std::move(ast);
+		return MarmotCompiler::Failure
+		(
+			MarmotResult::CompilerReport(std::move(compiled->m_warnings), MarmotResult::CompilerDiagnostics(std::move(linked).Error()))
+		);
 	}
-	if (linked.HasValue() && !m_inputs.NativeLibraryPolicies().empty())
+
+	MarmotExecutable& executable = linked.Value();
+	const auto& policies = m_inputs.NativeLibraryPolicies();
+	if (!policies.empty())
 	{
-		std::vector<NativeLibraryImport> libraries = linked->m_executable.GetNativeLibraries();
+		std::vector<NativeLibraryImport> libraries = executable.GetNativeLibraries();
 		for (NativeLibraryImport& library : libraries)
 		{
-			const std::unordered_map<std::string, NativeLibraryPolicy>::const_iterator policy = m_inputs.NativeLibraryPolicies().find(library.m_name);
-			if (policy != m_inputs.NativeLibraryPolicies().end())
+			const auto policy = policies.find(library.m_name);
+			if (policy != policies.end())
 			{
 				library.m_policy = policy->second;
 			}
 		}
-		linked->m_executable.AttachNativeLibraries(std::move(libraries));
+		executable.AttachNativeLibraries(std::move(libraries));
 	}
 
-	return linked;
+	MarmotResult::CompiledProgram program(std::move(executable), MarmotResult::CompilerReport(std::move(compiled->m_warnings)), std::move(source_files));
+	program.m_marmot_ir = std::move(compiled->m_marmot_ir);
+	program.m_ast = std::move(compiled->m_ast);
+	return program;
 }
 
 EditorAnalysis Compiler::Analyze()

@@ -208,26 +208,12 @@ MarmotResult::BytecodeLinkerResult BytecodeLinker::Link()
 		}
 	}
 
-	MarmotResult::VoidResult import_result = ResolveImportsAndPatch();
-	if (!import_result.HasValue())
+	MarmotResult::Result<std::vector<std::vector<size_t>>> imports = ResolveImports();
+	if (!imports)
 	{
-		return MarmotCompiler::Failure(import_result.Error());
+		return MarmotCompiler::Failure(std::move(imports).Error());
 	}
-
-	ConcatenateBytecode();
-
-	if (!m_unresolved_imports.empty())
-	{
-		std::string message = "Unresolved import(s) during linking:";
-		for (const std::string& unresolved : m_unresolved_imports)
-		{
-			message.push_back(static_cast<char>(10));
-			message += "  ";
-			message += unresolved;
-		}
-		return MarmotCompiler::Failure(CompilerError::Simple(CompilerStage::BytecodeLinker, message, CompilerErrorCode::BytecodeLinkerUnresolvedImport));
-	}
-
+	ConcatenateBytecode(imports.Value());
 
 	m_global_procedures.insert(m_global_procedures.begin(), BytecodeStream());
 	m_global_procedure_source_paths.insert(m_global_procedure_source_paths.begin(), EntrySourcePathForModule(m_modules, m_entry_module_name));
@@ -279,12 +265,9 @@ MarmotResult::VoidResult BytecodeLinker::BuildGlobalSymbolTable()
 {
 	for (const BytecodeModule& module : m_modules)
 	{
-		const size_t module_base = m_module_base_procedure_indices.at(module.m_module_name);
-
 		for (const BytecodeModule::ExportedSymbol& exp : module.m_exports)
 		{
 			const std::string symbol_key = MakeSymbolKey(module.m_module_name, exp.m_name);
-			const size_t global_procedure_index = module_base + exp.m_procedure_index;
 			const std::unordered_map<std::string, LinkedExport>::const_iterator existing_it = m_global_symbol_table.find(symbol_key);
 			if (existing_it != m_global_symbol_table.end())
 			{
@@ -309,7 +292,7 @@ MarmotResult::VoidResult BytecodeLinker::BuildGlobalSymbolTable()
 				return MarmotCompiler::Failure(CompilerError::WithFile(CompilerStage::BytecodeLinker, message, DiagnosticFileName(module), CompilerErrorCode::BytecodeLinkerDuplicateExportedSymbol));
 			}
 
-			m_global_symbol_table.emplace(symbol_key, LinkedExport{ global_procedure_index, &module, &exp });
+			m_global_symbol_table.emplace(symbol_key, LinkedExport{ &module, &exp });
 		}
 	}
 
@@ -430,24 +413,7 @@ void BytecodeLinker::MergeGlobalVariables()
 	);
 }
 
-MarmotResult::VoidResult BytecodeLinker::ResolveImportsAndPatch()
-{
-	for (const BytecodeModule& module : m_modules)
-	{
-		for (const BytecodeModule::ImportedSymbol& import : module.m_imports)
-		{
-			const MarmotResult::VoidResult result = ValidateImport(module, import);
-			if (!result.HasValue())
-			{
-				return result;
-			}
-		}
-	}
-
-	return {};
-}
-
-void BytecodeLinker::ConcatenateBytecode()
+void BytecodeLinker::ConcatenateBytecode(const std::vector<std::vector<size_t>>& import_indices)
 {
 	std::unordered_map<std::string, std::string> source_path_by_module;
 	for (const BytecodeModule& module : m_modules)
@@ -455,34 +421,25 @@ void BytecodeLinker::ConcatenateBytecode()
 		source_path_by_module.emplace(module.m_module_name, module.m_source_path.string());
 	}
 
-	std::ranges::for_each
-	(
-		m_modules,
-		[this, &source_path_by_module](BytecodeModule& module)
+	for (auto&& [module, indices] : std::views::zip(m_modules, import_indices))
+	{
+		const size_t procedure_base = m_module_base_procedure_indices.at(module.m_module_name) + 1uz;
+		const size_t global_base = m_module_base_global_indices.at(module.m_module_name);
+		const std::vector<size_t>& strings = m_module_string_index_mappings.at(module.m_module_name);
+		const std::vector<uint16_t>& shapes = m_module_shape_mappings.at(module.m_module_name);
+
+		for (size_t index = 0uz; index < module.m_procedures.size(); index += 1uz)
 		{
-			const size_t module_proc_base_offset = m_module_base_procedure_indices.at(module.m_module_name);
-			const size_t module_global_base_offset = m_module_base_global_indices.at(module.m_module_name);
-			const std::vector<size_t>& string_mapping = m_module_string_index_mappings.at(module.m_module_name);
-			const std::vector<uint16_t>& shape_mapping = m_module_shape_mappings.at(module.m_module_name);
-			const std::vector<size_t> import_resolved_indices = ResolveImports(module);
+			BytecodeStream& procedure = module.m_procedures[index];
+			PatchProcedure(procedure, procedure_base, global_base, indices, strings, shapes);
 
-			std::ranges::for_each
-			(
-				std::views::iota(0uz, module.m_procedures.size()),
-				[this, &module, &source_path_by_module, module_proc_base_offset, module_global_base_offset, &import_resolved_indices, &string_mapping, &shape_mapping](size_t proc_index)
-				{
-					BytecodeStream& procedure = module.m_procedures[proc_index];
-					PatchProcedure(procedure, module_proc_base_offset + 1uz, module_global_base_offset, import_resolved_indices, string_mapping, shape_mapping);
-
-					// A specialization of an imported generic is named for the module it came from.
-					const std::string& proc_name = module.m_procedure_names[proc_index];
-					const std::unordered_map<std::string, std::string>::const_iterator owner = source_path_by_module.find(proc_name.substr(proc_name.rfind(MmcWire::MODULE_SEPARATOR) + 1u));
-					m_global_procedure_source_paths.emplace_back(owner != source_path_by_module.cend() ? owner->second : module.m_source_path.string());
-					m_global_procedures.push_back(std::move(procedure));
-				}
-			);
+			// A specialization of an imported generic is named for the module it came from.
+			const std::string& name = module.m_procedure_names[index];
+			const auto owner = source_path_by_module.find(name.substr(name.rfind(MmcWire::MODULE_SEPARATOR) + 1u));
+			m_global_procedure_source_paths.emplace_back(owner != source_path_by_module.cend() ? owner->second : module.m_source_path.string());
+			m_global_procedures.push_back(std::move(procedure));
 		}
-	);
+	}
 }
 
 void BytecodeLinker::PopulateReferencedGlobals()
@@ -593,50 +550,32 @@ const BytecodeModule* BytecodeLinker::DefiningModule(const std::string& module_n
 	return nullptr;
 }
 
-MarmotCompiler::Optional<size_t> BytecodeLinker::FindSymbolInExports(const BytecodeModule& module, const std::string& symbol_name) const
+MarmotResult::Result<size_t> BytecodeLinker::ResolveImport(const BytecodeModule& module, const BytecodeModule::ImportedSymbol& import) const
 {
-	std::vector<BytecodeModule::ExportedSymbol>::const_iterator it = std::ranges::find_if
-	(
-		module.m_exports,
-		[&symbol_name](const BytecodeModule::ExportedSymbol& exp) { return exp.m_name == symbol_name; }
-	);
-
-	if (it == module.m_exports.end())
+	const BytecodeModule* owner = DefiningModule(import.m_from_module, import.m_name);
+	if (owner != nullptr)
 	{
-		return MarmotCompiler::None;
+		const size_t base = m_module_base_global_indices.at(owner->m_module_name);
+		const auto exported = m_global_symbol_table.find(MakeSymbolKey(owner->m_module_name, import.m_name));
+		if (exported != m_global_symbol_table.end())
+		{
+			return base + exported->second.m_export->m_global_index;
+		}
+
+		// Instance methods live among the globals under their mangled names.
+		// The parser has already checked the export rules for names in source.
+		const auto global = std::ranges::find(owner->m_global_variables, import.m_name);
+		if (global != owner->m_global_variables.end())
+		{
+			return base + static_cast<size_t>(global - owner->m_global_variables.begin());
+		}
 	}
 
-	std::unordered_map<std::string, size_t>::const_iterator base_it = m_module_base_global_indices.find(module.m_module_name);
-	size_t base_offset = base_it->second;
-
-	return base_offset + it->m_global_index;
-}
-
-MarmotCompiler::Optional<size_t> BytecodeLinker::FindSymbolInGlobals(const BytecodeModule& module, const std::string& symbol_name, size_t base_global_offset) const
-{
-	std::vector<std::string>::const_iterator it = std::ranges::find_if
-	(
-		module.m_global_variables,
-		[&symbol_name](const std::string& global_var) { return global_var == symbol_name; }
-	);
-
-	if (it == module.m_global_variables.end())
+	const std::string message = std::format("Unresolved import: {} from module {}.", import.m_name, import.m_from_module);
+	if (MarmotCompiler::Optional<CompilerError> error = MakeContextualLinkerError(CompilerErrorCode::BytecodeLinkerUnresolvedImport, message, module, import.m_source_provenance))
 	{
-		return MarmotCompiler::None;
+		return MarmotCompiler::Failure(std::move(*error));
 	}
-
-	size_t local_index = std::distance(module.m_global_variables.cbegin(), it);
-	return base_global_offset + local_index;
-}
-
-MarmotResult::VoidResult BytecodeLinker::ValidateImport(const BytecodeModule& module, const BytecodeModule::ImportedSymbol& import) const
-{
-	const BytecodeModule* imported_module = DefiningModule(import.m_from_module, import.m_name);
-	if (imported_module != nullptr && m_global_symbol_table.contains(MakeSymbolKey(imported_module->m_module_name, import.m_name)))
-	{
-		return {};
-	}
-
 	const std::string message_with_origin = std::format
 	(
 		"Unresolved import: {} from module {} (imported by {}).",
@@ -644,74 +583,28 @@ MarmotResult::VoidResult BytecodeLinker::ValidateImport(const BytecodeModule& mo
 		import.m_from_module,
 		FormatModuleOrigin(module, import.m_source_provenance)
 	);
-	const std::string contextual_message = std::format("Unresolved import: {} from module {}.", import.m_name, import.m_from_module);
-
-	if (imported_module == nullptr)
-	{
-		if (MarmotCompiler::Optional<CompilerError> contextual_error = MakeContextualLinkerError(CompilerErrorCode::BytecodeLinkerUnresolvedImport, contextual_message, module, import.m_source_provenance))
-		{
-			return MarmotCompiler::Failure(std::move(*contextual_error));
-		}
-
-		return MarmotCompiler::Failure(CompilerError::WithFile(CompilerStage::BytecodeLinker, message_with_origin, DiagnosticFileName(module), CompilerErrorCode::BytecodeLinkerUnresolvedImport));
-	}
-
-	const size_t base_offset = m_module_base_global_indices.at(imported_module->m_module_name);
-	const MarmotCompiler::Optional<size_t> global_result = FindSymbolInGlobals(*imported_module, import.m_name, base_offset);
-	if (!global_result.HasValue())
-	{
-		if (MarmotCompiler::Optional<CompilerError> contextual_error = MakeContextualLinkerError(CompilerErrorCode::BytecodeLinkerUnresolvedImport, contextual_message, module, import.m_source_provenance))
-		{
-			return MarmotCompiler::Failure(std::move(*contextual_error));
-		}
-
-		return MarmotCompiler::Failure(CompilerError::WithFile(CompilerStage::BytecodeLinker, message_with_origin, DiagnosticFileName(module), CompilerErrorCode::BytecodeLinkerUnresolvedImport));
-	}
-
-	return {};
+	return MarmotCompiler::Failure(CompilerError::WithFile(CompilerStage::BytecodeLinker, message_with_origin, DiagnosticFileName(module), CompilerErrorCode::BytecodeLinkerUnresolvedImport));
 }
 
-std::vector<size_t> BytecodeLinker::ResolveImports(const BytecodeModule& module) const
+MarmotResult::Result<std::vector<std::vector<size_t>>> BytecodeLinker::ResolveImports() const
 {
-	std::vector<size_t> import_resolved_indices;
-	import_resolved_indices.reserve(module.m_imports.size());
-
-	std::ranges::transform
-	(
-		module.m_imports,
-		std::back_inserter(import_resolved_indices),
-		[this, &module](const BytecodeModule::ImportedSymbol& import)
+	std::vector<std::vector<size_t>> module_indices;
+	module_indices.reserve(m_modules.size());
+	for (const BytecodeModule& module : m_modules)
+	{
+		std::vector<size_t>& indices = module_indices.emplace_back();
+		indices.reserve(module.m_imports.size());
+		for (const BytecodeModule::ImportedSymbol& import : module.m_imports)
 		{
-			const BytecodeModule* imported_module = DefiningModule(import.m_from_module, import.m_name);
-			if (imported_module == nullptr)
+			MarmotResult::Result<size_t> index = ResolveImport(module, import);
+			if (!index)
 			{
-				m_unresolved_imports.emplace_back(std::format("'{}' from unknown module '{}', imported by '{}'", import.m_name, import.m_from_module, module.m_module_name));
-				return 0uz;
+				return MarmotCompiler::Failure(std::move(index).Error());
 			}
-
-			const MarmotCompiler::Optional<size_t> export_result = FindSymbolInExports(*imported_module, import.m_name);
-			if (export_result.HasValue())
-			{
-				return export_result.Value();
-			}
-
-			// An instance method is a global the module never lists as an export:
-			// nothing writes its mangled name, so the export list is not where it
-			// is found. A name a program can write has already been checked
-			// against the export list by the parser.
-			const size_t base_offset = m_module_base_global_indices.at(imported_module->m_module_name);
-			const MarmotCompiler::Optional<size_t> global_result = FindSymbolInGlobals(*imported_module, import.m_name, base_offset);
-			if (!global_result.HasValue())
-			{
-				m_unresolved_imports.emplace_back(std::format("'{}' from module '{}', imported by '{}'", import.m_name, import.m_from_module, module.m_module_name));
-				return 0uz;
-			}
-
-			return global_result.Value();
+			indices.push_back(index.Value());
 		}
-	);
-
-	return import_resolved_indices;
+	}
+	return module_indices;
 }
 
 void BytecodeLinker::PatchProcedure(

@@ -7,15 +7,10 @@ std::vector<CompilerWarning> DiagnosticPass::Run(MarmotProgramTree& program_tree
 {
 	m_file_name = file_name;
 	m_source_lines = &source_lines;
-	Reset(program_tree);
 	VisitProgram(program_tree);
 	Finish();
 	m_source_lines = nullptr;
 	return std::exchange(m_warnings, {});
-}
-
-void DiagnosticPass::Reset(MarmotProgramTree&)
-{
 }
 
 void DiagnosticPass::Finish()

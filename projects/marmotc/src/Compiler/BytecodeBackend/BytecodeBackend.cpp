@@ -34,6 +34,19 @@ namespace
 		Discarded
 	};
 
+	struct LocalDelta
+	{
+		MarmotIRValueId m_local;
+		int64_t m_delta;
+	};
+
+	struct EncodedLocalStep
+	{
+		int m_slot;
+		uint8_t m_operand;
+		bool m_updates_slot;
+	};
+
 	MarmotCompiler::Optional<OpCode> ScalarOpCode(MarmotIROp op)
 	{
 		using enum MarmotIROp;
@@ -593,8 +606,8 @@ namespace
 					{
 						continue;
 					}
-					const MarmotCompiler::Optional<std::pair<MarmotIRValueId, int64_t>> step = LocalStep(*definition);
-					if (step.HasValue() && step->first == parameters[index] && !IsUsedAfter(block, *definition, step->first))
+					const MarmotCompiler::Optional<LocalDelta> step = LocalStep(*definition);
+					if (step.HasValue() && step->m_local == parameters[index] && !IsUsedAfter(block, *definition, step->m_local))
 					{
 						m_storage[argument.m_index] = Storage::Slot;
 					}
@@ -931,10 +944,10 @@ namespace
 				}
 				for (const MarmotIRInstruction& instruction : m_function.m_blocks[block].m_instructions)
 				{
-					const MarmotCompiler::Optional<std::pair<MarmotIRValueId, int64_t>> step = LocalStep(instruction);
+					const MarmotCompiler::Optional<LocalDelta> step = LocalStep(instruction);
 					if (step.HasValue())
 					{
-						pair(instruction.m_result.Value(), step->first);
+						pair(instruction.m_result.Value(), step->m_local);
 					}
 					if (instruction.m_op == MarmotIROp::ArrayAppend)
 					{
@@ -955,7 +968,7 @@ namespace
 
 		// A sum or difference of a value and a small constant, as the value
 		// and what it adds.
-		MarmotCompiler::Optional<std::pair<MarmotIRValueId, int64_t>> LocalStep(const MarmotIRInstruction& instruction) const
+		MarmotCompiler::Optional<LocalDelta> LocalStep(const MarmotIRInstruction& instruction) const
 		{
 			if (instruction.m_op != MarmotIROp::AddInt && instruction.m_op != MarmotIROp::SubInt)
 			{
@@ -967,12 +980,12 @@ namespace
 			if (right_constant.HasValue() && m_storage[left.m_index] != Storage::Rematerialized)
 			{
 				const int64_t constant = right_constant.Value();
-				return std::pair{ left, instruction.m_op == MarmotIROp::AddInt ? constant : -constant };
+				return LocalDelta{ left, instruction.m_op == MarmotIROp::AddInt ? constant : -constant };
 			}
 			const MarmotCompiler::Optional<int8_t> left_constant = ByteConstant(left);
 			if (instruction.m_op == MarmotIROp::AddInt && left_constant.HasValue() && m_storage[right.m_index] != Storage::Rematerialized)
 			{
-				return std::pair{ right, static_cast<int64_t>(left_constant.Value()) };
+				return LocalDelta{ right, left_constant.Value() };
 			}
 			return MarmotCompiler::None;
 		}
@@ -1321,7 +1334,7 @@ namespace
 				break;
 			}
 			const uint32_t result = instruction.m_result->m_index;
-			if (ReadsLocalsDirectly(m_fused_branches[result]) || m_fused_tags[result] || IsLocalStep(instruction) || ReadsAndWritesLocals(instruction))
+			if (ReadsLocalsDirectly(m_fused_branches[result]) || m_fused_tags[result] || SelectLocalStep(instruction).HasValue() || ReadsAndWritesLocals(instruction))
 			{
 				return MarmotCompiler::None;
 			}
@@ -1455,44 +1468,53 @@ namespace
 		// own slot, which it may share only when the local dies here, it is
 		// STEP_LOCAL, or ADD_LOCAL_INT when the next instruction takes it from
 		// the stack; otherwise PUSH_LOCAL_SUB_INT pushes it.
-		bool IsLocalStep(const MarmotIRInstruction& instruction) const
+		MarmotCompiler::Optional<EncodedLocalStep> SelectLocalStep(const MarmotIRInstruction& instruction) const
 		{
-			const MarmotCompiler::Optional<std::pair<MarmotIRValueId, int64_t>> step = LocalStep(instruction);
-			if (!step.HasValue() || !IsByteLocal(step->first))
+			const MarmotCompiler::Optional<LocalDelta> step = LocalStep(instruction);
+			if (!step || !IsByteLocal(step->m_local))
 			{
-				return false;
+				return MarmotCompiler::None;
 			}
-			const auto [local, delta] = step.Value();
+
 			const MarmotIRValueId result = instruction.m_result.Value();
-			const bool is_in_place = IsInSlot(result) && m_slots[result.m_index] == m_slots[local.m_index] && delta >= INT8_MIN && delta <= INT8_MAX;
-			return is_in_place || (-delta >= INT8_MIN && -delta <= INT8_MAX);
+			const int slot = m_slots[step->m_local.m_index];
+			const int64_t delta = step->m_delta;
+			if (IsInSlot(result) && m_slots[result.m_index] == slot && delta >= INT8_MIN && delta <= INT8_MAX)
+			{
+				return EncodedLocalStep{ slot, static_cast<uint8_t>(static_cast<int8_t>(delta)), true };
+			}
+			const int64_t subtrahend = -delta;
+			if (subtrahend >= INT8_MIN && subtrahend <= INT8_MAX)
+			{
+				return EncodedLocalStep{ slot, static_cast<uint8_t>(static_cast<int8_t>(subtrahend)), false };
+			}
+			return MarmotCompiler::None;
 		}
 
 		bool EmitLocalStep(const MarmotIRInstruction& instruction, int line)
 		{
-			if (!IsLocalStep(instruction))
+			const MarmotCompiler::Optional<EncodedLocalStep> step = SelectLocalStep(instruction);
+			if (!step)
 			{
 				return false;
 			}
-			const auto [local, delta] = LocalStep(instruction).Value();
+
 			const MarmotIRValueId result = instruction.m_result.Value();
-			const int slot = m_slots[local.m_index];
-			if (IsInSlot(result) && m_slots[result.m_index] == slot && delta >= INT8_MIN && delta <= INT8_MAX)
+			const bool keep_on_stack = step->m_updates_slot && IsLoadedNext(result);
+			const OpCode opcode = step->m_updates_slot
+				? (keep_on_stack ? OpCode::ADD_LOCAL_INT : OpCode::STEP_LOCAL)
+				: OpCode::PUSH_LOCAL_SUB_INT;
+			EmitByte(opcode, line);
+			EmitOperand(step->m_slot, line);
+			EmitOperand(step->m_operand, line);
+			if (!step->m_updates_slot)
 			{
-				const bool is_loaded_next = IsLoadedNext(result);
-				EmitByte(is_loaded_next ? OpCode::ADD_LOCAL_INT : OpCode::STEP_LOCAL, line);
-				EmitOperand(slot, line);
-				EmitOperand(static_cast<uint8_t>(static_cast<int8_t>(delta)), line);
-				if (is_loaded_next)
-				{
-					m_kept = result;
-				}
-				return true;
+				Store(result, line);
 			}
-			EmitByte(OpCode::PUSH_LOCAL_SUB_INT, line);
-			EmitOperand(slot, line);
-			EmitOperand(static_cast<uint8_t>(static_cast<int8_t>(-delta)), line);
-			Store(result, line);
+			else if (keep_on_stack)
+			{
+				m_kept = result;
+			}
 			return true;
 		}
 

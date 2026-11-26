@@ -36,12 +36,6 @@ namespace
 	}
 }
 
-void ShadowingPolicyDiagnostic::Reset(MarmotProgramTree&)
-{
-	m_root = Scope(nullptr);
-	m_scope = &m_root;
-}
-
 ShadowingPolicyDiagnostic::Scope::Scope(Scope* parent)
 	: m_parent(parent)
 {

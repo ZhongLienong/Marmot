@@ -1,17 +1,14 @@
 #pragma once
 
-#include "Compiler/StaticAnalyzerManager/Diagnostics/BaseDiagnosticPass/BaseDiagnosticPass.h"
+#include "Compiler/AbstractSyntaxTree/AbstractSyntaxTree.h"
+#include "Compiler/Error/CompilerError.h"
 
-#include <memory>
+#include <string>
+#include <string_view>
 #include <vector>
 
 class StaticAnalyzerManager
 {
 public:
-	StaticAnalyzerManager();
-
 	std::vector<CompilerWarning> Analyze(MarmotProgramTree& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines);
-
-private:
-	std::vector<std::unique_ptr<DiagnosticPass>> m_passes;
 };

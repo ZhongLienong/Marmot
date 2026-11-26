@@ -7,17 +7,14 @@
 #include <algorithm>
 #include <iterator>
 
-StaticAnalyzerManager::StaticAnalyzerManager()
-{
-	m_passes.emplace_back(std::make_unique<ShadowingPolicyDiagnostic>());
-	m_passes.emplace_back(std::make_unique<UnusedLocalDiagnostic>());
-	m_passes.emplace_back(std::make_unique<IntegerOverflowDiagnostic>());
-}
-
 std::vector<CompilerWarning> StaticAnalyzerManager::Analyze(MarmotProgramTree& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines)
 {
+	ShadowingPolicyDiagnostic shadowing;
+	UnusedLocalDiagnostic unused_locals;
+	IntegerOverflowDiagnostic integer_overflow;
+	DiagnosticPass* const passes[] = { &shadowing, &unused_locals, &integer_overflow };
 	std::vector<CompilerWarning> warnings;
-	for (const std::unique_ptr<DiagnosticPass>& pass : m_passes)
+	for (DiagnosticPass* pass : passes)
 	{
 		std::ranges::move(pass->Run(program_tree, file_name, source_lines), std::back_inserter(warnings));
 	}

@@ -7,6 +7,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <unordered_set>
 
 #include <zlib.h>
 
@@ -137,26 +138,27 @@ namespace
 			// source_path
 			writer.WriteString(executable.GetProcedureSourcePath(proc_index));
 
-			// bytecode — raw u8 stream, already LSB-first per BytecodeBackend
-			const int bytecode_size = executable.GetByteCodeSize(proc_index);
-			writer.WriteU32(static_cast<uint32_t>(bytecode_size));
-			for (int instr = 0; instr < bytecode_size; instr += 1)
+			const BytecodeStream& procedure = executable.GetBytecodeStream(proc_index);
+
+			// OpCode has an 8-bit underlying type. The stream already holds wire bytes.
+			const std::span<const std::byte> bytes = std::as_bytes(procedure.Bytes());
+			writer.WriteU32(static_cast<uint32_t>(bytes.size()));
+			if (!bytes.empty())
 			{
-				writer.WriteU8(static_cast<uint8_t>(executable.ReadByteCode(instr, proc_index)));
+				writer.WriteRaw(bytes.data(), bytes.size());
 			}
 
-			// line_info — compact (line, count) pairs
-			const std::vector<std::pair<int, int>>& line_info = executable.GetBytecodeStream(proc_index).GetLineInfo();
+			const std::vector<BytecodeStream::LineRun>& line_info = procedure.GetLineInfo();
 			writer.WriteU32(static_cast<uint32_t>(line_info.size()));
-			for (const auto& [line, count] : line_info)
+			for (const BytecodeStream::LineRun& run : line_info)
 			{
-				writer.WriteI32(static_cast<int32_t>(line));
-				writer.WriteI32(static_cast<int32_t>(count));
+				writer.WriteI32(static_cast<int32_t>(run.m_line));
+				writer.WriteI32(static_cast<int32_t>(run.m_byte_count));
 			}
 
 			// frame map: slot kinds, the captures' shape, then each safepoint's
 			// offset, temporary kinds and result kind
-			const FrameMap& frame = executable.GetBytecodeStream(proc_index).GetFrameMap();
+			const FrameMap& frame = procedure.GetFrameMap();
 			writer.WriteU32(static_cast<uint32_t>(frame.m_slot_pointers.size()));
 			for (const bool is_pointer : frame.m_slot_pointers)
 			{
@@ -175,7 +177,7 @@ namespace
 				writer.WriteU8(safepoint.m_result_is_pointer ? 1u : 0u);
 			}
 
-			const std::vector<uint16_t>& referenced_globals = executable.GetBytecodeStream(proc_index).GetReferencedGlobals();
+			const std::vector<uint16_t>& referenced_globals = procedure.GetReferencedGlobals();
 			writer.WriteU32(static_cast<uint32_t>(referenced_globals.size()));
 			for (const uint16_t global : referenced_globals)
 			{
@@ -212,28 +214,22 @@ namespace
 		{
 			// We iterate over procedure source paths to gather all unique source files
 			// (the source file table is private; we embed what the VM uses)
-			std::vector<std::pair<std::string, const std::vector<std::string>*>> files_to_embed;
+			struct EmbeddedSource
+			{
+				std::string_view m_path;
+				const std::vector<std::string>* m_lines;
+			};
+			std::vector<EmbeddedSource> files_to_embed;
+			std::unordered_set<std::string_view> visited;
 			for (int proc_index = 0; proc_index < executable.GetProcedureCount(); proc_index += 1)
 			{
 				const std::string_view path = executable.GetProcedureSourcePath(proc_index);
-				const std::vector<std::string>* lines = executable.FindSourceLines(path);
-				if (lines == nullptr)
+				if (visited.insert(path).second)
 				{
-					continue;
-				}
-
-				bool already_included = false;
-				for (const auto& [existing_path, _] : files_to_embed)
-				{
-					if (existing_path == path)
+					if (const std::vector<std::string>* lines = executable.FindSourceLines(path))
 					{
-						already_included = true;
-						break;
+						files_to_embed.emplace_back(path, lines);
 					}
-				}
-				if (!already_included)
-				{
-					files_to_embed.emplace_back(std::string(path), lines);
 				}
 			}
 

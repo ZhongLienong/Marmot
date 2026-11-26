@@ -759,7 +759,7 @@ private:
 
 	ParsedTypeResult ParseUnionBody(TypeDeclarationHeader&& header);
 
-	bool TypeBodyHasTopLevelBar();
+	bool TypeBodyHasTopLevelBar() const;
 
 	ParsedTypeResult ParseNewTypeBody(TypeDeclarationHeader&& header);
 

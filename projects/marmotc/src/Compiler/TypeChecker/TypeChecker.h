@@ -13,15 +13,8 @@
 
 class PatternCoverage;
 
-struct TypePairHash
-{
-	std::size_t operator()(const std::pair<MarmotType*, MarmotType*>& pair) const noexcept;
-};
-
 class TypeChecker
 {
-	friend class NominalUnifyGuard;
-
 public:
 	using TypeEnvironment = std::unordered_map<std::string, std::shared_ptr<MarmotType>>;
 	using AssociatedTypeEnvironment = std::unordered_map<std::string, std::shared_ptr<MarmotType>>;
@@ -167,12 +160,6 @@ private:
 	TypeSubstitution m_type_substitution;
 	std::unordered_map<std::string, ClassInfo> m_classes;
 	std::unordered_map<InstanceKey, InstanceInfo, InstanceKeyHash> m_instances;
-	std::unordered_set<std::pair<MarmotType*, MarmotType*>, TypePairHash> m_unify_visited;
-	// Names of the nominal types whose members are currently being walked, by
-	// Unify or by the occurs check. The pointer guard above cannot catch a type
-	// that reaches itself through a fresh node -- Fork(Array<Tree>) rebuilds the
-	// Array on every descent -- so nominal recursion is tracked by name as well.
-	std::unordered_set<std::string> m_unify_nominal_active;
 	GenericFunctionNames m_generic_functions;
 	GenericStructNames m_generic_structs;
 	GenericUnionNames m_generic_unions;
@@ -317,7 +304,8 @@ private:
 
 	bool OccursCheck(const CheckingContext& context, int var_id, const std::shared_ptr<MarmotType>& type);
 
-	bool OccursCheck(const CheckingContext& context, int var_id, const std::shared_ptr<MarmotType>& type, std::unordered_set<const MarmotType*>& visited);
+	struct OccursCheckState;
+	bool OccursCheck(const CheckingContext& context, int var_id, const std::shared_ptr<MarmotType>& type, OccursCheckState& walk);
 
 	std::string DescribeConstraint(const CheckingContext& context, const MarmotType::ClassConstraint& constraint) const;
 
@@ -367,7 +355,9 @@ private:
 
 	MarmotResult::TypeResult Unify(const CheckingContext& context, const Token& token, const std::shared_ptr<MarmotType>& left, const std::shared_ptr<MarmotType>& right, UnifyDiagnosticMode diagnostic_mode = UnifyDiagnosticMode::Symmetric);
 
-	MarmotResult::TypeResult UnifyTypeArguments(const CheckingContext& context, const Token& token, std::vector<std::shared_ptr<MarmotType>>& left, std::vector<std::shared_ptr<MarmotType>>& right);
+	struct UnificationState;
+	MarmotResult::TypeResult Unify(UnificationState& walk, const CheckingContext& context, const Token& token, const std::shared_ptr<MarmotType>& left, const std::shared_ptr<MarmotType>& right, UnifyDiagnosticMode diagnostic_mode = UnifyDiagnosticMode::Symmetric);
+	MarmotResult::TypeResult UnifyTypeArguments(UnificationState& walk, const CheckingContext& context, const Token& token, const std::vector<std::shared_ptr<MarmotType>>& left, const std::vector<std::shared_ptr<MarmotType>>& right);
 
 	MarmotResult::TypeResult operator()(const CheckingContext& context, MarmotStatement::ExpressionStatement& simple);
 

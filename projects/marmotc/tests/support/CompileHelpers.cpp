@@ -63,7 +63,7 @@ namespace
 			return MarmotCompiler::Failure(std::move(lex_result.Error()));
 		}
 
-		MarmotResult::ModuleManagerResult build_graph_result = ModuleManager(std::move(lex_result.Value()), source.FileName(), source.SourceLines(), MarmotDriver::EnvironmentCompilationInputs()).GenerateBuildGraph();
+		MarmotResult::ModuleManagerResult build_graph_result = ModuleManager::GenerateBuildGraph(std::move(lex_result.Value()), source.FileName(), source.SourceLines(), MarmotDriver::EnvironmentCompilationInputs());
 		if (!build_graph_result.HasValue())
 		{
 			return MarmotCompiler::Failure(std::move(build_graph_result.Error()));

@@ -3,7 +3,6 @@
 #include "Compiler/StaticAnalyzerManager/Diagnostics/BaseDiagnosticPass/BaseDiagnosticPass.h"
 #include "Support/Optional.h"
 
-#include <string>
 #include <unordered_map>
 #include <vector>
 #include <utility>
@@ -11,8 +10,6 @@
 class UnusedLocalDiagnostic final : public DiagnosticPass
 {
 protected:
-	void Reset(MarmotProgramTree& program_tree) override;
-
 	void Finish() override;
 
 	void operator()(MarmotStatement::VariableDefinition& def) override;
@@ -28,36 +25,27 @@ protected:
 private:
 	struct BindingInfo
 	{
-		Token m_token;
-		std::string m_display_name;
+		const Token& m_token;
+		bool m_is_suppressed;
 		bool m_is_read = false;
-		bool m_is_suppressed = false;
 	};
 
 	std::unordered_map<BindingId, BindingInfo> m_bindings;
-	struct Scope
-	{
-		Scope* m_parent;
-		std::vector<BindingId> m_bindings;
-
-		explicit Scope(Scope* parent);
-	};
-
-	Scope m_root{ nullptr };
-	Scope* m_scope = &m_root;
+	std::vector<BindingId> m_root;
+	std::vector<BindingId>* m_scope = &m_root;
 
 	template<typename Visit>
 	void InScope(Visit&& visit)
 	{
-		Scope scope(m_scope);
-		m_scope = &scope;
+		std::vector<BindingId> scope;
+		std::vector<BindingId>* parent = std::exchange(m_scope, &scope);
 		std::forward<Visit>(visit)();
-		m_scope = scope.m_parent;
+		m_scope = parent;
 		FinishScope(scope);
 	}
 
-	void FinishScope(const Scope& scope);
-	void RegisterBinding(const Token& token, const MarmotCompiler::Optional<BindingId>& binding, bool suppressed);
+	void FinishScope(const std::vector<BindingId>& scope);
+	void RegisterBinding(const Token& token, const MarmotCompiler::Optional<BindingId>& binding, bool suppressed = false);
 	void RegisterParameterBindings(const FunctionParameters& params);
 	void MarkRead(const MarmotExpression::NameContext::Tag& name_ctx);
 };

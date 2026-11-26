@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cinttypes>
+#include <span>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -86,6 +87,12 @@ struct FrameMap
 class BytecodeStream
 {
 public:
+	struct LineRun
+	{
+		int m_line;
+		int m_byte_count;
+	};
+
 	using iterator = std::vector<OpCode>::iterator;
 	using const_iterator = std::vector<OpCode>::const_iterator;
 	using reverse_iterator = std::vector<OpCode>::reverse_iterator;
@@ -102,7 +109,7 @@ public:
 
 private:
 	std::vector<OpCode> m_bytecode;
-	std::vector<std::pair<int, int>> m_line_info; // Pair of line number and count of consecutive instructions
+	std::vector<LineRun> m_line_info;
 	FrameMap m_frame;
 	std::vector<uint16_t> m_referenced_globals;
 	std::vector<uint16_t> m_referenced_procedures;
@@ -119,7 +126,8 @@ public:
 
 	const OpCode* operator[](int index) const;
 
-	const std::vector<std::pair<int, int>>& GetLineInfo() const;
+	std::span<const OpCode> Bytes() const;
+	const std::vector<LineRun>& GetLineInfo() const;
 
 	const FrameMap& GetFrameMap() const;
 

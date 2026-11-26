@@ -2405,59 +2405,44 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 
 MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context, MarmotExpression::IfElse& if_else)
 {
-	// The type demanded of the if is the type of its branches, not of its
-	// condition: `C(x) == C(1)` as a condition was checked against Option<C>.
+	// The enclosing expression's expected type applies to the branches.
+	MarmotResult::TypeResult condition = Evaluate(context.WithExpectedType(nullptr), if_else.m_condition);
+	if (!condition)
+	{
+		return condition;
+	}
 
-	return Evaluate(context.WithExpectedType(nullptr), if_else.m_condition)
+	const std::shared_ptr<MarmotType>& bool_type = MarmotType::MakeLiteralType<MarmotType::BoolType>();
+	MarmotResult::TypeResult boolean_condition = Unify(context, if_else.m_if_token, bool_type, condition.Value(), UnifyDiagnosticMode::ExpectedActual);
+	if (!boolean_condition)
+	{
+		return boolean_condition;
+	}
+	if (!boolean_condition.Value()->IsType<MarmotType::BoolType>())
+	{
+		return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("IfElse expression type error: condition must be boolean", if_else.m_if_token, m_file_name, m_source_lines, boolean_condition.Value(), bool_type));
+	}
+
+	MarmotResult::TypeResult then_branch = Evaluate(context, if_else.m_true_branch);
+	if (!then_branch)
+	{
+		return then_branch;
+	}
+
+	// Without an enclosing hint, the then branch can tell an expression
+	// such as None() which type to construct in the else branch.
+	const CheckingContext else_context = context.m_expected_expr_type == nullptr
+		? context.WithExpectedType(ApplySubstitution(context, then_branch.Value()))
+		: context;
+	return Evaluate(else_context, if_else.m_else_branch)
 		.AndThen
 		(
-			[&if_else, this, &context](std::shared_ptr<MarmotType>&& actual_type) ->MarmotResult::TypeResult
+			[this, &context, &if_else, &then_branch](const std::shared_ptr<MarmotType>& else_type)
 			{
-				std::shared_ptr<MarmotType> bool_type = MarmotType::MakeLiteralType<MarmotType::BoolType>();
-				return Unify(context, if_else.m_if_token, bool_type, actual_type, UnifyDiagnosticMode::ExpectedActual)
-					.AndThen
-					(
-						[&if_else, this, &context](std::shared_ptr<MarmotType>&& type)->MarmotResult::TypeResult
-						{
-							if (!type->IsType<MarmotType::BoolType>())
-							{
-								return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("IfElse expression type error: condition must be boolean", if_else.m_if_token, m_file_name, m_source_lines, type, MarmotType::MakeLiteralType<MarmotType::BoolType>()));
-							}
-
-
-							return Evaluate(context, if_else.m_true_branch)
-								.AndThen
-								(
-									[&if_else, this, &context](std::shared_ptr<MarmotType>&& true_branch_type) ->MarmotResult::TypeResult
-									{
-										// With nothing demanded of the whole if, the else branch is
-										// still known to need the then branch's type, which lets
-										// `if c then Some(x) else None()` decide None's type.
-										const CheckingContext else_context = context.m_expected_expr_type == nullptr
-											? context.WithExpectedType(ApplySubstitution(context, true_branch_type))
-											: context;
-										return Evaluate(else_context, if_else.m_else_branch)
-											.AndThen
-											(
-												[&true_branch_type, &if_else, this, &context](std::shared_ptr<MarmotType>&& else_branch_type)->MarmotResult::TypeResult
-												{
-													return Unify(context, if_else.m_else_token, true_branch_type, else_branch_type, UnifyDiagnosticMode::CommonType)
-														.AndThen
-														(
-															[&if_else](std::shared_ptr<MarmotType>&& type)->MarmotResult::TypeResult
-															{
-																if_else.m_type_data = type;
-																return if_else.m_type_data;
-															}
-														);
-												}
-											);
-									}
-								);
-						}
-					);
+				return Unify(context, if_else.m_else_token, then_branch.Value(), else_type, UnifyDiagnosticMode::CommonType);
 			}
-		);
+		)
+		.Transform([&if_else](std::shared_ptr<MarmotType>&& type) { return if_else.m_type_data = std::move(type); });
 }
 
 MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context, MarmotExpression::Block& block)
