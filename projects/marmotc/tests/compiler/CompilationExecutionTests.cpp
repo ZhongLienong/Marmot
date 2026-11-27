@@ -24,7 +24,7 @@ namespace
 
 	MarmotResult::CompiledModuleReportResult Success(const std::string& name)
 	{
-		return CompiledModule(std::make_shared<const ModuleInterface>(ModuleInterface(name, name, {}, {}, {}, {})));
+		return CompiledModule(std::make_shared<const ModuleExportMetadata>(ModuleExportMetadata(name, name, {}, {}, {}, {})));
 	}
 
 	MarmotResult::CompiledModuleReportResult Failure(const std::string& message)
@@ -42,7 +42,7 @@ TEST_CASE("One compilation worker runs dependency work on the caller", "[compile
 	const std::thread::id caller = std::this_thread::get_id();
 	bool on_caller = true;
 	std::vector<std::string> started;
-	const CompilationExecution::Results results = CompilationExecution::Run(schedule, 1u, [&](const ScheduledModule& module, const CompilationExecution::InterfaceReady& publish)
+	const CompilationExecution::Results results = CompilationExecution::Run(schedule, 1u, [&](const ScheduledModule& module, const CompilationExecution::ExportsReady& publish)
 	{
 		on_caller = on_caller && std::this_thread::get_id() == caller;
 		started.push_back(module.m_file_path);
@@ -61,7 +61,7 @@ TEST_CASE("An empty compilation schedule finishes without starting work", "[comp
 	BuildGraph graph;
 	CompilationSchedule schedule(graph);
 	bool started = false;
-	const CompilationExecution::Results results = CompilationExecution::Run(schedule, 0u, [&](const ScheduledModule& module, const CompilationExecution::InterfaceReady&)
+	const CompilationExecution::Results results = CompilationExecution::Run(schedule, 0u, [&](const ScheduledModule& module, const CompilationExecution::ExportsReady&)
 	{
 		started = true;
 		return Success(module.m_file_path);
@@ -87,7 +87,7 @@ TEST_CASE("Compilation workers overlap within the job budget", "[compiler][execu
 	(
 		schedule,
 		2u,
-		[&](const ScheduledModule& module, const CompilationExecution::InterfaceReady&)
+		[&](const ScheduledModule& module, const CompilationExecution::ExportsReady&)
 		{
 			const size_t current = active.fetch_add(1u) + 1u;
 			size_t previous = peak.load();
@@ -125,7 +125,7 @@ TEST_CASE("An importer overlaps its dependency backend even when that backend fa
 	(
 		schedule,
 		2u,
-		[&](const ScheduledModule& module, const CompilationExecution::InterfaceReady& publish)
+		[&](const ScheduledModule& module, const CompilationExecution::ExportsReady& publish)
 		{
 			if (module.m_file_path == "Dependency")
 			{
@@ -160,7 +160,7 @@ TEST_CASE("An unpublished failure blocks its importers while independent work fi
 	(
 		schedule,
 		4u,
-		[](const ScheduledModule& module, const CompilationExecution::InterfaceReady& publish)
+		[](const ScheduledModule& module, const CompilationExecution::ExportsReady& publish)
 		{
 			if (module.m_file_path == "Broken")
 			{
@@ -194,7 +194,7 @@ TEST_CASE("Concurrent diamond publications release the importer once", "[compile
 	(
 		schedule,
 		2u,
-		[&](const ScheduledModule& module, const CompilationExecution::InterfaceReady& publish)
+		[&](const ScheduledModule& module, const CompilationExecution::ExportsReady& publish)
 		{
 			if (module.m_file_path == "Main")
 			{
@@ -234,7 +234,7 @@ TEST_CASE("Unwinding compilation execution stops waiting workers", "[compiler][e
 	const std::shared_future<void> background = background_started.get_future().share();
 	std::promise<void> caller_started;
 	const std::shared_future<void> foreground = caller_started.get_future().share();
-	const CompilationExecution::CompileModule compile = [&](const ScheduledModule& module, const CompilationExecution::InterfaceReady&) -> MarmotResult::CompiledModuleReportResult
+	const CompilationExecution::CompileModule compile = [&](const ScheduledModule& module, const CompilationExecution::ExportsReady&) -> MarmotResult::CompiledModuleReportResult
 	{
 		if (std::this_thread::get_id() == caller)
 		{

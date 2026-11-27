@@ -268,7 +268,7 @@ Current behavior in `CompilationSchedule.cpp` and `CompilationExecution.cpp`:
 - `BuildGraph::GetCompilationTiers()` is used for deterministic diagnostic and final linking order.
 - The compiler separately tracks remaining dependency counts for each module.
 - Modules whose dependencies are satisfied are pushed into a ready queue immediately.
-- Native builds use `std::jthread` workers and the calling thread to consume the queue. Workers release newly eligible modules directly when a dependency publishes its interface.
+- Native builds use `std::jthread` workers and the calling thread to consume the queue. Workers release newly eligible modules directly when a dependency publishes its exports.
 - Emscripten builds use the same worker loop on the calling thread.
 
 This means tiers are metadata for reporting and stable ordering, not a hard "finish tier N before starting tier N+1" execution barrier.

@@ -3,25 +3,25 @@
 
 #include <utility>
 
-CompiledModule::CompiledModule(std::shared_ptr<const ModuleInterface> interface)
-	: m_interface(std::move(interface)),
+CompiledModule::CompiledModule(std::shared_ptr<const ModuleExportMetadata> metadata)
+	: m_export_metadata(std::move(metadata)),
 	m_bytecode(MarmotCompiler::None)
 {
 }
 
 const std::string& CompiledModule::ModuleName() const
 {
-	return m_interface->m_module_name;
+	return m_export_metadata->m_module_name;
 }
 
 const std::filesystem::path& CompiledModule::FilePath() const
 {
-	return m_interface->m_file_path;
+	return m_export_metadata->m_file_path;
 }
 
 const CompiledModule::SymbolTable& CompiledModule::Symbols() const
 {
-	return m_interface->m_symbols;
+	return m_export_metadata->m_symbols;
 }
 
 const std::vector<CompilerWarning>& CompiledModule::Warnings() const

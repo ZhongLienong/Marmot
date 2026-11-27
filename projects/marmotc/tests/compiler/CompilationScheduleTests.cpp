@@ -41,14 +41,14 @@ TEST_CASE("Compilation prioritizes the longest downstream path", "[compiler][sch
 	REQUIRE(ready.top().m_file_path == "ZCritical");
 	ready.pop();
 
-	// The importer becomes ready on the interface event while its dependency
-	// is still optimizing; it also takes priority over the older wide work.
-	Enqueue(ready, schedule.InterfaceReady("ZCritical"));
+	// The importer becomes ready during its dependency's optimization and
+	// takes priority over the work already queued.
+	Enqueue(ready, schedule.ExportsReady("ZCritical"));
 	REQUIRE(ready.top().m_file_path == "Middle");
 	ready.pop();
-	REQUIRE(schedule.InterfaceReady("Middle").empty());
+	REQUIRE(schedule.ExportsReady("Middle").empty());
 	REQUIRE(ready.top().m_file_path == "AWide");
-	const std::vector<ScheduledModule> main = schedule.InterfaceReady("AWide");
+	const std::vector<ScheduledModule> main = schedule.ExportsReady("AWide");
 	REQUIRE(main.size() == 1u);
 	REQUIRE(main.front().m_file_path == "Main");
 }
@@ -66,7 +66,7 @@ TEST_CASE("Compilation priority accounts for source size", "[compiler][schedule]
 	REQUIRE(ready.top().m_file_path == "Large");
 }
 
-TEST_CASE("Compilation releases a diamond once both interfaces are ready", "[compiler][schedule]")
+TEST_CASE("Compilation releases a diamond once both dependencies publish their exports", "[compiler][schedule]")
 {
 	BuildGraph graph;
 	AddModule(graph, "Shared", {});
@@ -75,11 +75,11 @@ TEST_CASE("Compilation releases a diamond once both interfaces are ready", "[com
 	AddModule(graph, "Main", { "Left", "Right" });
 	CompilationSchedule schedule(graph);
 	std::priority_queue<ScheduledModule> ready;
-	Enqueue(ready, schedule.InterfaceReady("Shared"));
+	Enqueue(ready, schedule.ExportsReady("Shared"));
 	REQUIRE(ready.size() == 2u);
 	REQUIRE(ready.top().m_file_path == "Left");
-	REQUIRE(schedule.InterfaceReady("Right").empty());
-	const std::vector<ScheduledModule> main = schedule.InterfaceReady("Left");
+	REQUIRE(schedule.ExportsReady("Right").empty());
+	const std::vector<ScheduledModule> main = schedule.ExportsReady("Left");
 	REQUIRE(main.size() == 1u);
 	REQUIRE(main.front().m_file_path == "Main");
 	REQUIRE(schedule.m_tiers == std::vector<std::vector<std::string>>{ { "Shared" }, { "Left", "Right" }, { "Main" } });

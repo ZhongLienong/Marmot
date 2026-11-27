@@ -167,7 +167,7 @@ add_library(MarmotSyntax STATIC
     src/Compiler/Lexer/Lexer.cpp
     src/Compiler/Module/Module.cpp
     src/Compiler/Module/ModuleImports.cpp
-    src/Compiler/Module/ModuleInterface.cpp
+    src/Compiler/Module/ModuleExportMetadata.cpp
     src/Compiler/Module/TypeclassMetadata.cpp
     src/Compiler/Operator/Operator.cpp
     src/Compiler/Operator/Ordering.cpp
@@ -262,7 +262,7 @@ add_library(MarmotCompiler STATIC
     src/Compiler/CompilationTimings/CompilationTimings.cpp
     src/Compiler/Compiler.cpp
     src/Compiler/Module/ModuleExports.cpp
-    src/Compiler/Module/ModuleInterfaceRegistry.cpp
+    src/Compiler/Module/ModuleExportMetadataRegistry.cpp
 )
 target_link_libraries(MarmotCompiler PUBLIC MarmotCodegen)
 

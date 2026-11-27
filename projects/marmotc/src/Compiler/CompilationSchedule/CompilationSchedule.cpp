@@ -73,7 +73,7 @@ std::vector<ScheduledModule> CompilationSchedule::InitialReady() const
 	return ready;
 }
 
-std::vector<ScheduledModule> CompilationSchedule::InterfaceReady(const std::string& file_path)
+std::vector<ScheduledModule> CompilationSchedule::ExportsReady(const std::string& file_path)
 {
 	std::vector<ScheduledModule> ready;
 	for (const std::string& dependent : m_dependents.at(file_path))

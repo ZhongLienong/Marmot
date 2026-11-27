@@ -17,13 +17,13 @@ namespace
 
 TEST_CASE("Imported access and re-export candidates share namespace visibility", "[module][publication]")
 {
-	const ModuleInterface::SymbolTable symbols = ModuleInterface::SymbolTable()
+	const ModuleExportMetadata::SymbolTable symbols = ModuleExportMetadata::SymbolTable()
 		.WithExport("Open", VisibilityLevel::Public)
 		.WithExport("Shared", VisibilityLevel::Private);
-	const std::vector<std::shared_ptr<const ModuleInterface>> dependencies
+	const std::vector<std::shared_ptr<const ModuleExportMetadata>> dependencies
 	{
-		std::make_shared<const ModuleInterface>("Library.Zulu", "Zulu.mmt", symbols, ModuleInterface::TypeEnvironment(), TypeclassMetadataMap(), GenericFunctions()),
-		std::make_shared<const ModuleInterface>("Library.Alpha", "Alpha.mmt", symbols, ModuleInterface::TypeEnvironment(), TypeclassMetadataMap(), GenericFunctions())
+		std::make_shared<const ModuleExportMetadata>("Library.Zulu", "Zulu.mmt", symbols, ModuleExportMetadata::TypeEnvironment(), TypeclassMetadataMap(), GenericFunctions()),
+		std::make_shared<const ModuleExportMetadata>("Library.Alpha", "Alpha.mmt", symbols, ModuleExportMetadata::TypeEnvironment(), TypeclassMetadataMap(), GenericFunctions())
 	};
 	const MarmotCompiler::Expected<ModuleImports, ModuleImportConflict> imports = ModuleImports::Collect(dependencies);
 	REQUIRE(imports.HasValue());
@@ -49,12 +49,12 @@ def Copy = fn<T>(value: T) -> T => value;
 	REQUIRE(origin.HasValue());
 	const std::shared_ptr<const MarmotExpression> body = origin->m_generic_functions.at("Copy").m_body;
 	const TypeRef point = MarmotType::MakeStructType("Point", "Origin", {}, {});
-	const ModuleInterface::SymbolTable symbols = ModuleInterface::SymbolTable()
+	const ModuleExportMetadata::SymbolTable symbols = ModuleExportMetadata::SymbolTable()
 		.WithExport("Point", VisibilityLevel::Public)
 		.WithExport("Copy", VisibilityLevel::Public);
-	const std::vector<std::shared_ptr<const ModuleInterface>> dependencies
+	const std::vector<std::shared_ptr<const ModuleExportMetadata>> dependencies
 	{
-		std::make_shared<const ModuleInterface>("Origin", "Origin.mmt", symbols, ModuleInterface::TypeEnvironment{ { "Point", point } }, TypeclassMetadataMap(), std::move(origin->m_generic_functions))
+		std::make_shared<const ModuleExportMetadata>("Origin", "Origin.mmt", symbols, ModuleExportMetadata::TypeEnvironment{ { "Point", point } }, TypeclassMetadataMap(), std::move(origin->m_generic_functions))
 	};
 	const MarmotCompiler::Expected<ModuleImports, ModuleImportConflict> imports = ModuleImports::Collect(dependencies);
 	REQUIRE(imports.HasValue());
@@ -64,15 +64,15 @@ def Copy = fn<T>(value: T) -> T => value;
 	const TypeRef integer = MarmotType::MakeLiteralType<MarmotType::IntegerType>();
 	exports.RecordInferredTypes({ { "Inferred", integer }, { "Hidden", integer } });
 	LoweredModule lowered(MarmotIRModule("Facade"));
-	MarmotResult::Result<PublishedModuleInterface> published = std::move(exports).Publish(lowered, imports.Value(), {}, {});
+	MarmotResult::Result<PublishedModuleExports> published = std::move(exports).Publish(lowered, imports.Value(), {}, {});
 	REQUIRE(published.HasValue());
 	CHECK(published->m_reexports == std::unordered_map<std::string, std::string>{ { "Point", "Origin" }, { "Copy", "Origin" } });
-	CHECK(published->m_interface->m_type_signatures.at("Point") == point);
-	CHECK(published->m_interface->m_type_signatures.at("Inferred") == integer);
-	CHECK_FALSE(published->m_interface->m_type_signatures.contains("Hidden"));
-	CHECK(published->m_interface->m_generic_functions.at("Copy").m_body == body);
+	CHECK(published->m_export_metadata->m_type_signatures.at("Point") == point);
+	CHECK(published->m_export_metadata->m_type_signatures.at("Inferred") == integer);
+	CHECK_FALSE(published->m_export_metadata->m_type_signatures.contains("Hidden"));
+	CHECK(published->m_export_metadata->m_generic_functions.at("Copy").m_body == body);
 
-	const std::vector<std::shared_ptr<const ModuleInterface>> facade{ published->m_interface };
+	const std::vector<std::shared_ptr<const ModuleExportMetadata>> facade{ published->m_export_metadata };
 	const MarmotCompiler::Expected<ModuleImports, ModuleImportConflict> downstream = ModuleImports::Collect(facade);
 	REQUIRE(downstream.HasValue());
 	CHECK(downstream->Types().at("Facade::Point") == point);
@@ -89,7 +89,7 @@ TEST_CASE("Publication reports the first invalid export in source order", "[modu
 	ModuleExports exports(&declaration, "Facade.mmt", {}, {});
 	LoweredModule lowered(MarmotIRModule("Facade"));
 	const ModuleImports imports;
-	const MarmotResult::Result<PublishedModuleInterface> published = std::move(exports).Publish(lowered, imports, {}, {});
+	const MarmotResult::Result<PublishedModuleExports> published = std::move(exports).Publish(lowered, imports, {}, {});
 	REQUIRE_FALSE(published.HasValue());
 	CHECK(published.Error().m_code == CompilerErrorCode::ModuleMissingExportedSymbol);
 	REQUIRE(published.Error().m_location.HasValue());

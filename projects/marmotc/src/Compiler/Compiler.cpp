@@ -15,8 +15,8 @@
 #include "Compiler/MarmotIR/Verifier/MarmotIRVerifier.h"
 #include "Compiler/MarmotIROptimizer/MarmotIROptimizer.h"
 #include "Compiler/Module/CompiledModule.h"
+#include "Compiler/Module/ModuleExportMetadataRegistry.h"
 #include "Compiler/Module/ModuleExports.h"
-#include "Compiler/Module/ModuleInterfaceRegistry.h"
 #include "Compiler/ModuleManager/ModuleManager.h"
 #include "Compiler/Names/SpecialNames.h"
 #include "Compiler/Parser/Parser.h"
@@ -53,9 +53,9 @@ namespace
 	{
 		BuildGraph::BuildNode m_source;
 		MarmotCompiler::Optional<ModuleDeclaration> m_declaration;
-		std::vector<std::shared_ptr<const ModuleInterface>> m_dependencies;
+		std::vector<std::shared_ptr<const ModuleExportMetadata>> m_dependencies;
 
-		ModuleCompilationInput(BuildGraph::BuildNode source, MarmotCompiler::Optional<ModuleDeclaration> declaration, std::vector<std::shared_ptr<const ModuleInterface>> dependencies)
+		ModuleCompilationInput(BuildGraph::BuildNode source, MarmotCompiler::Optional<ModuleDeclaration> declaration, std::vector<std::shared_ptr<const ModuleExportMetadata>> dependencies)
 			: m_source(std::move(source)),
 			m_declaration(std::move(declaration)),
 			m_dependencies(std::move(dependencies))
@@ -171,8 +171,8 @@ namespace
 		return CompilerError::WithFile(CompilerStage::Lowering, std::format("{} produced invalid MarmotIR:\n{}\n\n{}", what, message, functions), file_path, CompilerErrorCode::CompilerInternalError);
 	}
 
-	using InterfaceReady = CompilationExecution::InterfaceReady;
-	using InterfacePublisher = std::function<void(std::shared_ptr<const ModuleInterface>)>;
+	using ExportsReady = CompilationExecution::ExportsReady;
+	using ExportPublisher = std::function<void(std::shared_ptr<const ModuleExportMetadata>)>;
 
 	static MarmotResult::CompilerReport InternalError(const std::string& file_path, std::string_view where, std::string_view detail)
 	{
@@ -187,7 +187,7 @@ namespace
 		{
 		}
 
-		MarmotResult::CompiledModuleReportResult Compile(ModuleCompilationInput input, const InterfacePublisher& publish) const
+		MarmotResult::CompiledModuleReportResult Compile(ModuleCompilationInput input, const ExportPublisher& publish) const
 		{
 			const std::string& file_path = input.m_source.m_file_name;
 			MarmotResult::CompilerWarnings warnings;
@@ -302,7 +302,7 @@ namespace
 				return MarmotCompiler::Failure(std::move(lowered.Error()));
 			}
 
-			MarmotResult::ReportResult<PublishedModuleInterface> published = run_stage("module interface", CompilationTimings::Phase::Interface, [&]()
+			MarmotResult::ReportResult<PublishedModuleExports> published = run_stage("module exports", CompilationTimings::Phase::Exports, [&]()
 			{
 				return std::move(checked->m_exports).Publish(*lowered, *imports, input.m_source.m_use_imports, source_lines);
 			});
@@ -310,12 +310,12 @@ namespace
 			{
 				return MarmotCompiler::Failure(std::move(published.Error()));
 			}
-			// Importers need the interface, not this module's completed backend.
-			publish(published->m_interface);
+			// Publishing exports here lets importers start while this module runs its backend.
+			publish(published->m_export_metadata);
 			if (!m_options.m_emit_bytecode)
 			{
 				definitions->m_reexports = std::move(published->m_reexports);
-				return CompiledModule(std::move(published->m_interface))
+				return CompiledModule(std::move(published->m_export_metadata))
 					.WithDefinitions(std::move(*definitions))
 					.WithWarnings(std::move(warnings).TakeAll());
 			}
@@ -369,7 +369,7 @@ namespace
 			}
 
 			CompilationTimings::Timer finalization(m_options.m_timings, CompilationTimings::Phase::Finalization);
-			CompiledModule compiled = CompiledModule(std::move(published->m_interface))
+			CompiledModule compiled = CompiledModule(std::move(published->m_export_metadata))
 				.WithWarnings(std::move(warnings).TakeAll())
 				.WithBytecode(std::move(bytecode).Value())
 				.WithMarmotIR(std::move(marmot_ir).Value())
@@ -400,7 +400,7 @@ namespace
 			const auto result = results.find(file_path);
 			if (result == results.end())
 			{
-				// A dependency failed before publishing its interface.
+				// A dependency failed before publishing its exports.
 				continue;
 			}
 			if (result->second.HasValue())
@@ -415,14 +415,14 @@ namespace
 		return report;
 	}
 
-	static MarmotResult::CompiledModuleReportResult CompileGraphModule(BuildGraph& build_graph, ModuleInterfaceRegistry& interfaces, const ModuleCompiler& compiler, const std::string& file_path, const InterfaceReady& interface_ready)
+	static MarmotResult::CompiledModuleReportResult CompileGraphModule(BuildGraph& build_graph, ModuleExportMetadataRegistry& export_registry, const ModuleCompiler& compiler, const std::string& file_path, const ExportsReady& exports_ready)
 	{
 		// Include input preparation in the same exception handling on the caller
 		// and on workers, where an escaping exception would terminate the process.
 		try
 		{
 			BuildGraph::BuildNode& node = build_graph.m_nodes.at(file_path);
-			std::vector<std::shared_ptr<const ModuleInterface>> dependencies = interfaces.Snapshot(node.m_dependencies);
+			std::vector<std::shared_ptr<const ModuleExportMetadata>> dependencies = export_registry.Snapshot(node.m_dependencies);
 			MarmotCompiler::Optional<ModuleDeclaration> declaration;
 			const std::unordered_map<std::string, ModuleDeclaration>::iterator declared = build_graph.m_module_declarations.find(file_path);
 			if (declared != build_graph.m_module_declarations.end())
@@ -430,10 +430,10 @@ namespace
 				declaration.Emplace(std::move(declared->second));
 			}
 			ModuleCompilationInput input(std::move(node), std::move(declaration), std::move(dependencies));
-			return compiler.Compile(std::move(input), [&interfaces, &file_path, &interface_ready](std::shared_ptr<const ModuleInterface> interface)
+			return compiler.Compile(std::move(input), [&export_registry, &file_path, &exports_ready](std::shared_ptr<const ModuleExportMetadata> metadata)
 			{
-				interfaces.Publish(file_path, std::move(interface));
-				interface_ready(file_path);
+				export_registry.Publish(file_path, std::move(metadata));
+				exports_ready(file_path);
 			});
 		}
 		catch (const std::exception& e)
@@ -457,12 +457,12 @@ namespace
 		const size_t worker_count = 1u;
 #endif
 		timings.SetWorkerCount(worker_count);
-		ModuleInterfaceRegistry interfaces(schedule.m_all_modules.size());
+		ModuleExportMetadataRegistry export_registry(schedule.m_all_modules.size());
 		ModuleCompiler compiler(inputs, timings, mode);
-		return CompilationExecution::Run(schedule, worker_count, [&build_graph, &interfaces, &compiler, &timings](const ScheduledModule& module, const InterfaceReady& interface_ready)
+		return CompilationExecution::Run(schedule, worker_count, [&build_graph, &export_registry, &compiler, &timings](const ScheduledModule& module, const ExportsReady& exports_ready)
 		{
 			CompilationTimings::ModuleTimer timer(timings);
-			return CompileGraphModule(build_graph, interfaces, compiler, module.m_file_path, interface_ready);
+			return CompileGraphModule(build_graph, export_registry, compiler, module.m_file_path, exports_ready);
 		});
 	}
 

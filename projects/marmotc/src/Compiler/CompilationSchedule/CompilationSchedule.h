@@ -25,7 +25,7 @@ struct CompilationSchedule
 
 	explicit CompilationSchedule(const BuildGraph& build_graph);
 	std::vector<ScheduledModule> InitialReady() const;
-	std::vector<ScheduledModule> InterfaceReady(const std::string& file_path);
+	std::vector<ScheduledModule> ExportsReady(const std::string& file_path);
 
 private:
 	ScheduledModule Schedule(const std::string& file_path) const;

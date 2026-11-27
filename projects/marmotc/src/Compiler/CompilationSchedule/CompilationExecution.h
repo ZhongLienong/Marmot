@@ -15,8 +15,8 @@ namespace MarmotResult
 
 namespace CompilationExecution
 {
-	using InterfaceReady = std::function<void(const std::string&)>;
-	using CompileModule = std::function<MarmotResult::CompiledModuleReportResult(const ScheduledModule&, const InterfaceReady&)>;
+	using ExportsReady = std::function<void(const std::string&)>;
+	using CompileModule = std::function<MarmotResult::CompiledModuleReportResult(const ScheduledModule&, const ExportsReady&)>;
 	using Results = std::unordered_map<std::string, MarmotResult::CompiledModuleReportResult>;
 
 	Results Run(CompilationSchedule& schedule, size_t worker_count, const CompileModule& compile);

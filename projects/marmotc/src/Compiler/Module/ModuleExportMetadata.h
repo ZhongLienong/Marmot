@@ -11,7 +11,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
-struct ModuleInterface
+struct ModuleExportMetadata
 {
 	using TypeEnvironment = std::unordered_map<std::string, std::shared_ptr<MarmotType>>;
 	using ExportSet = std::unordered_set<std::string>;
@@ -41,5 +41,5 @@ struct ModuleInterface
 	TypeclassMetadataMap m_typeclass_metadata;
 	GenericFunctions m_generic_functions;
 
-	ModuleInterface(std::string module_name, std::filesystem::path file_path, SymbolTable symbols, TypeEnvironment type_signatures, TypeclassMetadataMap typeclass_metadata, GenericFunctions generic_functions);
+	ModuleExportMetadata(std::string module_name, std::filesystem::path file_path, SymbolTable symbols, TypeEnvironment type_signatures, TypeclassMetadataMap typeclass_metadata, GenericFunctions generic_functions);
 };

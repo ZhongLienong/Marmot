@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Compiler/Module/ModuleInterface.h"
+#include "Compiler/Module/ModuleExportMetadata.h"
 #include "Support/Expected.h"
 
 #include <span>
@@ -24,10 +24,10 @@ struct ModuleImportConflict
 class ModuleImports
 {
 public:
-	using TypeEnvironment = ModuleInterface::TypeEnvironment;
+	using TypeEnvironment = ModuleExportMetadata::TypeEnvironment;
 	using ModuleTypes = std::unordered_map<std::string, TypeEnvironment>;
 
-	static MarmotCompiler::Expected<ModuleImports, ModuleImportConflict> Collect(std::span<const std::shared_ptr<const ModuleInterface>> dependencies);
+	static MarmotCompiler::Expected<ModuleImports, ModuleImportConflict> Collect(std::span<const std::shared_ptr<const ModuleExportMetadata>> dependencies);
 
 	bool ContainsModule(std::string_view module_name) const;
 	ImportedSymbolAccess AccessFrom(std::string_view importer, const std::string& module_name, const std::string& symbol_name) const;
@@ -41,7 +41,7 @@ public:
 	const GenericFunctions& Generics() const;
 
 private:
-	std::unordered_map<std::string, ModuleInterface::SymbolTable> m_symbols;
+	std::unordered_map<std::string, ModuleExportMetadata::SymbolTable> m_symbols;
 	ModuleTypes m_types_by_module;
 	TypeEnvironment m_types;
 	TypeclassMetadataMap m_typeclasses;

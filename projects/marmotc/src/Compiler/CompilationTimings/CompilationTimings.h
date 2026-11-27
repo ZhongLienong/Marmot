@@ -23,7 +23,7 @@ public:
 		TypeChecking,
 		StaticAnalysis,
 		Lowering,
-		Interface,
+		Exports,
 		Optimization,
 		Backend,
 		Finalization,

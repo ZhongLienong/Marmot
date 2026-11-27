@@ -50,12 +50,12 @@ namespace
 			}
 		}
 
-		void PublishInterface(const std::string& file_path)
+		void PublishExports(const std::string& file_path)
 		{
 			size_t ready_count;
 			{
 				std::lock_guard<std::mutex> lock(m_mutex);
-				std::vector<ScheduledModule> ready = m_schedule.InterfaceReady(file_path);
+				std::vector<ScheduledModule> ready = m_schedule.ExportsReady(file_path);
 				ready_count = ready.size();
 				Enqueue(std::move(ready));
 			}
@@ -71,7 +71,7 @@ namespace
 
 		void WorkerLoop(std::stop_token stop)
 		{
-			const CompilationExecution::InterfaceReady interface_ready = [this](const std::string& file_path) { PublishInterface(file_path); };
+			const CompilationExecution::ExportsReady exports_ready = [this](const std::string& file_path) { PublishExports(file_path); };
 			while (true)
 			{
 				MarmotCompiler::Optional<ScheduledModule> module;
@@ -87,7 +87,7 @@ namespace
 					m_active += 1u;
 				}
 
-				MarmotResult::CompiledModuleReportResult result = m_compile(*module, interface_ready);
+				MarmotResult::CompiledModuleReportResult result = m_compile(*module, exports_ready);
 				bool finished;
 				{
 					std::lock_guard<std::mutex> lock(m_mutex);

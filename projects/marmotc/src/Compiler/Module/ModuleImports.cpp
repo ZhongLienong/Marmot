@@ -32,13 +32,13 @@ ModuleImportConflict::ModuleImportConflict(std::filesystem::path dependency, std
 {
 }
 
-MarmotCompiler::Expected<ModuleImports, ModuleImportConflict> ModuleImports::Collect(std::span<const std::shared_ptr<const ModuleInterface>> dependencies)
+MarmotCompiler::Expected<ModuleImports, ModuleImportConflict> ModuleImports::Collect(std::span<const std::shared_ptr<const ModuleExportMetadata>> dependencies)
 {
 	ModuleImports imports;
 	TypeclassImports typeclass_imports;
 	size_t type_count = 0u;
 	size_t generic_count = 0u;
-	for (const std::shared_ptr<const ModuleInterface>& dependency : dependencies)
+	for (const std::shared_ptr<const ModuleExportMetadata>& dependency : dependencies)
 	{
 		type_count += dependency->m_type_signatures.size() * 2u;
 		generic_count += dependency->m_generic_functions.size() * 2u;
@@ -48,7 +48,7 @@ MarmotCompiler::Expected<ModuleImports, ModuleImportConflict> ModuleImports::Col
 	imports.m_types.reserve(type_count);
 	imports.m_generics.reserve(generic_count);
 
-	for (const std::shared_ptr<const ModuleInterface>& dependency : dependencies)
+	for (const std::shared_ptr<const ModuleExportMetadata>& dependency : dependencies)
 	{
 		const std::string& module_name = dependency->m_module_name;
 		imports.m_symbols[module_name] = dependency->m_symbols;
@@ -105,7 +105,7 @@ bool ModuleImports::ContainsModule(std::string_view module_name) const
 
 ImportedSymbolAccess ModuleImports::AccessFrom(std::string_view importer, const std::string& module_name, const std::string& symbol_name) const
 {
-	const std::unordered_map<std::string, ModuleInterface::SymbolTable>::const_iterator module = m_symbols.find(module_name);
+	const std::unordered_map<std::string, ModuleExportMetadata::SymbolTable>::const_iterator module = m_symbols.find(module_name);
 	if (module == m_symbols.cend())
 	{
 		return ImportedSymbolAccess::ModuleNotFound;
