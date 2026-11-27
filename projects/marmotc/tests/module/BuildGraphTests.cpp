@@ -11,7 +11,6 @@
 #include "support/SourceFixture.h"
 #include "support/TempProject.h"
 #include "Support/Expected.h"
-#include "Support/Optional.h"
 
 #include <algorithm>
 #include <filesystem>
@@ -24,7 +23,7 @@
 
 namespace
 {
-	MarmotResult::Result<BuildGraph> GenerateBuildGraphFromFile(const std::filesystem::path& file_path, MarmotCompiler::Optional<size_t> jobs = MarmotCompiler::None)
+	MarmotResult::Result<BuildGraph> GenerateBuildGraphFromFile(const std::filesystem::path& file_path)
 	{
 		std::ifstream input_file(file_path);
 		if (!input_file.is_open())
@@ -42,7 +41,7 @@ namespace
 			return MarmotCompiler::Failure(std::move(lex_result.Error()));
 		}
 
-		return ModuleManager::GenerateBuildGraph(std::move(lex_result.Value()), source_fixture.FileName(), source_fixture.SourceLines(), MarmotDriver::EnvironmentCompilationInputs().WithJobs(jobs));
+		return ModuleManager::GenerateBuildGraph(std::move(lex_result.Value()), source_fixture.FileName(), source_fixture.SourceLines(), MarmotDriver::EnvironmentCompilationInputs());
 	}
 
 	void CheckDiagnosticLocation(const CompilerError& error, const std::filesystem::path& expected_file_path, int expected_line)
@@ -61,7 +60,7 @@ namespace
 	}
 }
 
-TEST_CASE("Discovery reports errors in import traversal order across job counts", "[module][discovery]")
+TEST_CASE("Discovery reports errors in import traversal order", "[module][discovery]")
 {
 	const MarmotTest::TempProject project
 	({
@@ -70,23 +69,13 @@ TEST_CASE("Discovery reports errors in import traversal order across job counts"
 		MarmotTest::TempProjectFile("Second.mmt", "module Second\ndef value = \"unterminated\n")
 	});
 	const std::filesystem::path main = std::filesystem::weakly_canonical(project.Path("Main.mmt"));
-	std::string expected;
-	for (size_t jobs : { 1u, 2u, 4u })
-	{
-		MarmotResult::ModuleManagerResult graph = GenerateBuildGraphFromFile(main, jobs);
-		REQUIRE(!graph.HasValue());
-		REQUIRE(graph.Error().m_code == CompilerErrorCode::ModuleDeclarationMissing);
-		CheckDiagnosticLocation(graph.Error(), std::filesystem::weakly_canonical(project.Path("First.mmt")), 1);
-		const std::string rendered(graph.Error().Rendered());
-		if (expected.empty())
-		{
-			expected = rendered;
-		}
-		REQUIRE(rendered == expected);
-	}
+	MarmotResult::ModuleManagerResult graph = GenerateBuildGraphFromFile(main);
+	REQUIRE(!graph.HasValue());
+	REQUIRE(graph.Error().m_code == CompilerErrorCode::ModuleDeclarationMissing);
+	CheckDiagnosticLocation(graph.Error(), std::filesystem::weakly_canonical(project.Path("First.mmt")), 1);
 }
 
-TEST_CASE("Discovery attributes a shared prefetched open failure to the first importer", "[module][discovery]")
+TEST_CASE("Discovery attributes a shared import open failure to the first importer", "[module][discovery]")
 {
 	const MarmotTest::TempProject project
 	({
@@ -95,20 +84,10 @@ TEST_CASE("Discovery attributes a shared prefetched open failure to the first im
 	});
 	std::filesystem::create_directory(project.Path("Directory.mmt"));
 	const std::filesystem::path main = std::filesystem::weakly_canonical(project.Path("Main.mmt"));
-	std::string expected;
-	for (size_t jobs : { 1u, 2u, 4u })
-	{
-		MarmotResult::ModuleManagerResult graph = GenerateBuildGraphFromFile(main, jobs);
-		REQUIRE(!graph.HasValue());
-		REQUIRE(graph.Error().m_code == CompilerErrorCode::ModuleImportFileOpenFailed);
-		CheckDiagnosticLocation(graph.Error(), std::filesystem::weakly_canonical(project.Path("Nested.mmt")), 2);
-		const std::string rendered(graph.Error().Rendered());
-		if (expected.empty())
-		{
-			expected = rendered;
-		}
-		REQUIRE(rendered == expected);
-	}
+	MarmotResult::ModuleManagerResult graph = GenerateBuildGraphFromFile(main);
+	REQUIRE(!graph.HasValue());
+	REQUIRE(graph.Error().m_code == CompilerErrorCode::ModuleImportFileOpenFailed);
+	CheckDiagnosticLocation(graph.Error(), std::filesystem::weakly_canonical(project.Path("Nested.mmt")), 2);
 }
 
 TEST_CASE("BuildGraph computes deterministic compilation tiers for shared dependencies", "[module][graph]")
@@ -582,7 +561,7 @@ TEST_CASE("ModuleManager tags circular dependencies with a stable diagnostic cod
 	RequireErrorMatches(graph_result.Error(), expectation);
 }
 
-TEST_CASE("Discovery names each cycle at the import that closes it across job counts", "[module][discovery]")
+TEST_CASE("Discovery names each cycle at the import that closes it", "[module][discovery]")
 {
 	const MarmotTest::TempProject project
 	({
@@ -607,21 +586,11 @@ TEST_CASE("Discovery names each cycle at the import that closes it across job co
 		chain = "C -> C";
 	}
 
-	std::string expected;
-	for (size_t jobs : { 1u, 2u, 4u })
-	{
-		MarmotResult::ModuleManagerResult graph = GenerateBuildGraphFromFile(project.Path("Main.mmt"), jobs);
-		REQUIRE(!graph.HasValue());
-		REQUIRE(graph.Error().m_code == CompilerErrorCode::ModuleCircularDependency);
-		CHECK(graph.Error().m_message == std::format("Import cycle: {}.", chain));
-		CheckDiagnosticLocation(graph.Error(), std::filesystem::weakly_canonical(project.Path("C.mmt")), 2);
-		const std::string rendered(graph.Error().Rendered());
-		if (expected.empty())
-		{
-			expected = rendered;
-		}
-		REQUIRE(rendered == expected);
-	}
+	MarmotResult::ModuleManagerResult graph = GenerateBuildGraphFromFile(project.Path("Main.mmt"));
+	REQUIRE(!graph.HasValue());
+	REQUIRE(graph.Error().m_code == CompilerErrorCode::ModuleCircularDependency);
+	CHECK(graph.Error().m_message == std::format("Import cycle: {}.", chain));
+	CheckDiagnosticLocation(graph.Error(), std::filesystem::weakly_canonical(project.Path("C.mmt")), 2);
 }
 
 TEST_CASE("Discovery preserves cycle error precedence within and after its owning module", "[module][discovery]")
@@ -645,13 +614,10 @@ TEST_CASE("Discovery preserves cycle error precedence within and after its ownin
 		static_cast<void>(project.WriteSourceFile("Main.mmt", "module Main\nimport { \"A.mmt\", \"Missing.mmt\" }\n"));
 	}
 
-	for (size_t jobs : { 1u, 2u, 4u })
-	{
-		MarmotResult::ModuleManagerResult graph = GenerateBuildGraphFromFile(project.Path("Main.mmt"), jobs);
-		REQUIRE(!graph.HasValue());
-		REQUIRE(graph.Error().m_code == code);
-		CheckDiagnosticLocation(graph.Error(), std::filesystem::weakly_canonical(file), 2);
-	}
+	MarmotResult::ModuleManagerResult graph = GenerateBuildGraphFromFile(project.Path("Main.mmt"));
+	REQUIRE(!graph.HasValue());
+	REQUIRE(graph.Error().m_code == code);
+	CheckDiagnosticLocation(graph.Error(), std::filesystem::weakly_canonical(file), 2);
 }
 
 TEST_CASE("Discovery retains shared and duplicate import edges once", "[module][discovery]")
@@ -667,17 +633,14 @@ TEST_CASE("Discovery retains shared and duplicate import edges once", "[module][
 	const std::string left = std::filesystem::weakly_canonical(project.Path("Left.mmt")).string();
 	const std::string right = std::filesystem::weakly_canonical(project.Path("Right.mmt")).string();
 	const std::string shared = std::filesystem::weakly_canonical(project.Path("Shared.mmt")).string();
-	for (size_t jobs : { 1u, 2u, 4u })
-	{
-		MarmotResult::ModuleManagerResult graph = GenerateBuildGraphFromFile(main, jobs);
-		REQUIRE(graph.HasValue());
-		REQUIRE(graph->m_nodes.size() == 4u);
-		REQUIRE(graph->m_module_declarations.size() == 4u);
-		REQUIRE(graph->m_nodes.at(main).m_dependencies == std::vector<std::string>{ left, right });
-		REQUIRE(graph->m_nodes.at(right).m_dependencies == std::vector<std::string>{ shared, left });
-		REQUIRE(graph->m_module_declarations.at(shared).HasExport("Value"));
-		REQUIRE(graph->GetCompilationTiers() == std::vector<std::vector<std::string>>{ { shared }, { left }, { right }, { main } });
-	}
+	MarmotResult::ModuleManagerResult graph = GenerateBuildGraphFromFile(main);
+	REQUIRE(graph.HasValue());
+	REQUIRE(graph->m_nodes.size() == 4u);
+	REQUIRE(graph->m_module_declarations.size() == 4u);
+	REQUIRE(graph->m_nodes.at(main).m_dependencies == std::vector<std::string>{ left, right });
+	REQUIRE(graph->m_nodes.at(right).m_dependencies == std::vector<std::string>{ shared, left });
+	REQUIRE(graph->m_module_declarations.at(shared).HasExport("Value"));
+	REQUIRE(graph->GetCompilationTiers() == std::vector<std::vector<std::string>>{ { shared }, { left }, { right }, { main } });
 }
 
 TEST_CASE("Compiler tags missing exported symbols with a stable module diagnostic code", "[module][graph]")

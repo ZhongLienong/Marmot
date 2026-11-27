@@ -5,7 +5,6 @@
 #include "Compiler/Module/Module.h"
 #include "Compiler/Result/Result.h"
 #include "Compiler/Token/Token.h"
-#include "Support/Optional.h"
 
 #include <string>
 #include <vector>
@@ -37,7 +36,6 @@ private:
 	{
 		std::string m_specifier;
 		Token m_token;
-		MarmotCompiler::Optional<std::string> m_resolved_path = MarmotCompiler::None;
 	};
 
 	TokenStream m_tokens;
@@ -46,6 +44,7 @@ private:
 
 	ModuleManager(TokenStream tokens, std::string_view file_name, std::vector<std::string> source_lines);
 
+	MarmotResult::Result<ModuleManager> LoadImportedModule(const std::string& file_path, const CompilationInputs& inputs, int import_line) const;
 	MarmotResult::VoidResult DiscoverModule(DiscoveryState& discovery);
 
 	std::vector<StatementSpan> ScanModuleStatements(const TokenStream& tokens);

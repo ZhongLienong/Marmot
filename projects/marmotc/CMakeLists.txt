@@ -196,7 +196,6 @@ add_library(MarmotSema STATIC
     src/Compiler/CompilationInputs/CompilationInputs.cpp
     src/Compiler/ImportResolver/ImportResolver.cpp
     src/Compiler/ModuleManager/ModuleManager.cpp
-    src/Compiler/ModuleManager/ModuleSourceLoader.cpp
     src/Compiler/StaticAnalyzerManager/Diagnostics/BaseDiagnosticPass/BaseDiagnosticPass.cpp
     src/Compiler/StaticAnalyzerManager/Diagnostics/IntegerOverflowDiagnostic/IntegerOverflowDiagnostic.cpp
     src/Compiler/StaticAnalyzerManager/Diagnostics/ShadowingPolicyDiagnostic/ShadowingPolicyDiagnostic.cpp

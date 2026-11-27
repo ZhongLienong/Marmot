@@ -1,17 +1,19 @@
 #include "ModuleManager.h"
 #include "Compiler/Error/CompilerError.h"
-#include "ModuleSourceLoader.h"
-#include "Compiler/Token/Token.h"
 #include "Compiler/ImportResolver/ImportResolver.h"
+#include "Compiler/Lexer/Lexer.h"
+#include "Compiler/Source/Source.h"
+#include "Compiler/Token/Token.h"
 #include "Support/Expected.h"
 #include "Support/Optional.h"
 
+#include <algorithm>
 #include <filesystem>
 #include <format>
-#include <algorithm>
+#include <fstream>
 #include <ranges>
+#include <sstream>
 #include <unordered_map>
-#include <unordered_set>
 
 using namespace std::string_literals;
 
@@ -46,14 +48,12 @@ struct ModuleManager::DiscoveryState
 {
 	const CompilationInputs& m_inputs;
 	BuildGraph m_build_graph;
-	ModuleSourceLoader m_source_loader;
 	std::vector<std::string> m_active_modules;
 	// Report a cycle after finishing the imports of the module it leads back to.
 	std::unordered_map<std::string, CompilerError> m_cycles;
 
 	explicit DiscoveryState(const CompilationInputs& inputs)
-		: m_inputs(inputs),
-		m_source_loader(inputs.Jobs().ValueOr(std::max(1u, std::thread::hardware_concurrency())), inputs)
+		: m_inputs(inputs)
 	{
 	}
 };
@@ -75,6 +75,43 @@ MarmotResult::ModuleManagerResult ModuleManager::GenerateBuildGraph(TokenStream 
 	}
 
 	return std::move(discovery.m_build_graph);
+}
+
+MarmotResult::Result<ModuleManager> ModuleManager::LoadImportedModule(const std::string& file_path, const CompilationInputs& inputs, int import_line) const
+{
+	std::string source;
+	if (const std::string* overlay = inputs.SourceOverlay(file_path); overlay != nullptr)
+	{
+		source = *overlay;
+	}
+	else
+	{
+		std::ifstream file(file_path);
+		// Linux opens a directory as a stream that reads nothing.
+		if (std::filesystem::is_directory(file_path) || !file.is_open())
+		{
+			return MarmotCompiler::Failure(MarmotError::GenerateModuleErrorWithContext(
+				CompilerErrorCode::ModuleImportFileOpenFailed, "Could not open import file: " + file_path, import_line, m_file_name));
+		}
+		std::ostringstream buffer;
+		buffer << file.rdbuf();
+		source = std::move(buffer).str();
+	}
+
+	MarmotSource::RemoveByteOrderMark(source);
+	std::vector<std::string> source_lines;
+	std::istringstream stream(source);
+	std::string line;
+	while (std::getline(stream, line))
+	{
+		source_lines.push_back(std::move(line));
+	}
+	MarmotResult::LexerResult lexed = Lexer(std::move(source), file_path).Lex();
+	if (!lexed.HasValue())
+	{
+		return MarmotCompiler::Failure(std::move(lexed.Error()));
+	}
+	return ModuleManager(std::move(lexed).Value(), file_path, std::move(source_lines));
 }
 
 MarmotResult::VoidResult ModuleManager::DiscoverModule(DiscoveryState& discovery)
@@ -119,7 +156,7 @@ MarmotResult::VoidResult ModuleManager::DiscoverModule(DiscoveryState& discovery
 			return MarmotCompiler::Failure(std::move(import_result.Error()));
 		}
 
-		std::vector<SourceImport>& imports = import_result.Value();
+		const std::vector<SourceImport>& imports = import_result.Value();
 		MarmotResult::Result<std::vector<UseImport>> use_import_result = ExtractUseStatements(m_tokens, spans);
 		if (!use_import_result.HasValue())
 		{
@@ -140,26 +177,10 @@ MarmotResult::VoidResult ModuleManager::DiscoverModule(DiscoveryState& discovery
 		discovery.m_active_modules.push_back(m_file_name);
 
 		const ImportResolver resolver(m_file_name, discovery.m_inputs.SearchPaths());
-		std::vector<std::string> loading;
-		for (SourceImport& imported : imports)
-		{
-			imported.m_resolved_path = resolver.Resolve(imported.m_specifier);
-			const MarmotCompiler::Optional<std::string>& resolved = imported.m_resolved_path;
-			if (resolved.HasValue() && !build_graph.m_nodes.contains(resolved.Value()))
-			{
-				loading.push_back(resolved.Value());
-			}
-		}
-		discovery.m_source_loader.Prefetch(loading);
-		std::unordered_set<std::string_view> dependencies;
-		dependencies.reserve(imports.size());
-
-		// Consume prefetched results in the original depth-first order so a
-		// faster sibling cannot change which declaration or error comes first.
 		for (const SourceImport& imported : imports)
 		{
 			const Token& import_token = imported.m_token;
-			const MarmotCompiler::Optional<std::string>& resolved_opt = imported.m_resolved_path;
+			const MarmotCompiler::Optional<std::string> resolved_opt = resolver.Resolve(imported.m_specifier);
 			if (!resolved_opt.HasValue())
 			{
 				return MarmotCompiler::Failure(CompilerError::WithToken(CompilerStage::Module, "Could not resolve import: "s + imported.m_specifier, import_token, m_file_name, node.m_source_lines, MarmotCompiler::None, CompilerErrorCode::ModuleImportResolutionFailed));
@@ -167,10 +188,9 @@ MarmotResult::VoidResult ModuleManager::DiscoverModule(DiscoveryState& discovery
 
 			const std::string& include_absolute_path_str = resolved_opt.Value();
 
-			if (dependencies.emplace(include_absolute_path_str).second)
+			if (node.m_import_tokens.try_emplace(include_absolute_path_str, import_token).second)
 			{
 				node.m_dependencies.emplace_back(include_absolute_path_str);
-				node.m_import_tokens.emplace(include_absolute_path_str, import_token);
 			}
 
 			if (build_graph.m_nodes.contains(include_absolute_path_str))
@@ -183,14 +203,13 @@ MarmotResult::VoidResult ModuleManager::DiscoverModule(DiscoveryState& discovery
 				continue;
 			}
 
-			MarmotResult::Result<ImportedSource> source = discovery.m_source_loader.Take(include_absolute_path_str, m_file_name, import_token.m_line);
-			if (!source.HasValue())
+			MarmotResult::Result<ModuleManager> imported_module = LoadImportedModule(include_absolute_path_str, discovery.m_inputs, import_token.m_line);
+			if (!imported_module.HasValue())
 			{
-				return MarmotCompiler::Failure(std::move(source.Error()));
+				return MarmotCompiler::Failure(std::move(imported_module.Error()));
 			}
 
-			ModuleManager module_manager(std::move(source->m_tokens), include_absolute_path_str, std::move(source->m_source_lines));
-			MarmotResult::VoidResult nested_build_graph_result = module_manager.DiscoverModule(discovery);
+			MarmotResult::VoidResult nested_build_graph_result = imported_module->DiscoverModule(discovery);
 			if (!nested_build_graph_result.HasValue())
 			{
 				return MarmotCompiler::Failure(std::move(nested_build_graph_result.Error()));
