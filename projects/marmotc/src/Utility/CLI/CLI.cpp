@@ -316,7 +316,8 @@ namespace
 		CLI::App* fmt = app.add_subcommand("fmt");
 		CLI::App* help = app.add_subcommand("help");
 		help->add_option("topic", help_topic);
-		for (CLI::App* command : { check, analyze, build, fmt })
+		analyze->add_flag("-h,--help", invocation.m_show_help);
+		for (CLI::App* command : { check, build, fmt })
 		{
 			command->add_flag("-h,--help", invocation.m_show_help);
 			command->add_option("--format", formats)->expected(1)->take_all();
@@ -417,6 +418,10 @@ namespace
 		}
 		else if (*analyze)
 		{
+			if (!global_formats.empty())
+			{
+				return MarmotCompiler::Failure("Unknown option: --format");
+			}
 			invocation.m_kind = CommandKind::Analyze;
 		}
 		else if (*check || *build)

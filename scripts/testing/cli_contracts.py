@@ -42,6 +42,8 @@ def run_marmot(
     args: list[str],
     env_overrides: dict[str, str | None] | None = None,
     cwd: Path | None = None,
+    *,
+    input_text: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
     if env_overrides is not None:
@@ -53,6 +55,7 @@ def run_marmot(
 
     return subprocess.run(
         [str(tree.compiler), *args],
+        input=input_text,
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -270,6 +273,23 @@ def scenario_help_lists_new_commands(tree: BuildTree) -> None:
     assert_condition(per_command.returncode == 0, f"help_build: expected exit code 0, got {per_command.returncode}.")
     for flag in ("--plan", "-o", "--embed-sources", "--quiet"):
         assert_condition(flag in per_command.stdout, f"Expected {flag} in the build help:\n{per_command.stdout}")
+
+
+def scenario_analyze_always_returns_json(tree: BuildTree) -> None:
+    with tempfile.TemporaryDirectory(prefix="marmot-cli-analyze-") as temp_dir:
+        source = Path(temp_dir) / "Main.mmt"
+        write_text(source, "module Main\ndef value = 1;\n")
+        request = json.dumps({"plan": {"version": 1, "entry": str(source)}, "sources": {}})
+
+        completed = run_marmot(tree, ["analyze"], input_text=request)
+        payload = parse_command_json("analyze_always_returns_json", completed)
+        assert_condition(completed.returncode == 0 and payload["command"] == "analyze" and payload["success"],
+                         f"Expected a successful analysis report: {completed}")
+
+        for args in (["analyze", "--format", "json"], ["--format", "json", "analyze"]):
+            rejected = run_marmot(tree, args, input_text=request)
+            assert_condition(rejected.returncode != 0 and "Unknown option: --format" in rejected.stderr,
+                             f"Expected {args} to reject --format: {rejected}")
 
 
 def scenario_emit_ir_feature(tree: BuildTree) -> None:
@@ -885,6 +905,7 @@ SCENARIOS: list[tuple[str, Any]] = [
     ("diagnostics_go_to_stderr_in_colour_only_when_asked", scenario_diagnostics_go_to_stderr_in_colour_only_when_asked),
     ("version_output_format", scenario_version_output_format),
     ("help_lists_new_commands", scenario_help_lists_new_commands),
+    ("analyze_always_returns_json", scenario_analyze_always_returns_json),
     ("emit_ir_feature", scenario_emit_ir_feature),
     ("emit_ast_feature", scenario_emit_ast_feature),
     ("marmotvm_runs_what_marmotc_built", scenario_marmotvm_runs_what_marmotc_built),
