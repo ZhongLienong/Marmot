@@ -189,7 +189,7 @@ Current warning passes:
 
 Warnings remain structured as `CompilerWarning` values and are appended to the compile-wide report.
 
-`marmotc check` and `marmotc build` accept `--emit-ast`, which is listed in the per-command help in every profile. It prints each module's checked AST, as it stands after static analysis, with how every name resolved (a local and its slot, a cell, or a global), in link order. It cannot be combined with `--format json`. With `--emit-ir` as well, every module's AST comes first, then every module's MarmotIR.
+`marmotc check` and `marmotc build` accept `--emit-ast`, which is listed in the per-command help in every profile. It prints each module's checked AST, as it stands after static analysis, with how every name resolved (a local binding, a capture, or a global), in link order. It cannot be combined with `--format json`. With `--emit-ir` as well, every module's AST comes first, then every module's MarmotIR.
 
 ## Phase 6: Lowering
 
@@ -243,7 +243,7 @@ Important opcode families in the current executable format:
 - Pattern matching: `GET_TAG`, `GET_UNION_FIELD`
 - Calls: `CALL_FOREIGN`, `CALL_INTRINSIC`, `CALL`, `CALL_0` through `CALL_3`, `CALL_PROC_WIDE`, `CALL_GLOBAL_WIDE`, `TAIL_CALL`
 - Data construction: `CONSTRUCT_STRUCT`, `CONSTRUCT_UNION`
-- Closures and functions: `MAKE_FUNCTION_WIDE`, `MAKE_CLOSURE_OF`, `SET_CAPTURE`, `GET_CELL`, `GET_CELL_WIDE`
+- Closures and functions: `MAKE_FUNCTION_WIDE`, `MAKE_CLOSURE_OF`, `SET_CAPTURE`, `GET_CAPTURE`, `GET_CAPTURE_WIDE`
 - Variables: `DEFINE_GLOBAL_WIDE`, `GET_GLOBAL_WIDE`, `SET_GLOBAL_WIDE`, `GET_LOCAL`, `SET_LOCAL`, `GET_LOCAL_WIDE`, `SET_LOCAL_WIDE`
 - References (`Ref<T>`): `MAKE_CELL`, `READ_CELL`, `WRITE_CELL`, operating on a cell value on the stack rather than a captured local
 - Members and stack: `GET_MEMBER`, `POP`, `PUSH_PLACEHOLDER`

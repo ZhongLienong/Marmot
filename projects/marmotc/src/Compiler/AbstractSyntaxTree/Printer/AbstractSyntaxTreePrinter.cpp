@@ -150,9 +150,9 @@ void PrintAbstractSyntaxTree::PrintVariableSemantic(int depth, const MarmotExpre
 			{
 				PrintWithIndentation(depth, "Global");
 			}
-			else if constexpr (std::is_same_v<T, MarmotExpression::NameContext::Cell>)
+			else if constexpr (std::is_same_v<T, MarmotExpression::NameContext::Capture>)
 			{
-				PrintWithIndentation(depth, "Cell");
+				PrintWithIndentation(depth, "Capture");
 				PrintWithIndentation(depth, "Binding: " + std::to_string(arg.m_binding->m_index));
 			}
 		}, tag

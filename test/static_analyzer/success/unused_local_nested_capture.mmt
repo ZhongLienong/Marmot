@@ -1,7 +1,7 @@
 module UnusedLocalNestedCapture
 
 // Regression: a local read only from inside a nested closure was reported as
-// never read once the closure sat two levels deep, because a cell index was
+// never read once the closure sat two levels deep, because a capture index was
 // looked up in a map keyed by local indices. Only `ignored` is genuinely unread.
 def twoLevels = fn(outer: Int) -> fn(Int) -> fn() -> Int => fn(inner: Int) -> fn() -> Int =>
 {

@@ -124,7 +124,7 @@ namespace
 		Terminal::Print(output, formated_str.str());
 	}
 
-	void LocalOrCellVariableInstruction(std::FILE* output, std::string_view name, const VmExecutable& executable, int proc_index, int& offset)
+	void LocalOrCaptureInstruction(std::FILE* output, std::string_view name, const VmExecutable& executable, int proc_index, int& offset)
 	{
 		int operand = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 		offset += 2;
@@ -155,7 +155,7 @@ namespace
 		Terminal::Print(output, formated_str.str());
 	}
 
-	void LocalOrCellVariableWideInstruction(std::FILE* output, std::string_view name, const VmExecutable& executable, int proc_index, int& offset)
+	void LocalOrCaptureWideInstruction(std::FILE* output, std::string_view name, const VmExecutable& executable, int proc_index, int& offset)
 	{
 		const int operand = ReadWideOperand(executable, proc_index, offset + 1);
 		offset += 3;
@@ -835,7 +835,7 @@ namespace Disassembler
 			break;
 		}
 		case VmOpCode::STORE_LOCAL:
-			LocalOrCellVariableInstruction(output, "STORE_LOCAL", executable, proc_index, offset);
+			LocalOrCaptureInstruction(output, "STORE_LOCAL", executable, proc_index, offset);
 			break;
 		case VmOpCode::IF_LOCAL_TAG_NOT:
 		{
@@ -991,13 +991,13 @@ namespace Disassembler
 			DataInstruction(output, "LOAD_EMPTY_UNION", executable, proc_index, offset);
 			break;
 		case VmOpCode::GET_LOCAL:
-			LocalOrCellVariableInstruction(output, "GET_LOCAL", executable, proc_index, offset);
+			LocalOrCaptureInstruction(output, "GET_LOCAL", executable, proc_index, offset);
 			break;
 		case VmOpCode::SET_LOCAL:
-			LocalOrCellVariableInstruction(output, "SET_LOCAL", executable, proc_index, offset);
+			LocalOrCaptureInstruction(output, "SET_LOCAL", executable, proc_index, offset);
 			break;
-		case VmOpCode::GET_CELL:
-			LocalOrCellVariableInstruction(output, "GET_CELL", executable, proc_index, offset);
+		case VmOpCode::GET_CAPTURE:
+			LocalOrCaptureInstruction(output, "GET_CAPTURE", executable, proc_index, offset);
 			break;
 		case VmOpCode::DEFINE_GLOBAL_WIDE:
 			GlobalVariableWideInstruction(output, "DEFINE_GLOBAL_WIDE", executable, proc_index, offset);
@@ -1012,13 +1012,13 @@ namespace Disassembler
 			CallGlobalWideInstruction(output, "CALL_GLOBAL_WIDE", executable, proc_index, offset);
 			break;
 		case VmOpCode::GET_LOCAL_WIDE:
-			LocalOrCellVariableWideInstruction(output, "GET_LOCAL_WIDE", executable, proc_index, offset);
+			LocalOrCaptureWideInstruction(output, "GET_LOCAL_WIDE", executable, proc_index, offset);
 			break;
 		case VmOpCode::SET_LOCAL_WIDE:
-			LocalOrCellVariableWideInstruction(output, "SET_LOCAL_WIDE", executable, proc_index, offset);
+			LocalOrCaptureWideInstruction(output, "SET_LOCAL_WIDE", executable, proc_index, offset);
 			break;
-		case VmOpCode::GET_CELL_WIDE:
-			LocalOrCellVariableWideInstruction(output, "GET_CELL_WIDE", executable, proc_index, offset);
+		case VmOpCode::GET_CAPTURE_WIDE:
+			LocalOrCaptureWideInstruction(output, "GET_CAPTURE_WIDE", executable, proc_index, offset);
 			break;
 		case VmOpCode::GET_MEMBER:
 			MemberInstruction(output, "GET_MEMBER", executable, proc_index, offset);

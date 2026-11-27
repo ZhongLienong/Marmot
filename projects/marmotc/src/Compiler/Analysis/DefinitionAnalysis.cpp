@@ -187,9 +187,9 @@ namespace
 			{
 				m_local_references.emplace_back(local->m_binding, std::move(reference));
 			}
-			else if (const auto* cell = std::get_if<MarmotExpression::NameContext::Cell>(&node.m_name_ctx))
+			else if (const auto* captured = std::get_if<MarmotExpression::NameContext::Capture>(&node.m_name_ctx))
 			{
-				m_local_references.emplace_back(cell->m_binding, std::move(reference));
+				m_local_references.emplace_back(captured->m_binding, std::move(reference));
 			}
 			else
 			{

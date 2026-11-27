@@ -31,7 +31,7 @@ def shape = Shape::Square(6);
 
 def AddHundred = MakeAdder(100);
 
-// A local recursive closure refers to itself through its own captured cell, so
+// A local recursive closure captures itself, so
 // copying this global into a worker has to handle a cycle.
 def MakeSumTo = fn(bonus: Int) -> fn(Int) -> Int =>
 {

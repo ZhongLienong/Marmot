@@ -397,13 +397,13 @@ public:
 			BindingId m_binding;
 			bool m_is_generated = false;
 		};
-		struct Cell
+		struct Capture
 		{
 			BindingId m_binding;
 		};
 		struct Global {};
 
-		using Tag = std::variant<Local, Cell, Global>;
+		using Tag = std::variant<Local, Capture, Global>;
 	};
 
 	struct BaseExpression

@@ -234,7 +234,7 @@ namespace
 		{
 		case OpCode::GET_LOCAL: return OpCode::GET_LOCAL_WIDE;
 		case OpCode::SET_LOCAL: return OpCode::SET_LOCAL_WIDE;
-		case OpCode::GET_CELL: return OpCode::GET_CELL_WIDE;
+		case OpCode::GET_CAPTURE: return OpCode::GET_CAPTURE_WIDE;
 		default: throw std::logic_error(std::format("opcode {} has no wide form", static_cast<int>(op)));
 		}
 	}
@@ -1750,7 +1750,7 @@ namespace
 				EmitOperand(static_cast<int>(std::get<MarmotIRIndex>(instruction.m_immediate).m_value), line);
 				return {};
 			case MarmotIROp::GetCapture:
-				EmitVariable(OpCode::GET_CELL, static_cast<int>(std::get<MarmotIRIndex>(instruction.m_immediate).m_value), line);
+				EmitVariable(OpCode::GET_CAPTURE, static_cast<int>(std::get<MarmotIRIndex>(instruction.m_immediate).m_value), line);
 				return {};
 			case MarmotIROp::GlobalDefine:
 				EmitGlobal(OpCode::DEFINE_GLOBAL_WIDE, m_backend.GlobalOperand(std::get<MarmotIRGlobalSlot>(instruction.m_immediate)), line);

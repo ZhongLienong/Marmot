@@ -1,10 +1,7 @@
 module SideEffect
 import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
-// Previously a closure over a private mutable counter. Without assignment a
-// closure cannot hold state, so that subject no longer exists; what survives is
-// the other property the file pinned: a closure body runs when the closure is
-// called, not when it is created.
+// The reporter prints when it is created and each time it is called.
 
 def makeReporter = fn(label: Text) -> fn() -> Unit =>
 {

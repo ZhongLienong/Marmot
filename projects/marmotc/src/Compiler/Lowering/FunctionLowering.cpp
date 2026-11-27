@@ -719,11 +719,11 @@ Lowering::Lowered Lowering::FunctionLowering::LowerName(const MarmotExpression::
 	}
 
 	const bool is_local = std::holds_alternative<MarmotExpression::NameContext::Local>(name.m_name_ctx);
-	if (is_local || std::holds_alternative<MarmotExpression::NameContext::Cell>(name.m_name_ctx))
+	if (is_local || std::holds_alternative<MarmotExpression::NameContext::Capture>(name.m_name_ctx))
 	{
 		const BindingId& binding = is_local
 			? std::get<MarmotExpression::NameContext::Local>(name.m_name_ctx).m_binding
-			: std::get<MarmotExpression::NameContext::Cell>(name.m_name_ctx).m_binding;
+			: std::get<MarmotExpression::NameContext::Capture>(name.m_name_ctx).m_binding;
 		const LocalKey key = KeyForBinding(binding);
 		const std::unordered_map<BindingId, const MarmotExpression::Function*>::const_iterator generic = key.m_owner->m_local_generics.find(key.m_binding);
 		if (generic != key.m_owner->m_local_generics.cend())

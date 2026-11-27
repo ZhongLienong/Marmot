@@ -56,7 +56,7 @@ void UnusedLocalDiagnostic::MarkRead(const MarmotExpression::NameContext::Tag& n
 	{
 		binding = &local->m_binding;
 	}
-	else if (const MarmotExpression::NameContext::Cell* captured = std::get_if<MarmotExpression::NameContext::Cell>(&name_ctx))
+	else if (const MarmotExpression::NameContext::Capture* captured = std::get_if<MarmotExpression::NameContext::Capture>(&name_ctx))
 	{
 		binding = &captured->m_binding;
 	}

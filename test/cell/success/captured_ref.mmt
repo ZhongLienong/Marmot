@@ -1,9 +1,7 @@
-module CellCaptureBoxes
+module CapturedRef
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
-// A user cell held in a local must read back as the cell, whether or not a
-// closure has boxed that local for capture. Capture boxes and user cells are
-// different heap objects, so the two cannot be confused.
+// A closure that captures a Ref shares the cell with its enclosing scope.
 
 def NotCaptured = fn() -> Int =>
 {

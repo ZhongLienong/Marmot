@@ -1,18 +1,8 @@
 module LoopVariableCapture
 import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt", "../../projects/marmotstdlib/MarmotPrelude/Prelude/List.mmt", }
 
-// Regression: a closure built in an array comprehension captured the loop
-// variable's single, shared cell rather than that iteration's value, so every
-// closure returned the value the variable held AFTER the loop -- a value it
-// never held during any iteration. `[fn() -> Int => i for i in 0..1..3]` gave
-// 3 3 3 instead of 0 1 2.
-//
-// The loop variable is one frame slot reused every iteration. The first capture
-// promoted it to a cell; every later rebinding then wrote THROUGH that cell, and
-// every later capture reused it. Each iteration now rebinds the slot to a plain
-// value, so the next capture allocates a fresh cell and earlier closures keep
-// their own. This is the same thing a local declared inside the body already
-// got, because a block re-pushes its slot on every iteration.
+// Regression: closures created in a loop used to read the final loop value.
+// Each closure must keep the value from the iteration that created it.
 
 def Expect = fn(condition: Bool, message: Text) -> Unit => if condition
 then ()
@@ -77,7 +67,7 @@ IO::PrintLine
     "nested: " ++ (grid[0][0]() as Text) ++ " " ++ (grid[0][1]() as Text) ++ " " ++ (grid[1][0]() as Text) ++ " " ++ (grid[1][1]() as Text)
 );
 
-// A variable from outside the loop is still shared, correctly.
+// Each closure also sees the same value from outside the loop.
 def outer = 1000;
 
 def offset = [fn() -> Int => i + outer for i in 0..1..3];
@@ -108,9 +98,7 @@ IO::PrintLine
     "body local: " ++ (bodied[0]() as Text) ++ " " ++ (bodied[1]() as Text) ++ " " ++ (bodied[2]() as Text)
 );
 
-// Boundary: only loop variables may rebind without going through their cell.
-// A recursive local closure is captured BEFORE its value is stored, so its
-// store must still write into the cell or the recursive call reads nothing.
+// A recursive local closure gets its own function value after it is created.
 def Factorial = fn(n: Int) -> Int =>
 {
     def fact = fn(m: Int) -> Int => if m <= 1

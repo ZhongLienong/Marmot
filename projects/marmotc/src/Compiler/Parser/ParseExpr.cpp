@@ -155,10 +155,10 @@ MarmotResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 		{
 			return std::make_unique<MarmotExpression>(MarmotExpression::NameAccess(name_token, MarmotExpression::NameContext::Local(find_result->second), &name_token));
 		}
-		// Cell
+		// Capture
 		else
 		{
-			return std::make_unique<MarmotExpression>(MarmotExpression::NameAccess(name_token, MarmotExpression::NameContext::Cell(find_result->second), &name_token));
+			return std::make_unique<MarmotExpression>(MarmotExpression::NameAccess(name_token, MarmotExpression::NameContext::Capture(find_result->second), &name_token));
 		}
 	}
 

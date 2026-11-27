@@ -1948,7 +1948,7 @@
     },
     {
       "id": 138,
-      "name": "GET_CELL",
+      "name": "GET_CAPTURE",
       "length": 2,
       "category": "Functions and closures. A closure holds exactly the values it captures.",
       "description": "[op][index] push the running closure's capture at index",
@@ -1962,7 +1962,7 @@
     },
     {
       "id": 139,
-      "name": "GET_CELL_WIDE",
+      "name": "GET_CAPTURE_WIDE",
       "length": 3,
       "category": "Functions and closures. A closure holds exactly the values it captures.",
       "description": "[op][capture_lo][capture_hi]",

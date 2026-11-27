@@ -2983,14 +2983,14 @@ int VirtualMachine::ExecuteInstructions() noexcept
 			*(bp + offset) = Peek(sp);
 			break;
 		}
-		MARMOT_HANDLER(GET_CELL)
+		MARMOT_HANDLER(GET_CAPTURE)
 		{
 			int offset = static_cast<int>(ReadByte(ip));
 #if MARMOT_DEBUG_FULL
 			if (!env)
 			{
 				SyncMachineState(ip, sp, bp, env, closure);
-				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, "GET_CELL called with null environment - function has captures but was called via CALL_PROC_WIDE", GetLine()));
+				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, "GET_CAPTURE called with null environment - function has captures but was called via CALL_PROC_WIDE", GetLine()));
 			}
 #endif
 			Push(sp, env[offset]);
@@ -3067,7 +3067,7 @@ int VirtualMachine::ExecuteInstructions() noexcept
 			*(bp + offset) = Peek(sp);
 			break;
 		}
-		MARMOT_HANDLER(GET_CELL_WIDE)
+		MARMOT_HANDLER(GET_CAPTURE_WIDE)
 		{
 			const int offset = ReadShort(ip);
 			Push(sp, env[offset]);

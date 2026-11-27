@@ -283,7 +283,7 @@ void TypeChecker::InferCaptureTransferability(const CheckingContext& context, Ma
 
 		void operator()(MarmotExpression::NameAccess& name) override
 		{
-			const auto* capture = std::get_if<MarmotExpression::NameContext::Cell>(&name.m_name_ctx);
+			const auto* capture = std::get_if<MarmotExpression::NameContext::Capture>(&name.m_name_ctx);
 			if (capture != nullptr && !m_local_functions.contains(capture->m_binding->m_function) && m_seen.insert(capture->m_binding).second)
 			{
 				m_captures.push_back(&name);
@@ -301,7 +301,7 @@ void TypeChecker::InferCaptureTransferability(const CheckingContext& context, Ma
 		CaptureFinder().Find(function),
 		[&](const MarmotExpression::NameAccess* capture)
 		{
-			const BindingId& binding = std::get<MarmotExpression::NameContext::Cell>(capture->m_name_ctx).m_binding;
+			const BindingId& binding = std::get<MarmotExpression::NameContext::Capture>(capture->m_name_ctx).m_binding;
 			// A recursive self-capture points back to the closure being checked.
 			return binding == self || !EnsureTransferable(context, capture->m_name, capture->m_type_data).HasValue();
 		}
@@ -1610,7 +1610,7 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 	{
 		identity = &local->m_binding;
 	}
-	else if (const MarmotExpression::NameContext::Cell* captured = std::get_if<MarmotExpression::NameContext::Cell>(&variable.m_name_ctx))
+	else if (const MarmotExpression::NameContext::Capture* captured = std::get_if<MarmotExpression::NameContext::Capture>(&variable.m_name_ctx))
 	{
 		identity = &captured->m_binding;
 	}
