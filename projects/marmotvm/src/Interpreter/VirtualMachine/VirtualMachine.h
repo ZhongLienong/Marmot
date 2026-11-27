@@ -157,7 +157,7 @@ private:
     DynamicFFIRegistry m_dynamic_ffi_registry;
     static constexpr size_t s_native_max_arity = 8u / MmcWire::FFI_ARGUMENT_BITS;
     std::array<void*, s_native_max_arity> m_ffi_args{};
-    std::array<MarmotFFIArray, s_native_max_arity> m_ffi_array_args{};
+    std::array<VmNativeAbi::Array, s_native_max_arity> m_ffi_array_args{};
     std::array<std::vector<MarmotWord>, s_native_max_arity> m_ffi_scalar_arrays;
     std::array<std::vector<const char*>, s_native_max_arity> m_ffi_string_arrays;
 
@@ -304,7 +304,7 @@ private:
 
 	int TerminateExecution(RuntimeError error) noexcept;
 
-	MarmotValue TakeNativeResult(uint8_t return_tag, MarmotWord bits, MarmotFFIFreeResultFn free_result) noexcept;
+	MarmotValue TakeNativeResult(uint8_t return_tag, MarmotWord bits, VmNativeAbi::FreeResult free_result) noexcept;
 
 	MARMOT_FORCE_INLINE bool PassForeignArgument(uint8_t kind, size_t index, MarmotValue argument) noexcept;
 

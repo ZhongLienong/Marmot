@@ -2,17 +2,27 @@
 // use the Marmot FFI convention: arguments are 8-byte slots, and the result is
 // written to `ret`.
 
+#include <atomic>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
 
-#define MARMOT_FFI_IMPLEMENTATION
-#include <marmot/MarmotFFI.h>
-
-#include <atomic>
+#if defined(_WIN32)
+	#define MARMOT_FFI_CALL __cdecl
+	#define MARMOT_FFI_EXPORT __declspec(dllexport)
+#else
+	#define MARMOT_FFI_CALL
+	#define MARMOT_FFI_EXPORT __attribute__((visibility("default")))
+#endif
 
 namespace
 {
+	struct MarmotFFIArray
+	{
+		void* data;
+		int32_t length;
+	};
+
 	std::atomic<int64_t> s_freed_results = 0;
 	char s_up[] = "up";
 	char s_down[] = "down";
@@ -21,8 +31,10 @@ namespace
 }
 
 #ifndef MARMOT_TEST_NO_FREE_RESULT
-MARMOT_FFI_EXPORT void MARMOT_FFI_CALL MARMOT_FFI_FreeResult(uint8_t kind, void* ptr)
+extern "C" MARMOT_FFI_EXPORT void MARMOT_FFI_CALL MARMOT_FFI_FreeResult(uint8_t kind, void* ptr)
 {
+	constexpr uint8_t MARMOT_FFI_RETURN_ARRAY_VALUES = 2u;
+	constexpr uint8_t MARMOT_FFI_RETURN_ARRAY_STRINGS = 3u;
 	s_freed_results += 1;
 	if (kind == MARMOT_FFI_RETURN_ARRAY_STRINGS && ptr == &s_words_array)
 	{
@@ -47,7 +59,8 @@ extern "C" MARMOT_FFI_EXPORT void MARMOT_FFI_CALL marmot_test_freed(void**, void
 
 extern "C" MARMOT_FFI_EXPORT void MARMOT_FFI_CALL marmot_test_text_bytes(void** args, void* ret)
 {
-	const MarmotFFIArray& array = *static_cast<const MarmotFFIArray*>(args[0]);
+	MarmotFFIArray array;
+	std::memcpy(&array, args[0], sizeof(array));
 	const auto* strings = static_cast<const char* const*>(array.data);
 	int64_t bytes = 0;
 	for (int32_t index = 0; index < array.length; index += 1)
@@ -81,10 +94,11 @@ extern "C" MARMOT_FFI_EXPORT void MARMOT_FFI_CALL marmot_test_length(void** args
 
 extern "C" MARMOT_FFI_EXPORT void MARMOT_FFI_CALL marmot_test_sum(void** args, void* ret) noexcept
 {
-	const MarmotFFIArray* array = static_cast<const MarmotFFIArray*>(args[0]);
-	const int64_t* values = static_cast<const int64_t*>(array->data);
+	MarmotFFIArray array;
+	std::memcpy(&array, args[0], sizeof(array));
+	const int64_t* values = static_cast<const int64_t*>(array.data);
 	int64_t sum = 0;
-	for (int index = 0; index < array->length; index += 1)
+	for (int index = 0; index < array.length; index += 1)
 	{
 		sum += values[index];
 	}

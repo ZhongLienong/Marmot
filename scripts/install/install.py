@@ -85,7 +85,9 @@ def copy_prelude(target: InstallLayout) -> None:
 
 
 def copy_ffi_sdk(target: InstallLayout) -> None:
-    shutil.copytree(FFI_SPEC_DIR, target.root / "sdk" / "ffi", dirs_exist_ok=True)
+    sdk_dir = target.root / "sdk" / "ffi"
+    shutil.copytree(FFI_SPEC_DIR, sdk_dir, dirs_exist_ok=True)
+    (sdk_dir / "include" / "marmot" / "MarmotFFI.h").unlink(missing_ok=True)
 
 
 def write_env_script(target: InstallLayout, with_binaries: bool) -> None:

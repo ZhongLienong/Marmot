@@ -1,6 +1,6 @@
 #pragma once
 
-#include "marmot/MarmotFFI.h"
+#include "MarmotNativeAbi.h"
 
 #define MARMOT_FFI_FUNC(name) MARMOT_FFI_##name
 

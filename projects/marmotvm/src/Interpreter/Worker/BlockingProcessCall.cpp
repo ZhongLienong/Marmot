@@ -4,15 +4,15 @@
 #include <utility>
 
 BlockingProcessCall::BlockingProcessCall(const VmNativeFunction& function, const StdlibWorkerErrorHooks& hooks,
-	const MarmotFFIArray& arguments, const char* directory)
+	const VmNativeAbi::Array& arguments, const char* directory)
 	: m_function(function)
 	, m_hooks(hooks)
 	, m_directory(directory)
 	, m_worker_errors(nullptr, hooks.m_free)
 {
-	const char* const* strings = static_cast<const char* const*>(arguments.data);
-	m_arguments.reserve(static_cast<size_t>(arguments.length));
-	for (int32_t index = 0; index < arguments.length; ++index)
+	const char* const* strings = static_cast<const char* const*>(arguments.m_data);
+	m_arguments.reserve(static_cast<size_t>(arguments.m_length));
+	for (int32_t index = 0; index < arguments.m_length; ++index)
 	{
 		m_arguments.emplace_back(strings[index]);
 	}
@@ -23,7 +23,7 @@ BlockingProcessCall::~BlockingProcessCall()
 {
 	if (m_result != nullptr)
 	{
-		m_function.m_free_result(MARMOT_FFI_RETURN_ARRAY_STRINGS, m_result);
+		m_function.m_free_result(VmNativeAbi::RETURN_ARRAY_STRINGS, m_result);
 	}
 }
 
@@ -35,7 +35,7 @@ void BlockingProcessCall::Run() noexcept
 	{
 		strings.push_back(argument.c_str());
 	}
-	MarmotFFIArray arguments{ strings.data(), static_cast<int32_t>(strings.size()) };
+	VmNativeAbi::Array arguments{ strings.data(), static_cast<int32_t>(strings.size()) };
 	std::array<void*, 2u> args{ &arguments, m_directory.data() };
 
 	void* const previous = m_hooks.m_exchange(m_worker_errors.release());
@@ -48,7 +48,7 @@ BlockingProcessCall::WorkerErrors BlockingProcessCall::TakeWorkerErrors() noexce
 	return std::move(m_worker_errors);
 }
 
-MarmotFFIArray* BlockingProcessCall::ReleaseResult() noexcept
+void* BlockingProcessCall::ReleaseResult() noexcept
 {
 	return std::exchange(m_result, nullptr);
 }

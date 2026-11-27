@@ -3,7 +3,9 @@
     runtime   -> runtime
     compiler  -> compiler
     driver    -> compiler, driver
+    stdlib    -> stdlib, support
     web       -> no C++ components
+    web_host  -> runtime
     vm        -> runtime, vm
 
 Every quoted #include is resolved against the compiler and runtime include
@@ -21,16 +23,13 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from lib.host import FFI_SPEC_DIR, REPO_ROOT as ROOT
+from lib.host import REPO_ROOT as ROOT
 
 INCLUDE_ROOTS = {
     'runtime': ROOT / 'projects' / 'marmotvm' / 'src',
     'compiler': ROOT / 'projects' / 'marmotc' / 'src',
     'stdlib': ROOT / 'projects' / 'marmotstdlib' / 'src',
     'support': ROOT / 'projects' / 'marmotstdlib' / 'support',
-    'vm_sdk': ROOT / 'projects' / 'marmotvm' / 'include',
-    'stdlib_sdk': ROOT / 'projects' / 'marmotstdlib' / 'include',
-    'ffi_spec': FFI_SPEC_DIR / 'include',
 }
 
 # The compiler's driver stays outside the compiler pipeline.
@@ -41,15 +40,15 @@ DRIVER_DIRS = [
 DRIVER_FILES = [ROOT / 'projects' / 'marmotc' / 'src' / 'Marmot.cpp']
 
 ALLOWED = {
-    'runtime': {'runtime', 'vm_sdk'},
+    'runtime': {'runtime'},
     'compiler': {'compiler'},
     'driver': {'compiler', 'driver'},
-    'native_tests': {'ffi_spec'},
-    'stdlib': {'stdlib', 'support', 'stdlib_sdk'},
+    'native_tests': set(),
+    'stdlib': {'stdlib', 'support'},
     'support': {'support'},
     'web': set(),
-    'web_host': {'runtime', 'vm_sdk'},
-    'vm': {'runtime', 'vm', 'vm_sdk'},
+    'web_host': {'runtime'},
+    'vm': {'runtime', 'vm'},
 }
 
 INCLUDE = re.compile(r'^\s*#\s*include\s+[<"]([^>"]+)[>"]', re.MULTILINE)

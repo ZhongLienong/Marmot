@@ -12,17 +12,17 @@ namespace
 {
 	const std::latch* s_release = nullptr;
 
-	void MARMOT_FFI_CALL HoldProcess(void**, void*)
+	void MARMOT_VM_NATIVE_CALL HoldProcess(void**, void*)
 	{
 		s_release->wait();
 	}
 
-	void* MARMOT_FFI_CALL ExchangeErrors(void*) noexcept
+	void* MARMOT_VM_NATIVE_CALL ExchangeErrors(void*) noexcept
 	{
 		return nullptr;
 	}
 
-	void MARMOT_FFI_CALL FreeErrors(void*) noexcept
+	void MARMOT_VM_NATIVE_CALL FreeErrors(void*) noexcept
 	{
 	}
 }
@@ -43,7 +43,7 @@ TEST_CASE("The process executor can cancel a queued call while all helpers are b
 	});
 	const VmNativeFunction function{ HoldProcess, nullptr, {} };
 	const StdlibWorkerErrorHooks hooks{ ExchangeErrors, FreeErrors };
-	const MarmotFFIArray arguments{ nullptr, 0 };
+	const VmNativeAbi::Array arguments{ nullptr, 0 };
 	for (MarmotInteger id = 1; id <= 5; ++id)
 	{
 		executor.Submit(id, std::make_shared<BlockingProcessCall>(function, hooks, arguments, ""));

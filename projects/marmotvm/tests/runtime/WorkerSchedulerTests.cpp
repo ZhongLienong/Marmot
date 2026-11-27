@@ -28,7 +28,7 @@ namespace
 
 	Rendezvous* s_rendezvous = nullptr;
 
-	void MARMOT_FFI_CALL MeetWorker(void**, void* result)
+	void MARMOT_VM_NATIVE_CALL MeetWorker(void**, void* result)
 	{
 		using namespace std::chrono_literals;
 		Rendezvous& state = *s_rendezvous;
@@ -47,7 +47,7 @@ namespace
 		std::memcpy(result, &overlapped, sizeof(overlapped));
 	}
 
-	void MARMOT_FFI_CALL FreeTestResult(uint8_t, void*)
+	void MARMOT_VM_NATIVE_CALL FreeTestResult(uint8_t, void*)
 	{
 	}
 
@@ -143,7 +143,7 @@ TEST_CASE("Two scheduler threads can run separate VMs at the same time", "[runti
 	using enum VmOpCode;
 	const std::string library = "marmot_worker_scheduler_test";
 	SharedLibraryCache& cache = SharedLibraryCache::GetInstance();
-	cache.RegisterHostLibrary(library, FreeTestResult, [](std::string_view symbol) -> MarmotFFIFn
+	cache.RegisterHostLibrary(library, FreeTestResult, [](std::string_view symbol) -> VmNativeAbi::Function
 	{
 		return symbol == "MeetWorker" ? MeetWorker : nullptr;
 	});

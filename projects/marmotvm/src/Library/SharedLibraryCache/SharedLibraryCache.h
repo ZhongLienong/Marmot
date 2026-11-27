@@ -1,6 +1,6 @@
 #pragma once
 
-#include "marmot/MarmotFFI.h"
+#include "Library/VmNativeAbi.h"
 
 #include <expected>
 #include <filesystem>
@@ -14,15 +14,15 @@
 
 struct VmNativeFunction
 {
-	MarmotFFIFn m_call;
-	MarmotFFIFreeResultFn m_free_result;
+	VmNativeAbi::Function m_call;
+	VmNativeAbi::FreeResult m_free_result;
 	std::shared_ptr<void> m_library;
 };
 
 struct StdlibWorkerErrorHooks
 {
-	using Exchange = void* (MARMOT_FFI_CALL*)(void*) noexcept;
-	using Free = void (MARMOT_FFI_CALL*)(void*) noexcept;
+	using Exchange = void* (MARMOT_VM_NATIVE_CALL*)(void*) noexcept;
+	using Free = void (MARMOT_VM_NATIVE_CALL*)(void*) noexcept;
 
 	Exchange m_exchange;
 	Free m_free;
@@ -31,7 +31,7 @@ struct StdlibWorkerErrorHooks
 class SharedLibraryCache
 {
 public:
-	using HostSymbolResolver = MarmotFFIFn(*)(std::string_view);
+	using HostSymbolResolver = VmNativeAbi::Function(*)(std::string_view);
 
 	static SharedLibraryCache& GetInstance();
 
@@ -41,7 +41,7 @@ public:
 		const std::vector<std::string>& symbols,
 		std::optional<std::string_view> expected_checksum = std::nullopt);
 
-	void RegisterHostLibrary(std::string name, MarmotFFIFreeResultFn free_result, HostSymbolResolver resolve);
+	void RegisterHostLibrary(std::string name, VmNativeAbi::FreeResult free_result, HostSymbolResolver resolve);
 	std::optional<std::expected<void, std::string>> LoadHostLibrary(
 		const std::string& name, const std::vector<std::string>& symbols);
 	std::unordered_map<std::string, VmNativeFunction> SnapshotAllFunctions() const;
@@ -56,7 +56,7 @@ private:
 
 	struct HostLibrary
 	{
-		MarmotFFIFreeResultFn m_free_result;
+		VmNativeAbi::FreeResult m_free_result;
 		HostSymbolResolver m_resolve;
 	};
 

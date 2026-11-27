@@ -23,7 +23,7 @@ namespace
 	template <typename Resolver>
 	std::expected<std::unordered_map<std::string, VmNativeFunction>, std::string> BindSymbols(
 		const std::string& name, const std::vector<std::string>& symbols,
-		MarmotFFIFreeResultFn free_result, const std::shared_ptr<void>& library, Resolver resolve)
+		VmNativeAbi::FreeResult free_result, const std::shared_ptr<void>& library, Resolver resolve)
 	{
 		if (free_result == nullptr)
 		{
@@ -33,7 +33,7 @@ namespace
 		std::unordered_map<std::string, VmNativeFunction> functions;
 		for (const std::string& symbol : symbols)
 		{
-			MarmotFFIFn call = resolve(symbol);
+			VmNativeAbi::Function call = resolve(symbol);
 			if (call == nullptr)
 			{
 				return std::unexpected(std::format("FFI error: native library '{}' does not export '{}'.", name, symbol));
@@ -63,10 +63,10 @@ std::expected<void, std::string> SharedLibraryCache::LoadLibraryWithFunctions(
 	}
 
 	const std::shared_ptr<void> handle(loaded.value(), UnloadPlatformLibrary);
-	const auto free_result = reinterpret_cast<MarmotFFIFreeResultFn>(GetPlatformFunction(handle.get(), "MARMOT_FFI_FreeResult"));
+	const auto free_result = reinterpret_cast<VmNativeAbi::FreeResult>(GetPlatformFunction(handle.get(), "MARMOT_FFI_FreeResult"));
 	auto bound = BindSymbols(name, symbols, free_result, handle, [&handle](const std::string& symbol)
 	{
-		return reinterpret_cast<MarmotFFIFn>(GetPlatformFunction(handle.get(), symbol));
+		return reinterpret_cast<VmNativeAbi::Function>(GetPlatformFunction(handle.get(), symbol));
 	});
 	if (!bound.has_value())
 	{
@@ -80,7 +80,7 @@ std::expected<void, std::string> SharedLibraryCache::LoadLibraryWithFunctions(
 	return {};
 }
 
-void SharedLibraryCache::RegisterHostLibrary(std::string name, MarmotFFIFreeResultFn free_result, HostSymbolResolver resolve)
+void SharedLibraryCache::RegisterHostLibrary(std::string name, VmNativeAbi::FreeResult free_result, HostSymbolResolver resolve)
 {
 	std::lock_guard<std::mutex> lock(m_mutex);
 	m_host_libraries.emplace(std::move(name), HostLibrary{free_result, resolve});

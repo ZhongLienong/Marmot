@@ -1,6 +1,6 @@
 #pragma once
 
-#include "marmot/MarmotFFI.h"
+#include "MarmotNativeAbi.h"
 
 #include <string>
 #include <string_view>

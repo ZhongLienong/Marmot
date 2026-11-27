@@ -1040,33 +1040,38 @@ int VirtualMachine::InvalidFloatConversion(MarmotFloat value, std::string_view d
 }
 
 // The result stays in the library's allocator until the VM has copied it.
-MarmotValue VirtualMachine::TakeNativeResult(uint8_t return_tag, MarmotWord bits, MarmotFFIFreeResultFn free_result) noexcept
+MarmotValue VirtualMachine::TakeNativeResult(uint8_t return_tag, MarmotWord bits, VmNativeAbi::FreeResult free_result) noexcept
 {
-	static_assert(MmcWire::FFI_RETURN_RAW_VALUE == MARMOT_FFI_RETURN_SCALAR);
-	static_assert(MmcWire::FFI_RETURN_C_STRING == MARMOT_FFI_RETURN_STRING);
-	static_assert(MmcWire::FFI_RETURN_ARRAY_VALUES == MARMOT_FFI_RETURN_ARRAY_VALUES);
-	static_assert(MmcWire::FFI_RETURN_ARRAY_STRINGS == MARMOT_FFI_RETURN_ARRAY_STRINGS);
+	static_assert(MmcWire::FFI_RETURN_RAW_VALUE == VmNativeAbi::RETURN_SCALAR);
+	static_assert(MmcWire::FFI_RETURN_C_STRING == VmNativeAbi::RETURN_STRING);
+	static_assert(MmcWire::FFI_RETURN_ARRAY_VALUES == VmNativeAbi::RETURN_ARRAY_VALUES);
+	static_assert(MmcWire::FFI_RETURN_ARRAY_STRINGS == VmNativeAbi::RETURN_ARRAY_STRINGS);
 
 	const uint8_t kind = return_tag & MmcWire::FFI_RETURN_KIND_MASK;
-	if (kind == MARMOT_FFI_RETURN_SCALAR)
+	if (kind == VmNativeAbi::RETURN_SCALAR)
 	{
 		return MarmotValue::FromRawBits(bits);
 	}
 	const auto release = [free_result, kind](void* ptr) { free_result(kind, ptr); };
 	const std::unique_ptr<void, decltype(release)> result(reinterpret_cast<void*>(static_cast<uintptr_t>(bits)), release);
-	if (kind == MARMOT_FFI_RETURN_STRING)
+	if (kind == VmNativeAbi::RETURN_STRING)
 	{
 		return AllocateTraceable(MarmotText(result ? static_cast<const char*>(result.get()) : ""));
 	}
 
-	const auto* array = static_cast<const MarmotFFIArray*>(result.get());
-	const int32_t length = array == nullptr ? 0 : array->length;
+	VmNativeAbi::Array array{};
+	if (result)
+	{
+		// The library can use its own type for the array layout.
+		std::memcpy(&array, result.get(), sizeof(array));
+	}
+	const int32_t length = array.m_length;
 	MarmotArray copy(length);
-	if (kind == MARMOT_FFI_RETURN_ARRAY_STRINGS)
+	if (kind == VmNativeAbi::RETURN_ARRAY_STRINGS)
 	{
 		for (int32_t index = 0; index < length; index += 1)
 		{
-			const char* text = static_cast<char* const*>(array->data)[index];
+			const char* text = static_cast<char* const*>(array.m_data)[index];
 			copy[index] = AllocateTraceable(MarmotText(text == nullptr ? "" : text));
 		}
 		return AllocateArray(std::move(copy), true);
@@ -1074,7 +1079,7 @@ MarmotValue VirtualMachine::TakeNativeResult(uint8_t return_tag, MarmotWord bits
 	for (int32_t index = 0; index < length; index += 1)
 	{
 		MarmotWord element = 0;
-		std::memcpy(&element, static_cast<const char*>(array->data) + index * sizeof(element), sizeof(element));
+		std::memcpy(&element, static_cast<const char*>(array.m_data) + index * sizeof(element), sizeof(element));
 		copy[index] = MarmotValue::FromRawBits(element);
 	}
 	return AllocateArray(std::move(copy), false);
@@ -1108,7 +1113,7 @@ MARMOT_FORCE_INLINE bool VirtualMachine::PassForeignArgument(uint8_t kind, size_
 		{
 			slots[element] = array[element].GetRawBits();
 		}
-		m_ffi_array_args[index] = MarmotFFIArray{slots.data(), array.GetLength()};
+		m_ffi_array_args[index] = VmNativeAbi::Array{slots.data(), array.GetLength()};
 		m_ffi_args[index] = &m_ffi_array_args[index];
 		break;
 	}
@@ -1125,7 +1130,7 @@ MARMOT_FORCE_INLINE bool VirtualMachine::PassForeignArgument(uint8_t kind, size_
 				return false;
 			}
 		}
-		m_ffi_array_args[index] = MarmotFFIArray{strings.data(), array.GetLength()};
+		m_ffi_array_args[index] = VmNativeAbi::Array{strings.data(), array.GetLength()};
 		m_ffi_args[index] = &m_ffi_array_args[index];
 		break;
 	}
@@ -1264,7 +1269,7 @@ int VirtualMachine::ExecuteInstructions() noexcept
 		if (m_pending_process != nullptr)
 		{
 			const MarmotWord bits = static_cast<MarmotWord>(reinterpret_cast<uintptr_t>(m_pending_process->ReleaseResult()));
-			Push(sp, TakeNativeResult(MARMOT_FFI_RETURN_ARRAY_STRINGS, bits, m_pending_process->GetFreeResult()));
+			Push(sp, TakeNativeResult(VmNativeAbi::RETURN_ARRAY_STRINGS, bits, m_pending_process->GetFreeResult()));
 			m_pending_process.reset();
 		}
 	}
@@ -2674,7 +2679,7 @@ int VirtualMachine::ExecuteInstructions() noexcept
 				m_pending_process = std::make_shared<BlockingProcessCall>
 				(
 					*function, *m_worker_registry->GetStdlibWorkerErrorHooks(),
-					*static_cast<const MarmotFFIArray*>(m_ffi_args[0u]), static_cast<const char*>(m_ffi_args[1u])
+					m_ffi_array_args[0u], static_cast<const char*>(m_ffi_args[1u])
 				);
 				m_suspension = m_worker_registry->GetScheduler()->StartProcess(m_scheduled_id, m_pending_process, m_stop_token);
 				SyncMachineState(ip, sp, bp, env, closure);

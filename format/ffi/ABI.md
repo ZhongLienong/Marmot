@@ -1,23 +1,22 @@
 # Marmot native extension ABI
 
-An extension uses the target platform's C ABI and the declarations in
-[`MarmotFFI.h`](include/marmot/MarmotFFI.h). It must match the VM's
+An extension may use any language that can export the symbols and represent the
+data described here using the target platform's C ABI. It must match the VM's
 architecture. The supported targets have 64-bit pointers and IEEE 754 binary64
 `double`, including the browser bundle's wasm64 target.
 
 ## Exports and loading
 
-Define `MARMOT_FFI_IMPLEMENTATION` before including the header in the source
-that exports the result deallocator.
+The library exports a result deallocator with this signature, shown in C notation.
 
 ```c
-void MARMOT_FFI_CALL MARMOT_FFI_FreeResult(uint8_t return_kind, void* ptr);
+void MARMOT_FFI_FreeResult(uint8_t return_kind, void* ptr);
 ```
 
-Export each callable symbol with `MARMOT_FFI_EXPORT` and `MARMOT_FFI_CALL`.
-Use `extern "C"` for its definition in C++. Exceptions must stay inside the
-library. The VM requires the deallocator and resolves callable symbols by
-the logical library name and the symbol declared in Marmot.
+The deallocator and callable symbols use the platform's C calling convention
+(`__cdecl` on Windows) and are exported under their unmangled names. Unwinding
+must stay inside the library. The VM requires the deallocator and resolves
+callable symbols by logical library name and the symbol declared in Marmot.
 
 ```marmot
 foreign "marmot_example_count" Count: fn(Array<Text>) -> Int from "marmot_ffi_example";
@@ -29,11 +28,11 @@ A browser host supplies the same exports through its bundled library resolver.
 
 ## Call storage
 
-A callable symbol has type `MarmotFFIFn`, taking `void** args` and `void* ret`
-and returning `void`. Only the first `arity` slots are valid, up to four.
-Each scalar occupies eight bytes in host byte order. Copy a scalar from
-`&args[i]` with `memcpy`. Write its result into `ret`, which points to an
-eight-byte slot owned by the VM.
+A callable symbol takes `void** args` and `void* ret` and returns `void`.
+Only the first `arity` slots are valid, up to four.
+Each scalar occupies eight bytes in host byte order in the argument slot
+itself. In C, copy those bytes from `&args[i]` with `memcpy`. Write a scalar
+result into `ret`, which points to an eight-byte slot owned by the VM.
 
 | Marmot type | Slot contents |
 | --- | --- |
@@ -48,29 +47,30 @@ eight-byte slot owned by the VM.
 | --- | --- |
 | 0 | Scalar bits in the slot |
 | 1 | `const char*` to NUL-terminated UTF-8 text |
-| 2 | Pointer to a `MarmotFFIArray` containing eight-byte scalar slots |
-| 3 | Pointer to a `MarmotFFIArray` containing `const char*` entries for `Array<Text>` |
+| 2 | Pointer to an array record containing eight-byte scalar slots |
+| 3 | Pointer to an array record containing `const char*` entries for `Array<Text>` |
 
 The VM rejects embedded NUL bytes in C-string arguments, including individual
 strings in `Array<Text>`, with `InvalidConversion`.
 
-`MarmotFFIArray` contains `void* data` followed by `int32_t length`, with
-the platform's natural struct padding. `length` counts elements. An empty
-array may have a null data pointer. Arrays containing other Marmot objects
-have no portable SDK representation. Treat text, arrays, and their contents
-as read-only borrowed data. Borrowing ends when the callable symbol returns.
+The array record contains a data pointer followed by a signed 32-bit element
+count, with the platform's natural struct padding. An empty array may have a
+null data pointer. Arrays containing other Marmot objects have no portable FFI
+representation. Treat text, arrays, and their contents as read-only borrowed
+data. Borrowing ends when the callable symbol returns.
 
 ## Owned results
 
-Write pointers to results into `ret` with `memcpy(ret, &result, sizeof(result))`.
-The library owns all storage reachable from the returned pointer.
+Write the result pointer into the slot addressed by `ret`. In C, use
+`memcpy(ret, &result, sizeof(result))`. The library owns all storage reachable
+from the returned pointer.
 
 | Return kind | Contents |
 | --- | --- |
 | 0 | Eight-byte scalar slot |
 | 1 | `char*` to NUL-terminated UTF-8 text |
-| 2 | `MarmotFFIArray*` containing eight-byte scalar slots |
-| 3 | `MarmotFFIArray*` containing `char*` to NUL-terminated UTF-8 strings |
+| 2 | Pointer to an array record containing eight-byte scalar slots |
+| 3 | Pointer to an array record containing `char*` to NUL-terminated UTF-8 strings |
 
 A null result pointer represents empty text or an empty array according to
 the expected type. The VM copies each non-null owned result into its own
@@ -81,6 +81,8 @@ strings. The VM keeps the library loaded through this call. A deallocator
 may use any allocator or storage strategy the library supports.
 
 ## Build the example
+
+The example implements the ABI directly in C.
 
 ```sh
 cmake -S example -B build

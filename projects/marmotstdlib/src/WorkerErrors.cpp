@@ -1,6 +1,6 @@
 #include "WorkerErrors.h"
 
-#include "marmot/MarmotFFI.h"
+#include "MarmotNativeAbi.h"
 
 #include <memory>
 
