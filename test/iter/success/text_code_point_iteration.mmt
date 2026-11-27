@@ -1,0 +1,37 @@
+module TextCodePointIteration
+import { "../../../projects/marmotstdlib/MarmotPrelude/Iter.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt", "../../../projects/marmotstdlib/MarmotPrelude/TextUtil.mmt" }
+
+def Expect = fn(condition: Bool, message: Text) -> Unit => if condition then () else Panic::Panic(message);
+
+def text = "aé中😀\0\xFF\xC3x\x80\xE2\x82";
+
+def expected = [97, 233, 20013, 128512, 0, 255, 195, 120, 128, 226, 130];
+
+def iter = TextUtil::IterCodePoints(text);
+
+def streamed = [code for code in iter];
+
+def collected = TextUtil::CodePoints(text);
+
+Expect(#streamed == #expected, "streamed count");
+Expect(#collected == #expected, "collected count");
+for i in 0..1..#expected
+{
+    Expect(streamed[i] == expected[i], "streamed code point");
+    Expect(collected[i] == expected[i], "collected code point");
+    Expect
+    (
+        Option::OptionUnwrap(TextUtil::CodePointAt(text, i), -1) == expected[i],
+        "indexed code point"
+    );
+};
+
+Expect(Option::OptionUnwrap(TextUtil::CodePointAt(text, #expected), -1) == -1, "indexed end");
+Expect(Iter::Count(TextUtil::IterCodePoints("")) == 0, "empty text");
+
+def first_two = Iter::ToArray(Iter::Take(iter, 2));
+Expect
+(
+    (#first_two == 2) && (first_two[0] == 97) && (first_two[1] == 233),
+    "reusing and taking from an iterator"
+);

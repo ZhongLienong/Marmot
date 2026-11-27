@@ -40,6 +40,9 @@ Expect
 );
 Expect(ArrayUtil::WithReplaced(base, 0, 5)[0] == 5, "WithReplaced at index 0");
 Expect(ArrayUtil::WithReplaced(base, 2, 7)[2] == 7, "WithReplaced at the last index");
+def bad_replace = ArrayUtil::WithReplaced(base, 9223372036854775807, 99);
+Expect((#bad_replace == 3) && (bad_replace[2] == 30), "WithReplaced beyond the end copies");
+Expect(#ArrayUtil::WithReplaced(empty, 0, 99) == 0, "WithReplaced on empty");
 
 def inserted = ArrayUtil::WithInserted(base, 1, 15);
 Expect(ArrayUtil::Length(inserted) == 4, "WithInserted grows by one");
@@ -76,6 +79,17 @@ Expect
 );
 Expect(ArrayUtil::Length(ArrayUtil::WithRemoved(base, 9)) == 3, "WithRemoved past the end copies");
 Expect(ArrayUtil::Length(ArrayUtil::WithRemoved(empty, 0)) == 0, "WithRemoved on empty");
+def bad_remove = ArrayUtil::WithRemoved(base, -4294967295);
+Expect((#bad_remove == 3) && (bad_remove[0] == 10), "WithRemoved at a negative index copies");
+
+// Inserting across the inline storage boundary and removing back across it.
+def words = ["alpha", "bravo", "charlie", "delta", "echo", "foxtrot", "golf", "hotel"];
+def grown = ArrayUtil::WithInserted(words, 3, "inserted");
+def edited = ArrayUtil::WithReplaced(grown, 4, "replaced");
+def shrunk = ArrayUtil::WithRemoved(edited, 2);
+Expect((#grown == 9) && (grown[3] == "inserted") && (grown[4] == "delta"), "inserting and replacing preserve the first copy");
+Expect((#shrunk == 8) && (shrunk[2] == "inserted") && (shrunk[3] == "replaced") && (shrunk[7] == "hotel"), "removal keeps the shifted pointer values");
+Expect((#words == 8) && (words[3] == "delta"), "pointer edits preserve the source");
 
 IO::PrintLine(Show(appended));
 IO::PrintLine(Show(inserted));

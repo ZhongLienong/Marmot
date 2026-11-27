@@ -60,6 +60,21 @@ namespace VmIntrinsics
 		return vm.AllocateArray(Array(args[0u]).Reverse(), holds_pointers);
 	}
 
+	MarmotValue ArrayWithReplaced(VirtualMachine& vm, std::span<const MarmotValue> args, bool holds_pointers) noexcept
+	{
+		return vm.AllocateArray(Array(args[0u]).WithEdit(args[1u].GetInteger(), true, args[2u]), holds_pointers);
+	}
+
+	MarmotValue ArrayWithInserted(VirtualMachine& vm, std::span<const MarmotValue> args, bool holds_pointers) noexcept
+	{
+		return vm.AllocateArray(Array(args[0u]).WithEdit(args[1u].GetInteger(), false, args[2u]), holds_pointers);
+	}
+
+	MarmotValue ArrayWithRemoved(VirtualMachine& vm, std::span<const MarmotValue> args, bool holds_pointers) noexcept
+	{
+		return vm.AllocateArray(Array(args[0u]).WithEdit(args[1u].GetInteger(), true, std::nullopt), holds_pointers);
+	}
+
 	MarmotValue ArrayConcatAll(VirtualMachine& vm, std::span<const MarmotValue> args, bool holds_pointers) noexcept
 	{
 		const MarmotArray& chunks = Array(args[0u]);
@@ -139,28 +154,16 @@ namespace VmIntrinsics
 		return vm.AllocateTraceable(MarmotText::FromCodePoints(code_points));
 	}
 
-	// The code point at a code-point index, or -1 past the end.
 	MarmotValue TextCodePointAt(VirtualMachine&, std::span<const MarmotValue> args, bool) noexcept
 	{
-		const MarmotText& text = Text(args[0u]);
-		const MarmotInteger index = args[1u].GetInteger();
-		if ((index < 0) || (index >= text.GetLength()))
-		{
-			return MarmotInteger{ -1 };
-		}
+		return Text(args[0u]).CodePointAt(args[1u].GetInteger()).value_or(-1);
+	}
 
-		const MarmotText character = text.Substring(index, index + 1);
-		const unsigned char* bytes = reinterpret_cast<const unsigned char*>(character.View().data());
-		const int length = character.GetByteLength();
-		std::uint32_t code_point = (length == 1) ? bytes[0]
-			: (length == 2) ? (bytes[0] & 0x1Fu)
-			: (length == 3) ? (bytes[0] & 0x0Fu)
-			: (bytes[0] & 0x07u);
-		for (int continuation = 1; continuation < length; continuation += 1)
-		{
-			code_point = (code_point << 6u) | (bytes[continuation] & 0x3Fu);
-		}
-		return static_cast<MarmotInteger>(code_point);
+	MarmotValue TextCodePointStep(VirtualMachine&, std::span<const MarmotValue> args, bool) noexcept
+	{
+		const std::optional<MarmotText::DecodedCodePoint> point = Text(args[0u]).ReadCodePoint(args[1u].GetInteger());
+		// A scalar result carries the code point above the two bits for width minus one.
+		return point ? (point->m_value << 2) | (point->m_width - 1) : MarmotInteger{ -1 };
 	}
 
 	MarmotValue TextIsInteger(VirtualMachine&, std::span<const MarmotValue> args, bool) noexcept

@@ -13,6 +13,7 @@
 #include <cstdlib>
 #include <charconv>
 #include <execution>
+#include <limits>
 #include <mutex>
 #include <ranges>
 #include <string>
@@ -167,6 +168,18 @@ namespace UTF8
 			}
 		}
 		return length;
+	}
+
+	MarmotText::DecodedCodePoint DecodeCodePoint(const char* source, int remaining) noexcept
+	{
+		const int width = GetCharacterByteCount(source, remaining);
+		const unsigned char* bytes = reinterpret_cast<const unsigned char*>(source);
+		std::uint32_t value = width == 1 ? bytes[0] : bytes[0] & (0x7Fu >> width);
+		for (int i = 1; i < width; i += 1)
+		{
+			value = (value << 6u) | (bytes[i] & 0x3Fu);
+		}
+		return { static_cast<MarmotInteger>(value), width };
 	}
 
 	void Append(std::string& encoded, std::uint32_t code_point)
@@ -749,6 +762,21 @@ void MarmotArray::Expand(int new_capacity)
 	}
 }
 
+MarmotArray MarmotArray::AllocateForCopy(int length)
+{
+	MarmotArray result;
+	if (length <= SOO_CAPACITY)
+	{
+		result.SetShortSize(length);
+	}
+	else
+	{
+		result.Expand(length);
+		result.m_long.m_size = length;
+	}
+	return result;
+}
+
 MarmotArray MarmotArray::Slice(MarmotInteger start, MarmotInteger end) const
 {
 	const MarmotInteger length = GetLength();
@@ -761,20 +789,37 @@ MarmotArray MarmotArray::Slice(MarmotInteger start, MarmotInteger end) const
 
 	const int slice_len = last - first;
 	const MarmotValue* source = IsShort() ? m_short.m_buffer : m_long.m_ptr;
+	MarmotArray result = AllocateForCopy(slice_len);
+	std::memcpy(&result[0], source + first, static_cast<size_t>(slice_len) * sizeof(MarmotValue));
+	return result;
+}
 
-	MarmotArray result;
-	if (slice_len <= SOO_CAPACITY)
+MarmotArray MarmotArray::WithEdit(MarmotInteger index, bool remove_at_index, std::optional<MarmotValue> value) const
+{
+	const int length = GetLength();
+	if (remove_at_index && (index < 0 || index >= length))
 	{
-		result.SetShortSize(slice_len);
-		std::memcpy(result.m_short.m_buffer, source + first, static_cast<size_t>(slice_len) * sizeof(MarmotValue));
-	}
-	else
-	{
-		result.Expand(slice_len);
-		result.m_long.m_size = slice_len;
-		std::memcpy(result.m_long.m_ptr, source + first, static_cast<size_t>(slice_len) * sizeof(MarmotValue));
+		return Slice(0, length);
 	}
 
+	const int first = static_cast<int>(std::clamp(index, MarmotInteger{ 0 }, static_cast<MarmotInteger>(length)));
+	const int tail = first + (remove_at_index ? 1 : 0);
+	const int inserted_count = value ? 1 : 0;
+	const MarmotInteger result_length = static_cast<MarmotInteger>(first) + inserted_count + (length - tail);
+	if (result_length > std::numeric_limits<int>::max())
+	{
+		FatalOutOfMemory("editing an array", static_cast<size_t>(result_length) * sizeof(MarmotValue));
+	}
+
+	const MarmotValue* source = IsShort() ? m_short.m_buffer : m_long.m_ptr;
+	MarmotArray result = AllocateForCopy(static_cast<int>(result_length));
+	MarmotValue* destination = &result[0];
+	std::memcpy(destination, source, static_cast<size_t>(first) * sizeof(MarmotValue));
+	if (value)
+	{
+		std::memcpy(destination + first, &*value, sizeof(MarmotValue));
+	}
+	std::memcpy(destination + first + inserted_count, source + tail, static_cast<size_t>(length - tail) * sizeof(MarmotValue));
 	return result;
 }
 
@@ -1151,7 +1196,7 @@ MarmotText MarmotText::Substring(MarmotInteger start, MarmotInteger end) const
 	const int byte_len = GetByteLength();
 	const bool is_ascii = length == byte_len;
 	const int start_offset = is_ascii ? first : UTF8::GetByteOffsetOfCodePoint(source, byte_len, first);
-	const int end_offset = is_ascii ? last : UTF8::GetByteOffsetOfCodePoint(source, byte_len, last);
+	const int end_offset = is_ascii ? last : start_offset + UTF8::GetByteOffsetOfCodePoint(source + start_offset, byte_len - start_offset, last - first);
 	return MarmotText(std::string_view(source + start_offset, static_cast<size_t>(end_offset - start_offset)));
 }
 
@@ -1210,24 +1255,47 @@ MarmotText MarmotText::Reverse() const
 	return MarmotText(reversed);
 }
 
+std::optional<MarmotInteger> MarmotText::CodePointAt(MarmotInteger index) const noexcept
+{
+	const int byte_length = GetByteLength();
+	if (index < 0 || index >= byte_length)
+	{
+		return std::nullopt;
+	}
+	const int length = GetLength();
+	if (index >= length)
+	{
+		return std::nullopt;
+	}
+	const char* source = View().data();
+	if (length == byte_length)
+	{
+		return static_cast<unsigned char>(source[index]);
+	}
+	const int offset = UTF8::GetByteOffsetOfCodePoint(source, byte_length, static_cast<int>(index));
+	return UTF8::DecodeCodePoint(source + offset, byte_length - offset).m_value;
+}
+
+std::optional<MarmotText::DecodedCodePoint> MarmotText::ReadCodePoint(MarmotInteger byte_offset) const noexcept
+{
+	const int byte_length = GetByteLength();
+	if (byte_offset < 0 || byte_offset >= byte_length)
+	{
+		return std::nullopt;
+	}
+	return UTF8::DecodeCodePoint(View().data() + byte_offset, byte_length - static_cast<int>(byte_offset));
+}
+
 std::vector<MarmotInteger> MarmotText::CodePoints() const
 {
-	const std::string_view bytes = View();
+	const char* source = View().data();
+	const int byte_length = GetByteLength();
 	std::vector<MarmotInteger> code_points;
-	for (size_t offset = 0u; offset < bytes.size();)
+	for (int offset = 0; offset < byte_length;)
 	{
-		const size_t length = static_cast<size_t>(UTF8::GetCharacterByteCount(bytes.data() + offset, static_cast<int>(bytes.size() - offset)));
-		const unsigned char lead = static_cast<unsigned char>(bytes[offset]);
-		std::uint32_t code_point = (length == 1u) ? lead
-			: (length == 2u) ? (lead & 0x1Fu)
-			: (length == 3u) ? (lead & 0x0Fu)
-			: (lead & 0x07u);
-		for (size_t continuation = 1u; continuation < length; continuation += 1u)
-		{
-			code_point = (code_point << 6u) | (static_cast<unsigned char>(bytes[offset + continuation]) & 0x3Fu);
-		}
-		code_points.push_back(static_cast<MarmotInteger>(code_point));
-		offset += length;
+		const DecodedCodePoint code_point = UTF8::DecodeCodePoint(source + offset, byte_length - offset);
+		code_points.push_back(code_point.m_value);
+		offset += code_point.m_width;
 	}
 	return code_points;
 }
@@ -1476,7 +1544,8 @@ MarmotText& MarmotText::AppendBytes(std::string_view bytes, int length)
 		return *this;
 	}
 	const int size = GetByteLength();
-	const int new_size = size + static_cast<int>(bytes.size());
+	const int appended_size = static_cast<int>(bytes.size());
+	const int new_size = size + appended_size;
 	if (IsShort() && new_size <= SSO_CAPACITY)
 	{
 		std::memcpy(m_short.m_buffer + size, bytes.data(), bytes.size());
@@ -1489,14 +1558,18 @@ MarmotText& MarmotText::AppendBytes(std::string_view bytes, int length)
 	{
 		Reallocate(std::max(new_size, 2 * size));
 	}
-	std::memcpy(m_long.m_ptr + size, bytes.data(), bytes.size());
+	char* appended = m_long.m_ptr + size;
+	std::memcpy(appended, bytes.data(), bytes.size());
 	m_long.m_ptr[new_size] = '\0';
 	m_long.m_size = new_size;
 	GetBuffer().m_written = new_size;
-	// A continuation byte can complete a UTF-8 sequence across the join.
-	m_long.m_length_cache = (m_long.m_length_cache == -1 || length == -1 || UTF8::IsContinuationByte(bytes.front()))
-		? -1
-		: m_long.m_length_cache + length;
+	if (m_long.m_length_cache != -1)
+	{
+		// A continuation byte can complete a UTF-8 sequence across the join.
+		m_long.m_length_cache = UTF8::IsContinuationByte(appended[0])
+			? -1
+			: m_long.m_length_cache + (length == -1 ? UTF8::CountCodePoints(appended, appended_size) : length);
+	}
 	return *this;
 }
 

@@ -172,7 +172,7 @@ Public date/time entry points:
 
 ## Text and Array Helpers
 
-`TextUtil` groups the common string-style operations already available in the runtime, while `ArrayUtil` collects the ordinary array helpers. Arrays are immutable: `WithAppended`, `WithInserted`, `WithReplaced`, and `WithRemoved` return a new array with the requested change rather than mutating the original, and `Slice` and `Reverse` likewise return new arrays. Build an array up front with a comprehension or `List`, or use `ConcatAll` to combine existing chunks in one batch. Calling `WithAppended` in a loop is quadratic.
+`TextUtil` groups the common string-style operations already available in the runtime, while `ArrayUtil` collects the ordinary array helpers. Arrays are immutable: `WithAppended`, `WithInserted`, `WithReplaced`, and `WithRemoved` return a new array with the requested change rather than mutating the original, and `Slice` and `Reverse` likewise return new arrays. Use a comprehension to collect an iterable, `Build` to collect values from a stateful producer, or `ConcatAll` to combine existing chunks in one batch. Calling `WithAppended` in a loop is quadratic.
 
 ```marmot-test name=prelude/text_array_helpers path=.doc_example_prelude_text_array_helpers.mmt module=PreludeTextArrayHelpers
 import
@@ -198,7 +198,8 @@ Public text helpers:
 - `Split`, `Join(Array<Text>, Text) -> Text`, `Replace`, `Trim`, `Reverse`
 - `FromCodePoint(Int) -> Option<Text>`: the text of one Unicode scalar value. Returns `None` for a surrogate, a value outside the Unicode range, or U+0000. Use the text literal escape `\0` to represent NUL.
 - `CodePointAt(Text, Int) -> Option<Int>`: the code point at a zero-based code-point index, or `None` if the index is outside the text
-- `CodePoints(Text) -> Array<Int>`: every code point, in one pass. To walk a text, index this array: `CodePointAt` finds each code point from the start of the text, so calling it in a loop is quadratic
+- `CodePoints(Text) -> Array<Int>` collects every code point in one pass.
+- `IterCodePoints(Text) -> CodePointIter` yields the same code points in order. Use it in a `for` loop or an `Iter` pipeline to walk text without building an array. Repeated `CodePointAt` calls can rescan the text from the start for every index.
 - `FromCodePoints(Array<Int>) -> Option<Text>`: the text of those code points; `None` when one of them is not a code point `FromCodePoint` takes
 - `ParseInt(Text) -> Option<Int>`, `ParseFloat(Text) -> Option<Float>`: the number the whole text spells, or `None`. `text as Int` and `text as Float` are the same conversions, but stop the program with `InvalidConversion` when the text is not a number
 
@@ -206,6 +207,7 @@ Public array helpers:
 
 - `Length`, `Contains`
 - `Slice`, `Reverse`, `Copy`, `Concat`, `ConcatAll(Array<Array<T>>) -> Array<T>` (combines chunks in order)
+- `Build(initial, step) -> Array<T>` collects values in order. Each `step(state)` returns `Some((value, next_state))` to add an element or `None` to finish.
 - `WithAppended`, `WithReplaced`, `WithInserted`, `WithRemoved`
 - `Sort` for an `Orderable` element type, and `SortBy(Array<T>, fn(T, T) -> Int)` with a comparison that returns a negative number, zero or a positive number. Both are stable: equal elements keep their order. `Sort` stops with a panic if its comparator encounters unordered values
 

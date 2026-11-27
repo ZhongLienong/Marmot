@@ -1,10 +1,10 @@
 module TextUtil
-import { "./Prelude/Option.mmt" }
+import { "./Iterable.mmt", "./Prelude/Option.mmt" }
 use Option.
 {
     Option
 }
-public export { Length, Contains, StartsWith, EndsWith, Substring, Split, Join, Replace, Trim, Reverse, FromCodePoint, FromCodePoints, CodePointAt, CodePoints, ParseInt, ParseFloat }
+public export { Length, Contains, StartsWith, EndsWith, Substring, Split, Join, Replace, Trim, Reverse, FromCodePoint, FromCodePoints, CodePointAt, CodePoints, CodePointIter, IterCodePoints, ParseInt, ParseFloat }
 
 foreign "MARMOT_FFI_TextLength" TextLengthRaw: fn(Text) -> Int;
 
@@ -23,6 +23,8 @@ foreign "MARMOT_FFI_TextTrim" TextTrimRaw: fn(Text) -> Text;
 foreign "MARMOT_FFI_TextFromCodePoint" TextFromCodePointRaw: fn(Int) -> Text;
 
 foreign "MARMOT_FFI_TextCodePointAt" TextCodePointAtRaw: fn(Text, Int) -> Int;
+
+foreign "MARMOT_FFI_TextCodePointStep" TextCodePointStep: fn(Text, Int) -> Int;
 
 foreign "MARMOT_FFI_TextCodePoints" TextCodePointsRaw: fn(Text) -> Array<Int>;
 
@@ -91,9 +93,30 @@ def CodePointAt = fn(text: Text, index: Int) -> Option<Int> =>
     else Option::Some(code_point)
 };
 
-// Every code point in one pass. Index the array rather than calling CodePointAt
-// in a loop, which finds each code point from the start of the text.
+// Every code point in one pass, materialized as an array.
 def CodePoints = fn(text: Text) -> Array<Int> => TextCodePointsRaw(text);
+
+type CodePointIter =
+{
+    text: Text,
+    byte_offset: Int
+};
+
+// Starts a single-pass iterator over the same code points as CodePoints.
+def IterCodePoints = fn(text: Text) -> CodePointIter => CodePointIter(text, 0);
+
+instance Iterable<CodePointIter>
+{
+    type Item = Int;
+    def Next = fn(iter: CodePointIter) -> Option<(Int, CodePointIter)> =>
+    {
+        // The low two bits of a step hold the number of bytes consumed minus one.
+        def step = TextCodePointStep(iter.text, iter.byte_offset);
+        if step < 0
+        then Option::None()
+        else Option::Some((step >> 2, CodePointIter(iter.text, iter.byte_offset + (step & 3) + 1)))
+    };
+};
 
 // Checks each remaining code point before passing the array to the encoder.
 def AreScalarValuesFrom = fn(code_points: Array<Int>, index: Int) -> Bool => if index >= #code_points

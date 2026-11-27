@@ -1,10 +1,14 @@
 module ArrayUtil
-import { "./Equatable.mmt", "./Orderable.mmt", "./Prelude/List.mmt", "./Prelude/Panic.mmt" }
-public export { Length, Contains, Slice, Reverse, Copy, Concat, ConcatAll, WithAppended, WithReplaced, WithInserted, WithRemoved, Sort, SortBy }
+import { "./Equatable.mmt", "./Iterable.mmt", "./Orderable.mmt", "./Prelude/List.mmt", "./Prelude/Option.mmt", "./Prelude/Panic.mmt" }
+public export { Length, Contains, Slice, Reverse, Copy, Concat, ConcatAll, Build, WithAppended, WithReplaced, WithInserted, WithRemoved, Sort, SortBy }
 use List.
 {
     List,
     ListToArray
+}
+use Option.
+{
+    Option
 }
 
 // Returns the number of elements.
@@ -28,6 +32,12 @@ foreign "MARMOT_FFI_ArrayReverse" ArrayReverse: fn(Array<T>) -> Array<T>;
 
 foreign "MARMOT_FFI_ArrayConcatAll" ArrayConcatAll: fn(Array<Array<T>>) -> Array<T>;
 
+foreign "MARMOT_FFI_ArrayWithReplaced" ArrayWithReplaced: fn(Array<T>, Int, T) -> Array<T>;
+
+foreign "MARMOT_FFI_ArrayWithInserted" ArrayWithInserted: fn(Array<T>, Int, T) -> Array<T>;
+
+foreign "MARMOT_FFI_ArrayWithRemoved" ArrayWithRemoved: fn(Array<T>, Int) -> Array<T>;
+
 // Copies the array while retaining the same element values.
 def Copy = fn<T>(array: Array<T>) -> Array<T> => ArraySlice(array, 0, Length(array));
 
@@ -39,24 +49,42 @@ def ConcatAll = fn<T>(chunks: Array<Array<T>>) -> Array<T> => if #chunks == 1
 then chunks[0]
 else ArrayConcatAll(chunks);
 
+type BuildIter<S, T> =
+{
+    state: S,
+    step: fn(S) -> Option<(T, S)>
+};
+
+instance Iterable<BuildIter<S, T>>
+{
+    type Item = T;
+    def Next = fn(iter: BuildIter<S, T>) -> Option<(T, BuildIter<S, T>)> => match iter.step(iter.state) with
+        case Option::Some((value, rest)) => Option::Some((value, BuildIter(rest, iter.step)))
+        case Option::None() => Option::None();
+};
+
+// Builds an array in order. The producer returns the next element and state,
+// or None when there are no more elements.
+def Build = fn<S, T>(initial: S, step: fn(S) -> Option<(T, S)>) -> Array<T> =>
+{
+    def source = BuildIter(initial, step);
+    [value for value in source]
+};
+
 // Returns a copy with value at the end. Repeated appends copy the growing array.
 def WithAppended = fn<T>(array: Array<T>, value: T) -> Array<T> => array ++ [value];
 
 // Returns a copy with the element at index replaced. An out-of-range index yields a copy of
 // the input.
-def WithReplaced = fn<T>(array: Array<T>, index: Int, value: T) -> Array<T> => if (index < 0) || (index >= Length(array))
-then Copy(array)
-else ArraySlice(array, 0, index) ++ [value] ++ ArraySlice(array, index + 1, Length(array));
+def WithReplaced = fn<T>(array: Array<T>, index: Int, value: T) -> Array<T> => ArrayWithReplaced(array, index, value);
 
 // Inserts before index. An index below zero prepends and an index at or beyond the length
 // appends.
-def WithInserted = fn<T>(array: Array<T>, index: Int, value: T) -> Array<T> => ArraySlice(array, 0, index) ++ [value] ++ ArraySlice(array, index, Length(array));
+def WithInserted = fn<T>(array: Array<T>, index: Int, value: T) -> Array<T> => ArrayWithInserted(array, index, value);
 
 // Returns a copy with the element at index removed. An out-of-range index yields a copy of
 // the input.
-def WithRemoved = fn<T>(array: Array<T>, index: Int) -> Array<T> => if (index < 0) || (index >= Length(array))
-then Copy(array)
-else ArraySlice(array, 0, index) ++ ArraySlice(array, index + 1, Length(array));
+def WithRemoved = fn<T>(array: Array<T>, index: Int) -> Array<T> => ArrayWithRemoved(array, index);
 
 // Copies the half-open range [start, end), clamping both indices to the array bounds.
 def Slice = fn<T>(array: Array<T>, start: Int, end: Int) -> Array<T> => ArraySlice(array, start, end);

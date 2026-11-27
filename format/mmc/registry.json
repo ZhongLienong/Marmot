@@ -1,5 +1,5 @@
 {
-  "format_marker": 22,
+  "format_marker": 24,
   "wire": {
     "magic": [77, 66, 67, 0],
     "header_size": 32,
@@ -2745,6 +2745,44 @@
         "Text"
       ],
       "returns": "Unit"
+    },
+    {
+      "id": 26,
+      "name": "MARMOT_FFI_TextCodePointStep",
+      "arguments": [
+        "Text",
+        "Int"
+      ],
+      "returns": "Int"
+    },
+    {
+      "id": 27,
+      "name": "MARMOT_FFI_ArrayWithReplaced",
+      "arguments": [
+        "Array<T>",
+        "Int",
+        "T"
+      ],
+      "returns": "Array<T>"
+    },
+    {
+      "id": 28,
+      "name": "MARMOT_FFI_ArrayWithInserted",
+      "arguments": [
+        "Array<T>",
+        "Int",
+        "T"
+      ],
+      "returns": "Array<T>"
+    },
+    {
+      "id": 29,
+      "name": "MARMOT_FFI_ArrayWithRemoved",
+      "arguments": [
+        "Array<T>",
+        "Int"
+      ],
+      "returns": "Array<T>"
     }
   ]
 }

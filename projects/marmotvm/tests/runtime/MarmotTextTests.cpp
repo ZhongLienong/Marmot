@@ -36,6 +36,28 @@ TEST_CASE("A second append to the same text copies instead of writing over the f
 	CHECK(c.GetOwnedBytes() > 0uz);
 }
 
+TEST_CASE("Appending to a counted text preserves the lengths of shared prefixes", "[text]")
+{
+	const MarmotText prefix(s_long);
+	REQUIRE(prefix.GetLength() == 100);
+	const MarmotText extended = MarmotText::Concatenate(prefix, MarmotText("\xC3\xA9"));
+	const MarmotText branch = MarmotText::Concatenate(prefix, MarmotText("xy"));
+
+	CHECK(extended.GetLength() == 101);
+	CHECK(branch.GetLength() == 102);
+	CHECK(prefix.GetLength() == 100);
+}
+
+TEST_CASE("Appending raw bytes can complete a UTF-8 sequence across the join", "[text]")
+{
+	const MarmotText prefix(s_long + "\xF0\x9F");
+	REQUIRE(prefix.GetLength() == 102);
+	const MarmotText extended = MarmotText::Concatenate(prefix, MarmotText("\xA6\xAB"));
+
+	CHECK(extended.GetLength() == 101);
+	CHECK(prefix.GetLength() == 102);
+}
+
 TEST_CASE("A copy shares its text's buffer and outlives the original", "[text]")
 {
 	MarmotText* original = new MarmotText(s_long.c_str());

@@ -1,0 +1,40 @@
+module ArrayBuilderTest
+import { "../../../projects/marmotstdlib/MarmotPrelude/ArrayUtil.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt" }
+
+use Option.
+{
+    Option
+}
+
+def Expect = fn(condition: Bool, message: Text) -> Unit => if condition then () else Panic::Panic(message);
+
+def Next = fn(state:(Int, Int)) -> Option<(Int, (Int, Int))> => {
+    def (remaining, value) = state;
+    if remaining == 0 then Option::None() else Option::Some((value, (remaining - 1, value * 2)))
+};
+
+def values = ArrayUtil::Build((4, 3), Next);
+Expect(#values == 4, "builder length");
+Expect
+(
+    (values[0] == 3) && (values[1] == 6) && (values[2] == 12) && (values[3] == 24),
+    "builder order and state"
+);
+Expect(#ArrayUtil::Build((0, 1), Next) == 0, "empty builder");
+
+def MakeLabels = fn(count: Int) -> Array<Text> => ArrayUtil::Build
+(
+    0,
+    fn(i: Int) -> Option<(Text, Int)> => if i == count then Option::None() else Option::Some(("label " ++ (i as Text), i + 1))
+);
+
+def labels = MakeLabels(40000);
+
+def other = MakeLabels(2);
+Expect(#labels == 40000, "builder grows for a large result");
+Expect
+(
+    (labels[0] == "label 0") && (labels[20000] == "label 20000") && (labels[39999] == "label 39999"),
+    "builder keeps text elements alive"
+);
+Expect((#other == 2) && (other[1] == "label 1"), "separate builds keep their own values");

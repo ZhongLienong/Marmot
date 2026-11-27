@@ -307,6 +307,16 @@ public:
 
 	MarmotText Reverse() const;
 
+	struct DecodedCodePoint
+	{
+		MarmotInteger m_value;
+		int m_width;
+	};
+
+	std::optional<MarmotInteger> CodePointAt(MarmotInteger index) const noexcept;
+
+	std::optional<DecodedCodePoint> ReadCodePoint(MarmotInteger byte_offset) const noexcept;
+
 	// Every code point, in one pass. A byte that starts no UTF-8 sequence is
 	// one code point of its own value, as GetLength counts it.
 	std::vector<MarmotInteger> CodePoints() const;
@@ -443,6 +453,8 @@ public:
 
 	MarmotArray Slice(MarmotInteger start, MarmotInteger end) const;
 
+	MarmotArray WithEdit(MarmotInteger index, bool remove_at_index, std::optional<MarmotValue> value) const;
+
 	MarmotArray Reverse() const;
 
 	MARMOT_FORCE_INLINE int GetLength() const
@@ -455,6 +467,7 @@ public:
 	static MarmotArray Concatenate(const MarmotArray& a, const MarmotArray& b);
 
 private:
+	static MarmotArray AllocateForCopy(int length);
 	void Expand(int new_capacity);
 
 	MARMOT_FORCE_INLINE bool IsShort() const noexcept
