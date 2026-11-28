@@ -137,11 +137,10 @@ MarmotPattern::Array::Array(const Token& left_bracket, std::vector<std::unique_p
 {
 }
 
-MarmotPattern::Constructor::Constructor(const Token& name_token, std::string&& name, std::vector<std::unique_ptr<MarmotPattern>>&& args, bool is_union)
+MarmotPattern::Constructor::Constructor(const Token& name_token, std::string&& name, std::vector<std::unique_ptr<MarmotPattern>>&& args)
 	: m_name_token(name_token),
 	m_name(std::move(name)),
-	m_args(std::move(args)),
-	m_is_union(is_union)
+	m_args(std::move(args))
 {
 }
 

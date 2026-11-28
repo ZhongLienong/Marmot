@@ -33,7 +33,7 @@ def FirstPlusLength = fn(values: Array<Int>) -> Int => match values with
     case [] as empty => #empty;
 
 def Axis = fn(point: Point) -> Text => match point with
-    case Point(0, _) as on_axis => "on the y axis at " ++ (on_axis.y as Text)
+    case Point { x = 0, .. } as on_axis => "on the y axis at " ++ (on_axis.y as Text)
     case other => "off it at " ++ (other.x as Text);
 
 def Triple = fn(n: Int) -> Int => match n with

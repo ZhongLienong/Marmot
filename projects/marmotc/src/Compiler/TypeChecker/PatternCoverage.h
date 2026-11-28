@@ -38,6 +38,7 @@ private:
 	enum class Shape
 	{
 		Named,
+		Record,
 		Tuple,
 		ClosedArray,
 		OpenArray,
@@ -54,10 +55,12 @@ private:
 		Shape m_shape;
 		size_t m_arity;
 		size_t m_before;
+		std::span<const std::string> m_fields;
 		int64_t m_low = 0;
 		int64_t m_high = 0;
 
 		Head(std::string&& key, Shape shape, size_t arity, size_t before = 0uz);
+		Head(std::string&& key, std::span<const std::string> fields);
 		Head(int64_t low, int64_t high);
 	};
 

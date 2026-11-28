@@ -15,7 +15,7 @@ def tuple_sum = match pair with
 def point = Point(4, 5);
 
 def area = match point with
-    case Point(x, y) => x * y;
+    case Point { x = x, y = y } => x * y;
 
 def arr = [1, 2, 3];
 

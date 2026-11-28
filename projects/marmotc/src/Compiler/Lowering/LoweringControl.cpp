@@ -468,15 +468,6 @@ Lowering::Emitted Lowering::FunctionLowering::LowerPattern(const MarmotPattern& 
 		{
 			m_self.m_builder.AtLine(constructor.m_name_token.m_line);
 			const TypeRef type = Representation();
-			if (!constructor.m_is_union)
-			{
-				const std::vector<TypeRef> member_types = type->GetType<MarmotType::StructType>().m_member_types;
-				return Elements(constructor.m_args, [&](uint32_t index)
-				{
-					return m_self.m_builder.Emit(MarmotIROp::GetMember, member_types[index], { m_value }, MarmotIRIndex{ index });
-				});
-			}
-
 			const int tag = constructor.m_tag;
 			const std::vector<TypeRef> field_types = UnionMember(type, tag).m_member_types;
 			const MarmotIRValueId actual = m_self.m_builder.Emit(MarmotIROp::GetTag, IntType(), { m_value });

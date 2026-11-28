@@ -161,58 +161,27 @@ MarmotResult::TypeResult TypeChecker::CheckPattern(const CheckingContext& contex
 			}
 			else if constexpr (std::is_same_v<Node, MarmotPattern::Constructor>)
 			{
-				if (node.m_is_union)
+				if (!resolved_expected->IsType<MarmotType::UnionType>())
 				{
-					if (!resolved_expected->IsType<MarmotType::UnionType>())
-					{
-						return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Pattern type error: expected union type", node.m_name_token, m_file_name, m_source_lines, resolved_expected));
-					}
-
-					MarmotType::UnionType& union_type = resolved_expected->GetType<MarmotType::UnionType>();
-					if (!union_type.m_member_info.contains(node.m_name))
-					{
-						return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext(std::format("Pattern type error: unrecognized union member '{}'", node.m_name), node.m_name_token, m_file_name, m_source_lines));
-					}
-
-					const MarmotType::UnionType::UnionMemberContext& member_ctx = union_type.m_member_info.at(node.m_name);
-					if (member_ctx.m_member_types.size() != node.m_args.size())
-					{
-						return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Pattern type error: incorrect union arity", node.m_name_token, m_file_name, m_source_lines));
-					}
-
-					node.m_tag = member_ctx.m_tag;
-					for (size_t i = 0u; i < node.m_args.size(); i += 1u)
-					{
-						MarmotResult::TypeResult arg_result = CheckPattern(context, *node.m_args[i], member_ctx.m_member_types[i]);
-						if (!arg_result.HasValue())
-						{
-							return MarmotCompiler::Failure(std::move(arg_result.Error()));
-						}
-					}
-
-					node.m_type_data = resolved_expected;
-					return node.m_type_data;
+					return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Pattern type error: expected union type", node.m_name_token, m_file_name, m_source_lines, resolved_expected));
 				}
 
-				if (!resolved_expected->IsType<MarmotType::StructType>())
+				const MarmotType::UnionType& union_type = resolved_expected->GetType<MarmotType::UnionType>();
+				if (!union_type.m_member_info.contains(node.m_name))
 				{
-					return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Pattern type error: expected struct type", node.m_name_token, m_file_name, m_source_lines, resolved_expected));
+					return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext(std::format("Pattern type error: unrecognized union member '{}'", node.m_name), node.m_name_token, m_file_name, m_source_lines));
 				}
 
-				const MarmotType::StructType& struct_type = resolved_expected->GetType<MarmotType::StructType>();
-				if (struct_type.m_name != node.m_name)
+				const MarmotType::UnionType::UnionMemberContext& member_ctx = union_type.m_member_info.at(node.m_name);
+				if (member_ctx.m_member_types.size() != node.m_args.size())
 				{
-					return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Pattern type error: struct name mismatch", node.m_name_token, m_file_name, m_source_lines));
+					return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Pattern type error: incorrect union arity", node.m_name_token, m_file_name, m_source_lines));
 				}
 
-				if (struct_type.m_member_types.size() != node.m_args.size())
-				{
-					return MarmotCompiler::Failure(MarmotError::GenerateTypeCheckerErrorWithContext("Pattern type error: incorrect struct arity", node.m_name_token, m_file_name, m_source_lines));
-				}
-
+				node.m_tag = member_ctx.m_tag;
 				for (size_t i = 0u; i < node.m_args.size(); i += 1u)
 				{
-					MarmotResult::TypeResult arg_result = CheckPattern(context, *node.m_args[i], struct_type.m_member_types[i]);
+					MarmotResult::TypeResult arg_result = CheckPattern(context, *node.m_args[i], member_ctx.m_member_types[i]);
 					if (!arg_result.HasValue())
 					{
 						return MarmotCompiler::Failure(std::move(arg_result.Error()));

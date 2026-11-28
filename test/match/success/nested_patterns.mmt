@@ -10,7 +10,7 @@ type Point =
 def payload = (Point(2, 5), [3, 4], ());
 
 def result = match payload with
-    case (Point(px, py), [a, b], ()) => px + py + a + b
+    case (Point { x = px, y = py }, [a, b], ()) => px + py + a + b
     case _ => 0;
 
 IO::PrintLine("nested_result=" ++ (result as Text));

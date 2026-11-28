@@ -17,6 +17,10 @@ PatternCoverage::Head::Head(std::string&& key, Shape shape, size_t arity, size_t
 {
 }
 
+PatternCoverage::Head::Head(std::string&& key, std::span<const std::string> fields) : m_key(std::move(key)), m_shape(Shape::Record), m_arity(fields.size()), m_before(0uz), m_fields(fields)
+{
+}
+
 PatternCoverage::Head::Head(int64_t low, int64_t high) : m_key(std::format("{}..{}", low, high)), m_shape(Shape::Interval), m_arity(0uz), m_before(0uz), m_low(low), m_high(high)
 {
 }
@@ -191,7 +195,7 @@ std::unique_ptr<MarmotPattern> PatternCoverage::Narrowed(const MarmotPattern& pa
 			}
 			else if constexpr (std::is_same_v<Node, MarmotPattern::Constructor>)
 			{
-				MarmotPattern::Constructor constructor(node.m_name_token, std::string(node.m_name), copies(node.m_args), node.m_is_union);
+				MarmotPattern::Constructor constructor(node.m_name_token, std::string(node.m_name), copies(node.m_args));
 				constructor.m_tag = node.m_tag;
 				return std::make_unique<MarmotPattern>(std::move(constructor));
 			}
@@ -465,11 +469,6 @@ MarmotCompiler::Optional<std::vector<PatternCoverage::Head>> PatternCoverage::Si
 			using Node = std::decay_t<T>;
 			if constexpr (std::is_same_v<Node, MarmotPattern::Constructor>)
 			{
-				if (!node.m_is_union)
-				{
-					return std::vector<Head>{ Head(std::string(node.m_name), Shape::Named, node.m_args.size()) };
-				}
-
 				const MarmotType::UnionType& union_type = node.m_type_data->template GetType<MarmotType::UnionType>();
 				std::vector<std::pair<int, Head>> members = union_type.m_member_info
 					| std::views::transform([](const std::pair<const std::string, MarmotType::UnionType::UnionMemberContext>& member)
@@ -482,7 +481,7 @@ MarmotCompiler::Optional<std::vector<PatternCoverage::Head>> PatternCoverage::Si
 			}
 			else if constexpr (std::is_same_v<Node, MarmotPattern::Record>)
 			{
-				return std::vector<Head>{ Head(std::string(node.m_name), Shape::Named, node.m_type_data->template GetType<MarmotType::StructType>().m_member_types.size()) };
+				return std::vector<Head>{ Head(std::string(node.m_name), node.m_type_data->template GetType<MarmotType::StructType>().m_member_names) };
 			}
 			else if constexpr (std::is_same_v<Node, MarmotPattern::Tuple>)
 			{
@@ -690,6 +689,18 @@ std::string PatternCoverage::Display(const Head& head, std::span<const std::stri
 	{
 	case Shape::Named:
 		return std::format("{}({})", head.m_key, joined);
+	case Shape::Record:
+	{
+		if (arguments.empty())
+		{
+			return std::format("{} {{}}", head.m_key);
+		}
+		const std::string fields = std::views::zip(head.m_fields, arguments)
+			| std::views::transform([](const std::tuple<const std::string&, const std::string&>& field) { return std::format("{} = {}", std::get<0>(field), std::get<1>(field)); })
+			| std::views::join_with(std::string_view(", "))
+			| std::ranges::to<std::string>();
+		return std::format("{} {{ {} }}", head.m_key, fields);
+	}
 	case Shape::Tuple:
 		return std::format("({})", joined);
 	case Shape::ClosedArray:

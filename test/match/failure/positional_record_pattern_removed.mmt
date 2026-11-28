@@ -1,0 +1,9 @@
+module PositionalRecordPatternRemoved
+
+type Point = {
+    x: Int,
+    y: Int
+};
+
+def value = match Point(1, 2) with
+    case Point(x, _) => x;

@@ -291,10 +291,9 @@ public:
 		Token m_name_token;
 		std::string m_name;
 		std::vector<std::unique_ptr<MarmotPattern>> m_args;
-		bool m_is_union = false;
 		int m_tag = -1;
 
-		Constructor(const Token& name_token, std::string&& name, std::vector<std::unique_ptr<MarmotPattern>>&& args, bool is_union);
+		Constructor(const Token& name_token, std::string&& name, std::vector<std::unique_ptr<MarmotPattern>>&& args);
 	};
 
 	// `pattern as name`: matches what `pattern` does and binds the whole value.

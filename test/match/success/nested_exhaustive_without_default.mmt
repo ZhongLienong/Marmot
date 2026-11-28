@@ -32,10 +32,10 @@ def DescribePair = fn(left: Bool, right: Bool) -> Text => match (left, right) wi
     case (false, false) => "neither";
 
 def DescribeReading = fn(reading: Reading) -> Text => match reading with
-    case Reading(_, false) => "invalid"
-    case Reading(Sign::Negative(), true) => "negative"
-    case Reading(Sign::Zero(), true) => "zero"
-    case Reading(Sign::Positive(), true) => "positive";
+    case Reading { sign = _, valid = false } => "invalid"
+    case Reading { sign = Sign::Negative(), valid = true } => "negative"
+    case Reading { sign = Sign::Zero(), valid = true } => "zero"
+    case Reading { sign = Sign::Positive(), valid = true } => "positive";
 
 def DescribeNested = fn(option: Option<Option<Bool>>) -> Text => match option with
     case Option::Some(Option::Some(true)) => "yes"

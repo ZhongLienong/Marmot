@@ -212,7 +212,7 @@ namespace
 
 		std::unique_ptr<MarmotPattern> ConstructorPattern(const std::string& name, std::vector<std::unique_ptr<MarmotPattern>>&& fields) const
 		{
-			return std::make_unique<MarmotPattern>(MarmotPattern::Constructor(Token(name, Token::Name::IDENTIFIER_LITERAL, m_anchor), std::string(name), std::move(fields), true));
+			return std::make_unique<MarmotPattern>(MarmotPattern::Constructor(Token(name, Token::Name::IDENTIFIER_LITERAL, m_anchor), std::string(name), std::move(fields)));
 		}
 
 		std::unique_ptr<MarmotExpression> TextLiteral(const std::string& value) const

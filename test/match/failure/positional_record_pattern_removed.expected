@@ -1,0 +1,6 @@
+Compilation failed :(
+Parser Error at test/match/failure/positional_record_pattern_removed.mmt:9
+  |
+9 |     case Point(x, _) => x;
+  |          ^^^^^ Record patterns require named fields. Use Name { field = pattern }.
+  |

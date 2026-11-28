@@ -346,16 +346,18 @@ MarmotResult::PatternResult Parser::ParsePrimaryPattern()
 
 					if (resolution.Value().HasValue())
 					{
-						const bool is_union = !resolution.Value()->m_is_struct;
 						resolved.m_lexeme = resolution.Value()->m_constructor_name;
+						if (resolution.Value()->m_is_struct)
+						{
+							if (!Match(Token::Name::LEFT_BRACE))
+							{
+								return MarmotCompiler::Failure(GenerateParserError("Record patterns require named fields. Use Name { field = pattern }.", identifier));
+							}
+							return ParseRecordPattern(std::move(resolved));
+						}
 						if (Check(Token::Name::LEFT_BRACE, 0))
 						{
-							if (is_union)
-							{
-								return MarmotCompiler::Failure(GenerateParserError("A variant's fields have no names; match it with Name(...).", Peek(0)));
-							}
-							Advance();
-							return ParseRecordPattern(std::move(resolved));
+							return MarmotCompiler::Failure(GenerateParserError("A variant's fields have no names; match it with Name(...).", Peek(0)));
 						}
 						if (Match(Token::Name::LEFT_PAREN))
 						{
@@ -378,7 +380,7 @@ MarmotResult::PatternResult Parser::ParsePrimaryPattern()
 								}
 							}
 
-							return std::make_unique<MarmotPattern>(MarmotPattern::Constructor(resolved, std::string(resolved.m_lexeme), std::move(args), is_union));
+							return std::make_unique<MarmotPattern>(MarmotPattern::Constructor(resolved, std::string(resolved.m_lexeme), std::move(args)));
 						}
 
 						return MarmotCompiler::Failure(GenerateParserError("Constructor patterns require parentheses; use Name() for a constructor with no fields.", identifier));
@@ -480,7 +482,7 @@ MarmotResult::PatternResult Parser::ParseRecordPattern(Token&& name)
 {
 	std::vector<MarmotPattern::Record::Field> fields;
 	MarmotCompiler::Optional<Token> rest;
-	do
+	for (bool expect_field = !Check(Token::Name::RIGHT_BRACE, 0); expect_field; expect_field = Match(Token::Name::COMMA))
 	{
 		if (Match(Token::Name::DOUBLE_DOT))
 		{
@@ -503,7 +505,7 @@ MarmotResult::PatternResult Parser::ParseRecordPattern(Token&& name)
 			return pattern;
 		}
 		fields.emplace_back(field.Value(), std::move(pattern.Value()));
-	} while (Match(Token::Name::COMMA));
+	}
 
 	return Consume(Token::Name::RIGHT_BRACE, rest.HasValue() ? "Expected '}' after '..'; it comes last in a record pattern." : "Expected '}' after record pattern.")
 		.Transform([&name, &fields, &rest](Token&&)

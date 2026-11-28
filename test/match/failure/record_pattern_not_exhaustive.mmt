@@ -1,0 +1,9 @@
+module RecordPatternNotExhaustive
+
+type Pair = {
+    left: Bool,
+    right: Bool
+};
+
+def Describe = fn(pair: Pair) -> Int => match pair with
+    case Pair { left = true, right = _ } => 1;

@@ -18,7 +18,7 @@ def union_result = match some_value with
     case Option::None() => 0;
 
 def nested_result = match nested_value with
-    case (x, _, Point(_, y)) => x + y;
+    case (x, _, Point { x = _, y = y }) => x + y;
 
 def catch_all_result = match true with
     case _ => 42;

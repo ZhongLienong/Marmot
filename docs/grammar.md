@@ -73,7 +73,7 @@ binder       = IDENTIFIER | '_' ;
 
 typeDecl     = 'type' IDENTIFIER typeParams? constraints? '='
                (record deriving? | variants deriving? | type) ';' ;
-record       = '{' field (',' field)* ','? '}' ;
+record       = '{' (field (',' field)* ','?)? '}' ;
 field        = IDENTIFIER ':' type ;
 variants     = variant ('|' variant)+ | '|' variant ('|' variant)* ;
 variant      = IDENTIFIER ('(' type (',' type)* ')')? ;
@@ -222,8 +222,8 @@ primary      = '_' | '(' ')'                              // wildcard or Unit
              | number | TEXT | 'true' | 'false'
              | integer '..' integer ('..' integer)?       // the Ints a range visits
              | IDENTIFIER                                 // binds the value
-             | qualifiedName '(' (pattern (',' pattern)*)? ')' // a variant or record, by position
-             | qualifiedName '{' fieldPatterns '}'        // a record, by field name
+             | qualifiedName '(' (pattern (',' pattern)*)? ')' // a variant, by position
+             | qualifiedName '{' fieldPatterns? '}'       // a record, by field name
              | '(' pattern ')'                            // grouping
              | '(' pattern (',' pattern)+ ')'             // a tuple
              | '[' (element (',' element)*)? ']' ;        // an array
@@ -250,9 +250,9 @@ A record pattern names the fields it matches, in any order, each as
 `field = pattern`: `case Point { x = 0, y = y0 } => ...`. Every field is matched
 unless the pattern ends in `..`, which leaves the ones it does not name out:
 `case Point { x = 0, .. }`. Leaving a field out without `..`, naming one twice,
-and a `..` that leaves nothing out are errors. A variant's fields have no
-names, so only `Name(...)` matches them. Constructor patterns require parentheses
-even with no fields: `case List::Nil() => ...`.
+and a `..` that leaves nothing out are errors. Match an empty record with
+`case Empty {} => ...`. Match union variants by position and use parentheses
+even when there are no fields, as in `case List::Nil() => ...`.
 
 `pattern as name` matches what `pattern` matches and binds the whole value to
 `name` as well: `case Option::Some(inner) as whole => ...`.
