@@ -157,7 +157,7 @@ Different levels may be mixed without parentheses: `a + b * c` means
 | 1 | `e as Type` |
 | 2 | `e \|\| e` |
 | 3 | `e && e` |
-| 4 | `e \|> e` (pipe; `\|> match ...` is allowed) |
+| 4 | `e \|> e` (pipe) |
 | 5 | `e \| e` |
 | 6 | `e ^ e` |
 | 7 | `e & e` |

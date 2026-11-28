@@ -1,0 +1,6 @@
+Compilation failed :(
+Parser Error at test/pipe/failure/match_without_scrutinee.mmt:3
+  |
+3 | def result = true |> match with
+  |                            ^^^^ Expected expression.
+  |

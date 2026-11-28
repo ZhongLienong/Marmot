@@ -40,7 +40,7 @@ do not promise backward compatibility.
 | `for ... in` over ranges, arrays, and `Iterable` implementations | Stable | `test/for_loop/`, `test/prelude/` | `Iterable`-backed loops use `Iterable::Next` at type-check and lowering time. |
 | Binary and ternary ranges | Stable | `test/range/`, `test/for_loop/`, `projects/marmotvm/tests/runtime/` | Both `start..end` and `start..step..end` are implemented. |
 | Array comprehensions | Stable | `test/array_comprehension/`, `projects/marmotc/tests/parser/` | Supports range, array, and `Iterable` inputs. |
-| Pipe operator: `|>` and `|> match with` | Stable | `test/pipe/` | Pipe rewriting is handled in the parser. |
+| Pipe operator: `|>` | Stable | `test/pipe/` | Pipe rewriting is handled in the parser. |
 | Closures and captured references | Stable | `test/closure/`, `test/cell/`, `projects/marmotvm/tests/runtime/`, `projects/marmotc/tests/static_analyzer/` | Closures capture values. Capturing a `Ref<T>` shares that reference, so closures see writes through `:=`. |
 
 ## Pattern Matching

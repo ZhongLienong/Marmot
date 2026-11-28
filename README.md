@@ -12,7 +12,7 @@ A statically-typed functional programming language featuring algebraic data type
 - **Deriving** - Generate structural and container helpers from type declarations
 - **Module System** - Explicit imports/exports with privacy enforcement
 - **Package System** - Early manifest-based package loading with native FFI bindings
-- **Pipe Operator** - Functional composition with `|>`, inferred lambdas, and `|> match with`
+- **Pipe Operator** - Functional composition with `|>` and inferred lambdas
 - **Ranges** - Elegant `start..step..end` syntax for loops
 - **Closures** - First-class functions with lexical scoping
 - **Expression-Oriented** - Blocks, conditionals, matches, and loops are expressions
@@ -330,14 +330,9 @@ def transform = fn(value: Int) -> Result<Int, Text> => {
     else Result::Err("too small")
 };
 
-def result =
-    5
-    |> double
-    |> fn(x) => { x + 1 }
-    |> transform
-    |> match with
-        case Result::Ok(value) => value
-        case Result::Err(_) => 0;
+def result = match 5 |> double |> fn(x) => x + 1 |> transform with
+    case Result::Ok(value) => value
+    case Result::Err(_) => 0;
 ```
 
 In pattern position, `_` is a wildcard that ignores the matched value and does not bind a local. Outside patterns, `_` remains a normal identifier.
@@ -437,7 +432,6 @@ def updated_text = text ++ suffix;
 - **Recursive Data Types**: Self-referential unions for lists, trees
 - **Exhaustive Matching**: Compiler-enforced pattern coverage
 - **Constructor Inference**: Generic constructor arguments can be inferred from arguments and context
-- **Pipe Into Match**: Pipelines can flow directly into `match with`
 - **Range Expressions**: `start..step..end` with positive/negative steps
 - **Array Iteration**: `for x in array` iterates over elements
 - **Float Ranges**: Support for decimal step values

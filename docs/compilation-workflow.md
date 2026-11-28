@@ -147,7 +147,6 @@ Current parser features include:
 - associated type declarations and bindings in classes and instances
 - `deriving (...)`
 - pipe rewriting for `|>`
-- pipe-into-`match`
 - wildcard `_` pattern handling
 - bidirectional constructor and lambda syntax that preserves omitted annotations for later inference
 

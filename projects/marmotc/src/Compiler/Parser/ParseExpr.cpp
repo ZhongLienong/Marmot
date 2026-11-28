@@ -914,12 +914,6 @@ MarmotResult::ExpressionResult Parser::ParsePipe()
 		[this](std::unique_ptr<MarmotExpression>&& left) -> MarmotResult::ExpressionResult
 		{
 			const Token pipe_op = Previous();
-			if (Match(Token::Name::MATCH))
-			{
-				Token& match_keyword = Previous();
-				return ParseMatchExpressionWithScrutinee(match_keyword, std::move(left));
-			}
-
 			m_state.m_next_function_is_pipe_stage = Check(Token::Name::FUNCTION, 0);
 			return ParseBitwiseOr().Transform
 			(
@@ -1359,13 +1353,20 @@ MarmotResult::ExpressionResult Parser::ParseArrayComprehension(Token& bracket, c
 	return probe.m_loop_variable_offset.HasValue() ? InScope(parse) : parse();
 }
 
-MarmotResult::ExpressionResult Parser::ParseMatchExpressionWithScrutinee(Token& match_keyword, std::unique_ptr<MarmotExpression>&& expr)
+MarmotResult::ExpressionResult Parser::ParseMatchExpression()
 {
-	return Consume(Token::Name::WITH, "Expected 'with' after match expression.")
+	Token& match_keyword = Previous();
+	return ParseExpression()
 		.AndThen
 		(
-			[expr = std::move(expr), &match_keyword, this](Token&&) mutable ->MarmotResult::ExpressionResult
+			[&match_keyword, this](std::unique_ptr<MarmotExpression>&& expr) -> MarmotResult::ExpressionResult
 			{
+				MarmotResult::TokenResult with_keyword = Consume(Token::Name::WITH, "Expected 'with' after match expression.");
+				if (!with_keyword.HasValue())
+				{
+					return MarmotCompiler::Failure(std::move(with_keyword.Error()));
+				}
+
 				std::vector<std::unique_ptr<MarmotExpression>> cases;
 
 				while (Match(Token::Name::CASE))
@@ -1385,19 +1386,6 @@ MarmotResult::ExpressionResult Parser::ParseMatchExpressionWithScrutinee(Token& 
 				}
 
 				return std::make_unique<MarmotExpression>(MarmotExpression::Match(match_keyword, std::move(expr), std::move(cases)));
-			}
-		);
-}
-
-MarmotResult::ExpressionResult Parser::ParseMatchExpression()
-{
-	Token& match_keyword = Previous();
-	return ParseExpression()
-		.AndThen
-		(
-			[&match_keyword, this](std::unique_ptr<MarmotExpression>&& expr) ->MarmotResult::ExpressionResult
-			{
-				return ParseMatchExpressionWithScrutinee(match_keyword, std::move(expr));
 			}
 		);
 }

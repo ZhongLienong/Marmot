@@ -507,21 +507,6 @@ above it already match is an error, and so is an alternative of `|` that the
 cases and alternatives before it cover. `case 256` then `case 0x100` is one, as is
 `case _` after cases that already cover every value.
 
-### Pipe Into Match
-
-The pipe operator can feed directly into a `match`:
-
-```marmot
-def pipeline_result =
-    5
-    |> fn(x) => { x + 1 }
-    |> Transform
-    |> match with
-        case Result::Ok(v) => v
-        case Result::Err(_) => 0;
-```
-
-This is equivalent to matching on the result of the previous pipeline stage.
 In a `match` pattern, `_` ignores the matched value. Function parameters, `def`
 bindings, and loop binders can also use `_` to discard values. Each discard
 introduces no name, and `def _ = expression;` evaluates its initializer.

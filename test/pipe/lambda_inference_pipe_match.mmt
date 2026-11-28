@@ -15,11 +15,10 @@ def Transform = fn(value: Int) -> Result<Int, Text> =>
     else Result::Err("too small")
 };
 
-def pipeline_result = 5 |> doubler |> fn(x) =>
-{
+def pipeline_result = match 5 |> doubler |> fn(x) => {
     x + 1
 }
-|> Transform |> match with
+|> Transform with
     case Result::Ok(v) => v
     case Result::Err(_) => 0;
 

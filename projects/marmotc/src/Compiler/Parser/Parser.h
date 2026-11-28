@@ -719,8 +719,6 @@ private:
 
 	MarmotResult::ExpressionResult ParseArrayComprehension(Token& bracket, const ArrayComprehensionProbe& probe);
 
-	MarmotResult::ExpressionResult ParseMatchExpressionWithScrutinee(Token& match_keyword, std::unique_ptr<MarmotExpression>&& expr);
-
 	MarmotResult::ExpressionResult ParseMatchExpression();
 
 	MarmotResult::ExpressionResult ParseIfElseExpression();

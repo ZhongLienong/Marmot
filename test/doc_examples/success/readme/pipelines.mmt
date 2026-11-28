@@ -9,11 +9,6 @@ def transform = fn(value: Int) -> Result<Int, Text> => {
     else Result::Err("too small")
 };
 
-def result =
-    5
-    |> double
-    |> fn(x) => { x + 1 }
-    |> transform
-    |> match with
-        case Result::Ok(value) => value
-        case Result::Err(_) => 0;
+def result = match 5 |> double |> fn(x) => x + 1 |> transform with
+    case Result::Ok(value) => value
+    case Result::Err(_) => 0;
