@@ -65,12 +65,8 @@ Source names the library a foreign function comes from:
 
 ```marmot
 foreign "marmot_image_read_info" ReadInfo : fn(Text) -> Int from "marmot_image";
-
-foreign "marmot_image"
-{
-    "marmot_image_width" Width : fn(Int) -> Int;
-    "marmot_image_height" Height : fn(Int) -> Int;
-}
+foreign "marmot_image_width" Width : fn(Int) -> Int from "marmot_image";
+foreign "marmot_image_height" Height : fn(Int) -> Int from "marmot_image";
 ```
 
 The quoted name before the Marmot name is the symbol the library exports. The

@@ -1201,85 +1201,30 @@ MarmotResult::StatementResult Parser::ParseSimpleStatement()
 
 MarmotResult::StatementResult Parser::ParseForeignStatement()
 {
-	return Consume(Token::Name::TEXT_LITERAL, "Expected the foreign symbol, or the library of a foreign block.")
-		.AndThen
-		(
-			[this](Token&& name) -> MarmotResult::StatementResult
-			{
-				if (Match(Token::Name::LEFT_BRACE))
-				{
-					return ParseForeignBlock(name);
-				}
-
-				return ParseForeignDeclaration(name, MarmotCompiler::None);
-			}
-		);
-}
-
-// foreign "library" { "symbol" Name : Type; ... } declares each function as if
-// it were written `foreign "symbol" Name : Type from "library";`.
-MarmotResult::StatementResult Parser::ParseForeignBlock(const Token& library)
-{
-	std::vector<std::unique_ptr<MarmotStatement>> declarations;
-	while (!Check(Token::Name::RIGHT_BRACE, 0) && !IsAtEnd())
+	MarmotResult::TokenResult symbol = Consume(Token::Name::TEXT_LITERAL, "Expected the foreign symbol.");
+	if (!symbol.HasValue())
 	{
-		MarmotResult::TokenResult symbol = Consume(Token::Name::TEXT_LITERAL, "Expected the symbol of a foreign function in the foreign block.");
-		if (!symbol.HasValue())
-		{
-			return MarmotCompiler::Failure(std::move(symbol.Error()));
-		}
-
-		MarmotResult::StatementResult declaration = ParseForeignDeclaration(symbol.Value(), library.m_lexeme);
-		if (!declaration.HasValue())
-		{
-			return declaration;
-		}
-
-		if (declaration.Value()->GetStatement<MarmotStatement::ForeignDefinition>().m_binding.HasValue())
-		{
-			return MarmotCompiler::Failure(GenerateParserError("A foreign block can only appear at the top level of a module.", library));
-		}
-
-		declarations.emplace_back(std::move(declaration.Value()));
+		return MarmotCompiler::Failure(std::move(symbol.Error()));
 	}
+	const Token& foreign_name = symbol.Value();
 
-	MarmotResult::TokenResult closing = Consume(Token::Name::RIGHT_BRACE, "Expected '}' after the foreign block.");
-	if (!closing.HasValue())
-	{
-		return MarmotCompiler::Failure(std::move(closing.Error()));
-	}
-
-	if (declarations.empty())
-	{
-		return MarmotCompiler::Failure(GenerateParserError(std::format("The foreign block for \"{}\" declares no functions.", library.m_lexeme), library));
-	}
-
-	for (size_t index = 1uz; index < declarations.size(); index += 1uz)
-	{
-		m_pending_statements.push(std::move(declarations[index]));
-	}
-	return std::move(declarations.front());
-}
-
-MarmotResult::StatementResult Parser::ParseForeignDeclaration(const Token& foreign_name, const MarmotCompiler::Optional<std::string>& block_library)
-{
 	return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected foreign function name.")
 		.AndThen
 		(
-			[this, &foreign_name, &block_library](Token&& function_name) ->MarmotResult::StatementResult
+			[this, &foreign_name](Token&& function_name) ->MarmotResult::StatementResult
 			{
 				function_name.m_lexeme = Mangle(function_name.m_lexeme);
 
 				return Consume(Token::Name::SINGLE_COLON, "Expected ':' before foreign function type.")
 					.AndThen
 					(
-						[&foreign_name, &function_name, &block_library, this](Token&&) ->MarmotResult::StatementResult
+						[&foreign_name, &function_name, this](Token&&) ->MarmotResult::StatementResult
 						{
 							constexpr bool is_variable = true;
 							return DefineName(function_name, is_variable)
 								.AndThen
 								(
-									[&foreign_name, &function_name, &block_library, this](Token&& name) ->MarmotResult::StatementResult
+									[&foreign_name, &function_name, this](Token&& name) ->MarmotResult::StatementResult
 									{
 										MarmotCompiler::Optional<BindingId> binding = RegisterLocalBinding(name.m_lexeme);
 										return InScope
@@ -1292,15 +1237,15 @@ MarmotResult::StatementResult Parser::ParseForeignDeclaration(const Token& forei
 												return ParseType(is_foreign)
 													.AndThen
 													(
-														[&foreign_name, &function_name, &binding, &block_library, this](std::shared_ptr<MarmotType>&& type)->MarmotResult::StatementResult
+																[&foreign_name, &function_name, &binding, this](std::shared_ptr<MarmotType>&& type)->MarmotResult::StatementResult
 														{
 															if (!type->IsType<MarmotType::FunctionType>())
 															{
 																return MarmotCompiler::Failure(GenerateParserError("'foreign' only applies to function types.", function_name));
 															}
 
-															MarmotCompiler::Optional<std::string> library = block_library;
-															if (!block_library.HasValue() && Check(Token::Name::IDENTIFIER_LITERAL, 0) && Peek(0).m_lexeme == "from")
+																	MarmotCompiler::Optional<std::string> library;
+																	if (Check(Token::Name::IDENTIFIER_LITERAL, 0) && Peek(0).m_lexeme == "from")
 															{
 																Advance();
 																MarmotResult::TokenResult library_name = Consume(Token::Name::TEXT_LITERAL, "Expected the library name after 'from'.");
@@ -1329,7 +1274,7 @@ MarmotResult::StatementResult Parser::ParseForeignDeclaration(const Token& forei
 													);
 											}
 										);
-}
+									}
 								);
 						}
 					);

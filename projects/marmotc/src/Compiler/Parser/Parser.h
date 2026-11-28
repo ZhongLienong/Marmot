@@ -578,7 +578,7 @@ private:
 
 	void CollectTopLevelNames();
 
-	void CollectForeignNames(TokenStream::const_iterator foreign_keyword);
+	void CollectForeignName(TokenStream::const_iterator foreign_keyword);
 
 	void PredeclareType(int type_keyword_index);
 
@@ -774,10 +774,6 @@ private:
 	MarmotResult::StatementResult ParseSimpleStatement();
 
 	MarmotResult::StatementResult ParseForeignStatement();
-
-	MarmotResult::StatementResult ParseForeignBlock(const Token& library);
-
-	MarmotResult::StatementResult ParseForeignDeclaration(const Token& foreign_name, const MarmotCompiler::Optional<std::string>& block_library);
 
 	using ClassConstraintListResult = MarmotResult::Result<std::vector<MarmotType::ClassConstraint>>;
 

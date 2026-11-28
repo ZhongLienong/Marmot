@@ -81,11 +81,8 @@ TEST_CASE("The backend records the native libraries that foreign declarations na
 	const std::string source =
 		R"(module Image
 foreign "image_write" Write : fn(Text) -> Bool from "marmot_image";
-foreign "marmot_image"
-{
-	"image_read_info" ReadInfo : fn(Text) -> Array<Int>;
-	"image_version" Version : fn() -> Int;
-}
+foreign "image_read_info" ReadInfo : fn(Text) -> Array<Int> from "marmot_image";
+foreign "image_version" Version : fn() -> Int from "marmot_image";
 foreign "MARMOT_FFI_ReportPanic" Report : fn(Text) -> Unit;
 foreign "helper" Helper : fn() -> Int from "other";
 )";
@@ -122,27 +119,6 @@ foreign "image_read_info" ReadInfo : fn(Text) -> Array<Int>;
 	expectation.m_line = 2;
 	expectation.m_message_substrings = { "Unknown foreign function 'image_read_info'", "from \"library\"" };
 	RequireErrorMatches(bytecode_result.Error().m_items[0u], expectation);
-}
-
-TEST_CASE("A foreign block is only for the top level and must declare something", "[compiler][parser][ffi]")
-{
-	const std::string local_block =
-		R"(module Local
-def main = fn() -> Int => {
-	foreign "lib" { "f" F : fn() -> Int; }
-	0
-};
-)";
-	MarmotResult::DiagnosticsResult<BytecodeModule> local_result =
-		MarmotTest::GenerateBytecodeSnippetWithDiagnostics(local_block, "Local.mmt");
-	REQUIRE_FALSE(local_result.HasValue());
-	CHECK(local_result.Error().m_items[0u].m_message.find("top level") != std::string::npos);
-
-	const std::string empty_block = "module Empty\nforeign \"lib\" { }\n";
-	MarmotResult::DiagnosticsResult<BytecodeModule> empty_result =
-		MarmotTest::GenerateBytecodeSnippetWithDiagnostics(empty_block, "Empty.mmt");
-	REQUIRE_FALSE(empty_result.HasValue());
-	CHECK(empty_result.Error().m_items[0u].m_message.find("declares no functions") != std::string::npos);
 }
 
 TEST_CASE("Lowering reports every unsupported foreign return type, not only the first", "[compiler][lowering][diagnostics]")

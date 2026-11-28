@@ -486,13 +486,7 @@ foreign "MARMOT_FFI_ReadBinaryFile" ReadBinaryFile : fn(Text) -> Array<Byte>;
 
 // From a native library: the symbol, then the library that exports it
 foreign "marmot_image_width" Width : fn(Int) -> Int from "marmot_image";
-
-// Several functions from one library
-foreign "marmot_image"
-{
-    "marmot_image_width" ImageWidth : fn(Int) -> Int;
-    "marmot_image_height" ImageHeight : fn(Int) -> Int;
-}
+foreign "marmot_image_height" Height : fn(Int) -> Int from "marmot_image";
 ```
 
 A declaration without `from` must name a VM intrinsic. See

@@ -37,11 +37,8 @@ namespace
 		return std::format(
 			"module Main\n"
 			"foreign \"MARMOT_FFI_Print\" Print : fn(Text) -> Unit from \"marmotstdlib\";\n"
-			"foreign \"{}\"\n"
-			"{{\n"
-			"\t\"marmot_test_add\" Add : fn(Int, Int) -> Int;\n"
-			"\t\"marmot_test_answer\" Answer : fn() -> Int;\n"
-			"}}\n"
+			"foreign \"marmot_test_add\" Add : fn(Int, Int) -> Int from \"{0}\";\n"
+			"foreign \"marmot_test_answer\" Answer : fn() -> Int from \"{0}\";\n"
 			"if Add(40, 2) == Answer() then Print(\"ok\") else Print(\"wrong\");\n",
 			library);
 	}
@@ -205,16 +202,13 @@ TEST_CASE("A native function receives and returns each argument as its declared 
 		"Main.mmt",
 		"module Main\n"
 		"foreign \"MARMOT_FFI_Print\" Print : fn(Text) -> Unit from \"marmotstdlib\";\n"
-		"foreign \"marmot_test_native\"\n"
-		"{\n"
-		"\t\"marmot_test_length\" Length : fn(Text) -> Int;\n"
-		"\t\"marmot_test_sum\" Sum : fn(Array<Int>) -> Int;\n"
-		"\t\"marmot_test_shout\" Shout : fn(Text) -> Text;\n"
-		"\t\"marmot_test_words\" Words : fn() -> Array<Text>;\n"
-		"\t\"marmot_test_count\" Count : fn(Int) -> Array<Int>;\n"
-		"\t\"marmot_test_text_bytes\" TextBytes : fn(Array<Text>) -> Int;\n"
-		"\t\"marmot_test_freed\" Freed : fn() -> Int;\n"
-		"}\n"
+		"foreign \"marmot_test_length\" Length : fn(Text) -> Int from \"marmot_test_native\";\n"
+		"foreign \"marmot_test_sum\" Sum : fn(Array<Int>) -> Int from \"marmot_test_native\";\n"
+		"foreign \"marmot_test_shout\" Shout : fn(Text) -> Text from \"marmot_test_native\";\n"
+		"foreign \"marmot_test_words\" Words : fn() -> Array<Text> from \"marmot_test_native\";\n"
+		"foreign \"marmot_test_count\" Count : fn(Int) -> Array<Int> from \"marmot_test_native\";\n"
+		"foreign \"marmot_test_text_bytes\" TextBytes : fn(Array<Text>) -> Int from \"marmot_test_native\";\n"
+		"foreign \"marmot_test_freed\" Freed : fn() -> Int from \"marmot_test_native\";\n"
 		"def empty: Array<Int> = [];\n"
 		"def words = Words();\n"
 		"Print(Shout(\"hey\") ++ \" \" ++ (Length(\"four\") as Text) ++ \" \" ++ (Sum([1, 2, 39]) as Text) ++ \" \" ++ (Sum(empty) as Text) ++ \" \" ++ words[0] ++ \" \" ++ words[1] ++ \" \" ++ (Sum(Count(4)) as Text) ++ \" \" ++ (TextBytes(words) as Text) ++ \" \" ++ (Freed() as Text));\n") });

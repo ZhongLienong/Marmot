@@ -91,8 +91,7 @@ classMember  = IDENTIFIER ':' type ';'                     // a method's signatu
 instance     = 'instance' IDENTIFIER '<' type (',' type)* '>' constraints?
                '{' (define | 'type' IDENTIFIER '=' type ';')* '}' ';' ;
 
-foreign      = 'foreign' TEXT IDENTIFIER ':' type ('from' TEXT)? ';'
-             | 'foreign' TEXT '{' (TEXT IDENTIFIER ':' type ';')+ '}' ;
+foreign      = 'foreign' TEXT IDENTIFIER ':' type ('from' TEXT)? ';' ;
 
 typeParams   = '<' IDENTIFIER (',' IDENTIFIER)* '>' ;
 constraints  = 'where' constraint (',' constraint)* ;
@@ -120,9 +119,8 @@ names, `Tree<T>` holding `Forest<T>` and `Forest<T>` holding `Tree<T>`: a type
 cannot be built from one that holds it back with other arguments. A newtype
 cannot contain itself.
 
-In a `foreign` declaration the first TEXT is the symbol the library exports;
-`from` names the library, and the block form names it once for several
-functions. Without `from`, the symbol must be a runtime builtin.
+A `foreign` declaration names the exported symbol and uses `from` to name its
+library. Without `from`, the symbol must be a runtime builtin.
 
 ## Types
 

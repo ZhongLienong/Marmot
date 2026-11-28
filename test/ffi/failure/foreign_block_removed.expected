@@ -1,0 +1,6 @@
+Compilation failed :(
+Parser Error at test/ffi/failure/foreign_block_removed.mmt:4
+  |
+4 | {
+  | ^ Expected foreign function name.
+  |
