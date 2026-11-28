@@ -89,35 +89,7 @@ namespace
 				return children | std::views::transform(map) | std::ranges::to<std::vector>();
 			};
 
-			if constexpr (std::is_same_v<Node, MarmotType::ArrayType> || std::is_same_v<Node, MarmotType::RangeType> || std::is_same_v<Node, MarmotType::CellType>)
-			{
-				node.m_element_type = map(original.m_element_type);
-			}
-			else if constexpr (std::is_same_v<Node, MarmotType::ChannelType>)
-			{
-				// Send checks the payload, so a function received from a channel
-				// always carries the same guarantee as the function that was sent.
-				node.m_element_type = MarmotType::WithTransferableFunction(map(original.m_element_type));
-				changed = changed || node.m_element_type != original.m_element_type;
-			}
-			else if constexpr (std::is_same_v<Node, MarmotType::WorkerType>)
-			{
-				node.m_result_type = map(original.m_result_type);
-			}
-			else if constexpr (std::is_same_v<Node, MarmotType::TupleType>)
-			{
-				node.m_element_types = map_all(original.m_element_types);
-			}
-			else if constexpr (std::is_same_v<Node, MarmotType::FunctionType>)
-			{
-				node.m_param_types = map_all(original.m_param_types);
-				node.m_return_type = map(original.m_return_type);
-				node.m_constraints = MarmotType::MapConstraints(original.m_constraints, map);
-				// These identities belong to the declaration.
-				node.m_primitive.Reset();
-				node.m_intrinsic.Reset();
-			}
-			else if constexpr (std::is_same_v<Node, MarmotType::AssociatedType>)
+			if constexpr (std::is_same_v<Node, MarmotType::AssociatedType>)
 			{
 				node.m_type_args = map_all(original.m_type_args);
 				TypeRef projection = changed ? std::make_shared<MarmotType>(std::move(node)) : type;
@@ -188,9 +160,40 @@ namespace
 			}
 			else
 			{
-				changed = m_operation == Operation::Instantiation;
+				if constexpr (std::is_same_v<Node, MarmotType::ArrayType> || std::is_same_v<Node, MarmotType::RangeType> || std::is_same_v<Node, MarmotType::CellType>)
+				{
+					node.m_element_type = map(original.m_element_type);
+				}
+				else if constexpr (std::is_same_v<Node, MarmotType::ChannelType>)
+				{
+					// Send checks the payload, so a function received from a channel
+					// always carries the same guarantee as the function that was sent.
+					node.m_element_type = MarmotType::WithTransferableFunction(map(original.m_element_type));
+					changed = changed || node.m_element_type != original.m_element_type;
+				}
+				else if constexpr (std::is_same_v<Node, MarmotType::WorkerType>)
+				{
+					node.m_result_type = map(original.m_result_type);
+				}
+				else if constexpr (std::is_same_v<Node, MarmotType::TupleType>)
+				{
+					node.m_element_types = map_all(original.m_element_types);
+				}
+				else if constexpr (std::is_same_v<Node, MarmotType::FunctionType>)
+				{
+					node.m_param_types = map_all(original.m_param_types);
+					node.m_return_type = map(original.m_return_type);
+					node.m_constraints = MarmotType::MapConstraints(original.m_constraints, map);
+					// These identities belong to the declaration.
+					node.m_primitive.Reset();
+					node.m_intrinsic.Reset();
+				}
+				else
+				{
+					changed = m_operation == Operation::Instantiation;
+				}
+				return changed ? std::make_shared<MarmotType>(std::move(node)) : type;
 			}
-			return changed ? std::make_shared<MarmotType>(std::move(node)) : type;
 		}
 	};
 

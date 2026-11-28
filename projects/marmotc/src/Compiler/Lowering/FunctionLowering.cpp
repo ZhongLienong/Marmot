@@ -38,7 +38,6 @@ namespace
 		default:
 			std::unreachable();
 		}
-		std::unreachable();
 	}
 
 	// The type a closure of a function with this signature has.

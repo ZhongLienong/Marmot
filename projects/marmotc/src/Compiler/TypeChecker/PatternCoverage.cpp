@@ -618,7 +618,10 @@ MarmotCompiler::Optional<PatternCoverage::Row> PatternCoverage::ArgumentsFor(con
 				{
 					return LiteralKey(node) == head.m_key ? MarmotCompiler::Optional<Row>(Row{}) : MarmotCompiler::None;
 				}
-				return MarmotCompiler::None;
+				else
+				{
+					return MarmotCompiler::None;
+				}
 			}
 			else
 			{

@@ -1220,7 +1220,6 @@ MarmotCompiler::Optional<CompilerError> TypeChecker::CheckPrimitiveDeclaration(c
 		default:
 			std::unreachable();
 		}
-		std::unreachable();
 	}();
 
 	if (shape.m_matches)
