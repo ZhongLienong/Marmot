@@ -48,7 +48,7 @@ program      = module item* ;
 module       = 'module' IDENTIFIER ('.' IDENTIFIER)* ;
 item         = import | use | export | declaration | expression ';' ;
 import       = 'import' '{' importPath (',' importPath)* ','? '}' ;
-importPath   = TEXT | systemName ;         // "<Name>", <Name>, or "./path.mmt"
+importPath   = TEXT | systemName ;         // "./path.mmt" or <Name>
 systemName   = '<' IDENTIFIER ('.' IDENTIFIER)* '>' ;
 use          = 'use' moduleName '.' '{' IDENTIFIER (',' IDENTIFIER)* ','? '}' ;
 export       = ('public' | 'private') 'export' '{' IDENTIFIER (',' IDENTIFIER)* ','? '}' ;
@@ -58,7 +58,7 @@ moduleName   = IDENTIFIER ('.' IDENTIFIER)* ;
 A program is its top-level items, run in order; there is no entry function, and
 a definition named `main` is an ordinary one.
 
-Write `<Name>` or `"<Name>"` to find a module on the search path. To import a
+Write `<Name>` to find a module on the search path. To import a
 file, put its path in quotes. After importing the module, refer to an exported
 name as `Module::name`. Use `use` to bring the bare name into scope.
 

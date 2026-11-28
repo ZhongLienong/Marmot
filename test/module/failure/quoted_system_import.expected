@@ -1,0 +1,7 @@
+Compilation failed :(
+Module Error at test/module/failure/quoted_system_import.mmt:2
+  |
+2 | import { "<IO>" }
+  |          ^^^^^^ System imports must use unquoted angle brackets.
+  |
+  | Use 'import { <IO> }' for system modules or 'import { "./File.mmt" }' for path imports.

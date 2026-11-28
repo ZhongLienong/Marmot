@@ -17,7 +17,7 @@ namespace
 	{
 		return MarmotTest::TempProject
 		({
-			MarmotTest::TempProjectFile("src/Main.mmt", "module Main\nimport { \"<Greeting>\" }\ndef main = fn() -> Int => Greeting::Answer();\n"),
+			MarmotTest::TempProjectFile("src/Main.mmt", "module Main\nimport { <Greeting> }\ndef main = fn() -> Int => Greeting::Answer();\n"),
 			MarmotTest::TempProjectFile("lib/Greeting.mmt", "module Greeting\npublic export { Answer }\ndef Answer = fn() -> Int => 42;\n"),
 			MarmotTest::TempProjectFile("native/bin/native.dll", "not a library\n"),
 		});

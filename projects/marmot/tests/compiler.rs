@@ -80,7 +80,7 @@ fn greeter_project(name: &str) -> Project {
     );
     project.write(
         "src/Main.mmt",
-        "module Main\n\nimport\n{\n    \"<IO>\",\n    \"<Greeter>\",\n}\n\nIO::PrintLine(Greeter::Hello(\"plan\"));\n",
+        "module Main\n\nimport\n{\n    <IO>,\n    <Greeter>,\n}\n\nIO::PrintLine(Greeter::Hello(\"plan\"));\n",
     );
     project.write(
         "registry/Greeter/package.marmot",
@@ -88,7 +88,7 @@ fn greeter_project(name: &str) -> Project {
     );
     project.write(
         "registry/Greeter/Greeter.mmt",
-        "module Greeter\npublic export { Hello }\n\nimport { \"<Punctuation>\" }\n\ndef Hello = fn(name: Text) -> Text => \"hello, \" ++ name ++ Punctuation::Mark();\n",
+        "module Greeter\npublic export { Hello }\n\nimport { <Punctuation> }\n\ndef Hello = fn(name: Text) -> Text => \"hello, \" ++ name ++ Punctuation::Mark();\n",
     );
     project.write(
         "registry/Greeter/docs/notes.txt",
@@ -634,7 +634,7 @@ fn test_runs_the_projects_tests_with_its_packages() {
     );
     project.write(
         "checks/greets.mmt",
-        "module Greets\nimport { \"<Greeter>\" }\ndef main = fn() -> Int => 0;\ndef greeting = Greeter::Hello(\"test\");\n",
+        "module Greets\nimport { <Greeter> }\ndef main = fn() -> Int => 0;\ndef greeting = Greeter::Hello(\"test\");\n",
     );
     project.write(
         "checks/hangs.mmt",
@@ -738,7 +738,7 @@ fn run_in_json_reports_the_builds_warnings_and_the_runs_errors() {
     let project = Project::new("run-json");
     project.write(
         "Main.mmt",
-        "module Main\nimport { \"<IO>\" }\ndef main = fn() -> Int => {\n    def unused = 1;\n    0\n};\nIO::PrintLine(\"before\");\ndef xs = [1];\nIO::PrintLine((xs[3]) as Text);\n",
+        "module Main\nimport { <IO> }\ndef main = fn() -> Int => {\n    def unused = 1;\n    0\n};\nIO::PrintLine(\"before\");\ndef xs = [1];\nIO::PrintLine((xs[3]) as Text);\n",
     );
 
     let ran = marmot(
@@ -792,7 +792,7 @@ fn run_hands_the_vm_a_packages_native_library() {
     );
     project.write(
         "src/Main.mmt",
-        "module Main\nimport { \"<IO>\", \"<Native>\" }\nIO::PrintLine((Native::Answer()) as Text);\n",
+        "module Main\nimport { <IO>, <Native> }\nIO::PrintLine((Native::Answer()) as Text);\n",
     );
     // A prebuilt library under a name no search would find: only the tool's
     // --library can hand it over.
@@ -818,7 +818,7 @@ fn run_hands_the_vm_a_packages_native_library() {
 fn test_checks_exit_status_and_snapshots_outside_a_project() {
     let Some(compiler) = compiler() else { return };
     let project = Project::new("test-snapshots");
-    let hello = "module Hello\nimport { \"<IO>\" }\nIO::PrintLine(\"hello\");\n";
+    let hello = "module Hello\nimport { <IO> }\nIO::PrintLine(\"hello\");\n";
     project.write("test/hello.mmt", hello);
     project.write("test/hello.expected", "hello\n");
     project.write("test/wrong.mmt", hello);
@@ -886,7 +886,7 @@ fn test_forwards_cooperative_scheduling_to_the_vm() {
     project.write(
         "test/failure/deadlock.mmt",
         r#"module Deadlock
-import { "<Concurrency>" }
+import { <Concurrency> }
 def channel: Channel<Int> = Concurrency::MakeChannel(1);
 Concurrency::Receive(channel);
 "#,
@@ -937,7 +937,7 @@ fn run_builds_again_only_when_an_input_changed() {
     // A changed entry is a changed input.
     project.write(
         "src/Main.mmt",
-        "module Main\n\nimport\n{\n    \"<IO>\",\n    \"<Greeter>\",\n}\n\nIO::PrintLine(Greeter::Hello(\"edited\"));\n",
+        "module Main\n\nimport\n{\n    <IO>,\n    <Greeter>,\n}\n\nIO::PrintLine(Greeter::Hello(\"edited\"));\n",
     );
     let edited = marmot(&compiler, &project.0, &["run"]);
     assert_eq!(text(&succeeded(&edited).stdout), "hello, edited!\n");
@@ -947,7 +947,7 @@ fn run_builds_again_only_when_an_input_changed() {
     // So is a changed module in an installed package, which the entry imports.
     project.write(
         "packages/Greeter-1.2.0/Greeter.mmt",
-        "module Greeter\npublic export { Hello }\n\nimport { \"<Punctuation>\" }\n\ndef Hello = fn(name: Text) -> Text => \"HELLO, \" ++ name ++ Punctuation::Mark();\n",
+        "module Greeter\npublic export { Hello }\n\nimport { <Punctuation> }\n\ndef Hello = fn(name: Text) -> Text => \"HELLO, \" ++ name ++ Punctuation::Mark();\n",
     );
     let package_edited = marmot(&compiler, &project.0, &["run"]);
     assert_eq!(text(&succeeded(&package_edited).stdout), "HELLO, edited!\n");
@@ -960,7 +960,7 @@ fn a_skipped_build_still_reports_its_warnings() {
     let project = Project::new("run-cache-warnings");
     project.write(
         "Main.mmt",
-        "module Main\nimport { \"<IO>\" }\ndef main = fn() -> Int => {\n    def unused = 1;\n    0\n};\nIO::PrintLine(\"hi\");\n",
+        "module Main\nimport { <IO> }\ndef main = fn() -> Int => {\n    def unused = 1;\n    0\n};\nIO::PrintLine(\"hi\");\n",
     );
     // Outside a project the program is temporary, so build into a project here.
     project.write("project.marmot", "[project]\nentry = \"Main.mmt\"\n");
@@ -1007,7 +1007,7 @@ fn compiler_job_limits_and_timings_reach_build_check_and_cached_run() {
     project.write("project.marmot", "[project]\nentry = \"Main.mmt\"\n");
     project.write(
         "Main.mmt",
-        "module Main\nimport { \"<IO>\" }\nIO::PrintLine(\"hi\");\n",
+        "module Main\nimport { <IO> }\nIO::PrintLine(\"hi\");\n",
     );
     succeeded(&marmot(&compiler, &project.0, &["run"]));
     for command in ["build", "check", "run"] {
@@ -1027,7 +1027,7 @@ fn compiler_job_limits_and_timings_reach_build_check_and_cached_run() {
 
     project.write(
         "test/hello.mmt",
-        "module Hello\nimport { \"<IO>\" }\nIO::PrintLine(\"hi\");\n",
+        "module Hello\nimport { <IO> }\nIO::PrintLine(\"hi\");\n",
     );
     project.write("test/hello.expected", "hi\n");
     for jobs in ["1", "4"] {

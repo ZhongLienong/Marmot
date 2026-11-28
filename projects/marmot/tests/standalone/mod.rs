@@ -63,7 +63,7 @@ fn standalone_defaults_to_the_entry_name_and_preserves_program_exit_codes() {
     let project = Project::new("standalone-exit");
     project.write(
         "Exit.mmt",
-        "module ExitProgram\nimport { \"<System>\" }\nSystem::Exit(7);\n",
+        "module ExitProgram\nimport { <System> }\nSystem::Exit(7);\n",
     );
     succeeded(&marmot(
         &compiler,
@@ -105,7 +105,7 @@ fn standalone_runtime_errors_keep_their_source_after_it_is_deleted() {
     let project = Project::new("standalone-error");
     project.write(
         "Bad.mmt",
-        "module Bad\nimport { \"<IO>\" }\nIO::PrintLine((\"bad\" as Int) as Text);\n",
+        "module Bad\nimport { <IO> }\nIO::PrintLine((\"bad\" as Int) as Text);\n",
     );
     succeeded(&marmot(
         &compiler,
@@ -183,7 +183,7 @@ fn native_libraries_are_bundled_and_extracted_for_each_process() {
     );
     project.write(
         "Main.mmt",
-        "module Main\nimport { \"<IO>\" }\nforeign \"marmot_test_answer\" Answer : fn() -> Int from \"marmot_test_native\";\nIO::PrintLine(Answer() as Text);\n",
+        "module Main\nimport { <IO> }\nforeign \"marmot_test_answer\" Answer : fn() -> Int from \"marmot_test_native\";\nIO::PrintLine(Answer() as Text);\n",
     );
     std::fs::create_dir_all(project.path("lib")).unwrap();
     std::fs::copy(library, project.path("lib/prebuilt.bin")).unwrap();

@@ -19,7 +19,7 @@ TEST_CASE("TempProject and ScopedEnvVar make system import resolution determinis
 	const MarmotTest::ScopedEnvVar marmot_path("MARMOT_PATH", project.Path("stdlib").string());
 
 	const ImportResolver resolver(main_file_path.string(), MarmotDriver::EnvironmentCompilationInputs().SearchPaths());
-	const MarmotCompiler::Optional<std::string> resolved_import = resolver.Resolve("<Std.IO>");
+	const MarmotCompiler::Optional<std::string> resolved_import = resolver.ResolveSystemImport("Std.IO");
 
 	REQUIRE(resolved_import.HasValue());
 	REQUIRE(resolved_import.Value() == module_file_path.string());

@@ -180,10 +180,14 @@ MarmotResult::VoidResult ModuleManager::DiscoverModule(DiscoveryState& discovery
 		for (const SourceImport& imported : imports)
 		{
 			const Token& import_token = imported.m_token;
-			const MarmotCompiler::Optional<std::string> resolved_opt = resolver.Resolve(imported.m_specifier);
+			const bool is_system_import = import_token.m_token_name == Token::Name::LEFT_ANGLE;
+			const MarmotCompiler::Optional<std::string> resolved_opt = is_system_import
+				? resolver.ResolveSystemImport(imported.m_specifier)
+				: resolver.ResolvePathImport(imported.m_specifier);
 			if (!resolved_opt.HasValue())
 			{
-				return MarmotCompiler::Failure(CompilerError::WithToken(CompilerStage::Module, "Could not resolve import: "s + imported.m_specifier, import_token, m_file_name, node.m_source_lines, MarmotCompiler::None, CompilerErrorCode::ModuleImportResolutionFailed));
+				const std::string specifier = is_system_import ? "<"s + imported.m_specifier + ">"s : imported.m_specifier;
+				return MarmotCompiler::Failure(CompilerError::WithToken(CompilerStage::Module, "Could not resolve import: "s + specifier, import_token, m_file_name, node.m_source_lines, MarmotCompiler::None, CompilerErrorCode::ModuleImportResolutionFailed));
 			}
 
 			const std::string& include_absolute_path_str = resolved_opt.Value();
@@ -675,6 +679,10 @@ MarmotResult::Result<std::vector<ModuleManager::SourceImport>> ModuleManager::Ex
 				if (tokens[current].m_token_name == Token::Name::TEXT_LITERAL)
 				{
 					import_specifier = tokens[current].m_lexeme;
+					if (import_specifier.size() >= 3 && import_specifier.starts_with('<') && import_specifier.ends_with('>'))
+					{
+						return MarmotCompiler::Failure(make_import_error("System imports must use unquoted angle brackets.", import_entry_token));
+					}
 					current += 1;
 				}
 				else if (tokens[current].m_token_name == Token::Name::LEFT_ANGLE)
@@ -727,7 +735,7 @@ MarmotResult::Result<std::vector<ModuleManager::SourceImport>> ModuleManager::Ex
 						import_entry_token.m_source_length = static_cast<size_t>(tokens[current].m_column.Value() + 1 - left_angle_token.m_column.Value());
 					}
 					current += 1;
-					import_specifier = "<"s + module_name + ">"s;
+					import_specifier = std::move(module_name);
 				}
 				else
 				{

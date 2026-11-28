@@ -618,7 +618,7 @@ def scenario_native_library_loads_only_to_run(tree: BuildTree) -> None:
         write_text(
             temp_dir / "app" / "Main.mmt",
             "module Main\n"
-            "import { \"<Native>\" }\n"
+            "import { <Native> }\n"
             "def main = fn() -> Int => 0;\n",
         )
         plan_path = temp_dir / "plan.json"
@@ -668,7 +668,7 @@ def scenario_plan_replaces_discovery(tree: BuildTree) -> None:
         write_text(
             temp_dir / "src" / "Main.mmt",
             "module Main\n"
-            "import { \"<Greeting>\" }\n"
+            "import { <Greeting> }\n"
             "def main = fn() -> Int => Greeting::Answer();\n",
         )
         write_text(

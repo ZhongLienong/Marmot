@@ -32,7 +32,7 @@ TEST_CASE("ImportResolver resolves relative path imports against the current fil
 	const std::filesystem::path helper_file_path = std::filesystem::weakly_canonical(project.Path("src/lib/Helper.mmt"));
 
 	const ImportResolver resolver(main_file_path.string(), {});
-	const MarmotCompiler::Optional<std::string> resolved_import = resolver.Resolve("./lib/Helper.mmt");
+	const MarmotCompiler::Optional<std::string> resolved_import = resolver.ResolvePathImport("./lib/Helper.mmt");
 
 	REQUIRE(resolved_import.HasValue());
 	CHECK(resolved_import.Value() == helper_file_path.string());
@@ -50,7 +50,7 @@ TEST_CASE("ImportResolver resolves dotted system imports from explicit search pa
 	const std::filesystem::path io_module_path = std::filesystem::weakly_canonical(project.Path("stdlib/Std/IO.mmt"));
 
 	const ImportResolver resolver(main_file_path.string(), { project.Path("stdlib") });
-	const MarmotCompiler::Optional<std::string> resolved_import = resolver.Resolve("<Std.IO>");
+	const MarmotCompiler::Optional<std::string> resolved_import = resolver.ResolveSystemImport("Std.IO");
 
 	REQUIRE(resolved_import.HasValue());
 	CHECK(resolved_import.Value() == io_module_path.string());
@@ -76,7 +76,7 @@ TEST_CASE("MARMOT_PATH entries become canonical search paths and missing directo
 	CHECK(inputs.SearchPaths().front() == stdlib_path);
 
 	const ImportResolver resolver(main_file_path.string(), inputs.SearchPaths());
-	const MarmotCompiler::Optional<std::string> resolved_import = resolver.Resolve("<Std.Math>");
+	const MarmotCompiler::Optional<std::string> resolved_import = resolver.ResolveSystemImport("Std.Math");
 	REQUIRE(resolved_import.HasValue());
 	CHECK(resolved_import.Value() == math_module_path.string());
 }
@@ -103,6 +103,6 @@ TEST_CASE("ImportResolver returns nullopt for missing imports", "[module][import
 
 	const ImportResolver resolver(main_file_path.string(), { project.Root() / "stdlib" });
 
-	CHECK_FALSE(resolver.Resolve("./Missing.mmt").HasValue());
-	CHECK_FALSE(resolver.Resolve("<Std.Missing>").HasValue());
+	CHECK_FALSE(resolver.ResolvePathImport("./Missing.mmt").HasValue());
+	CHECK_FALSE(resolver.ResolveSystemImport("Std.Missing").HasValue());
 }

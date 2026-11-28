@@ -21,20 +21,6 @@ std::filesystem::path ImportResolver::ResolveCurrentFileDir(const std::filesyste
 	return std::filesystem::current_path();
 }
 
-MarmotCompiler::Optional<std::string> ImportResolver::Resolve(const std::string& import_specifier) const
-{
-	return IsSystemImport(import_specifier)
-		? ResolveSystemImport(import_specifier)
-		: ResolvePathImport(import_specifier);
-}
-
-bool ImportResolver::IsSystemImport(const std::string& import_specifier)
-{
-	return import_specifier.size() >= 3
-		&& import_specifier.front() == '<'
-		&& import_specifier.back() == '>';
-}
-
 MarmotCompiler::Optional<std::string> ImportResolver::ResolvePathImport(const std::string& import_specifier) const
 {
 	std::filesystem::path resolved_path(import_specifier);
@@ -79,9 +65,8 @@ MarmotCompiler::Optional<std::filesystem::path> ImportResolver::FindSystemModule
 	return MarmotCompiler::None;
 }
 
-MarmotCompiler::Optional<std::string> ImportResolver::ResolveSystemImport(const std::string& import_specifier) const
+MarmotCompiler::Optional<std::string> ImportResolver::ResolveSystemImport(const std::string& module_name) const
 {
-	const std::string module_name = import_specifier.substr(1, import_specifier.size() - 2);
 	std::vector<std::filesystem::path> possible_paths = GetModuleFilePaths(module_name);
 	MarmotCompiler::Optional<std::filesystem::path> resolved_path = FindSystemModulePath(possible_paths);
 
