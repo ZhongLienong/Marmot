@@ -245,14 +245,13 @@ def shift = fn(value: Int, data: Array<Array<Text>>) -> Int where Show<Array<Arr
 	REQUIRE(shift_expr.m_op.m_token_name == Token::Name::RIGHT_SHIFT);
 }
 
-TEST_CASE("Parser folds casts, pipelines, postfixes and pattern aliases in source order", "[parser][fold]")
+TEST_CASE("Parser folds casts, pipelines and postfixes in source order", "[parser][fold]")
 {
 	const std::string source = R"(module ParserFolds
 def Wrap = fn(value, extra) => value;
 def Steps = fn(value) => value |> Wrap(2) |> Wrap(3);
 def Access = fn(value) => value(1).items[0](2).field;
 def converted = 7 as Float as Int as Text;
-def aliases = match 1 with case _ as first as second => (first, second);
 )";
 	MarmotResult::Result<MarmotTest::ParsedSnippet> parsed = MarmotTest::ParseSnippet(source, "ParserFolds.mmt");
 	if (!parsed.HasValue())
@@ -284,15 +283,6 @@ def aliases = match 1 with case _ as first as second => (first, second);
 	const MarmotExpression::As& floating = RequireExpression<MarmotExpression::As>(integer.m_expr);
 	CHECK(floating.m_to_type->ToString() == "Float");
 	CHECK(RequireLiteral(floating.m_expr, MarmotExpression::LiteralKind::Integer).m_token.m_lexeme == "7");
-
-	const MarmotExpression::Match& match = RequireExpression<MarmotExpression::Match>(RequireVariableDefinition(program, 4u, "aliases").m_value);
-	REQUIRE(match.m_cases.size() == 1u);
-	const MarmotExpression::Case& match_case = RequireExpression<MarmotExpression::Case>(match.m_cases.front());
-	const MarmotPattern::As& second = RequirePattern<MarmotPattern::As>(match_case.m_pattern);
-	CHECK(RequirePattern<MarmotPattern::Binding>(second.m_binding).m_name.m_lexeme == "second");
-	const MarmotPattern::As& first = RequirePattern<MarmotPattern::As>(second.m_pattern);
-	CHECK(RequirePattern<MarmotPattern::Binding>(first.m_binding).m_name.m_lexeme == "first");
-	static_cast<void>(RequirePattern<MarmotPattern::Wildcard>(first.m_pattern));
 }
 
 TEST_CASE("Parser reports a failed cast suffix at its missing type", "[parser][fold][diagnostic]")

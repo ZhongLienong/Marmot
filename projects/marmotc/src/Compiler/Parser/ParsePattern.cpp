@@ -131,24 +131,34 @@ std::string Parser::DescribeUnknownConstructor(const std::string& qualified_name
 
 MarmotResult::PatternResult Parser::ParsePattern()
 {
-	return FoldWhile
-	(
-		ParseAlternatives(),
-		[this]() { return Match(Token::Name::AS); },
-		[this](std::unique_ptr<MarmotPattern>&& pattern) -> MarmotResult::PatternResult
-		{
-			const Token as = Previous();
-			if (!Match(Token::Name::IDENTIFIER_LITERAL) || Previous().IsDiscard())
+	return ParseAlternatives()
+		.AndThen
+		(
+			[this](std::unique_ptr<MarmotPattern>&& pattern) -> MarmotResult::PatternResult
 			{
-				return MarmotCompiler::Failure(GenerateParserError("Expected a name after 'as' in a pattern.", as));
-			}
+				if (!Match(Token::Name::AS))
+				{
+					return std::move(pattern);
+				}
 
-			return ParseBindingPattern(Token(Previous())).Transform([&](std::unique_ptr<MarmotPattern>&& binding)
-			{
-				return std::make_unique<MarmotPattern>(MarmotPattern::As(std::move(pattern), std::move(binding)));
-			});
-		}
-	);
+				const Token as = Previous();
+				if (!Match(Token::Name::IDENTIFIER_LITERAL) || Previous().IsDiscard())
+				{
+					return MarmotCompiler::Failure(GenerateParserError("Expected a name after 'as' in a pattern.", as));
+				}
+
+				const bool already_aliased = pattern->IsPattern<MarmotPattern::As>();
+				if (already_aliased || Check(Token::Name::AS, 0))
+				{
+					return MarmotCompiler::Failure(GenerateParserError("A pattern can have only one 'as' alias.", already_aliased ? as : Peek(0)));
+				}
+
+				return ParseBindingPattern(Token(Previous())).Transform([&](std::unique_ptr<MarmotPattern>&& binding)
+				{
+					return std::make_unique<MarmotPattern>(MarmotPattern::As(std::move(pattern), std::move(binding)));
+				});
+			}
+		);
 }
 
 // An alternative after the first is parsed in a scope of its own, so it may bind

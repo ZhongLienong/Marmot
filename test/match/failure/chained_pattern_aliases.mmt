@@ -1,0 +1,4 @@
+module ChainedPatternAliases
+
+def chained = match 1 with
+    case _ as first as second => (first, second);

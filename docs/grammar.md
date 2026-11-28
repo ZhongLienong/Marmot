@@ -216,7 +216,7 @@ next `|>`. `x |> fn(a) => f(a) |> g` is `g(f(x))`, and a later stage cannot name
 ## Patterns
 
 ```
-pattern      = alternatives ('as' IDENTIFIER)* ;          // names the whole value
+pattern      = alternatives ('as' IDENTIFIER)? ;          // names the whole value
 alternatives = primary ('|' primary)* ;                   // any one of them
 primary      = '_' | '(' ')'                              // wildcard or Unit
              | number | TEXT | 'true' | 'false'
@@ -255,7 +255,8 @@ and a `..` that leaves nothing out are errors. Match an empty record with
 even when there are no fields, as in `case List::Nil() => ...`.
 
 `pattern as name` matches what `pattern` matches and binds the whole value to
-`name` as well: `case Option::Some(inner) as whole => ...`.
+`name` as well, as in `case Option::Some(inner) as whole => ...`. A pattern can
+have one `as` alias. Nested field and element patterns can have their own aliases.
 
 `first | second` matches what either alternative matches, trying them in order:
 `case Shape::Dot() | Shape::Blob() => 0`. Every alternative binds the same names,

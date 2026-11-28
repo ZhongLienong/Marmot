@@ -1,0 +1,6 @@
+Compilation failed :(
+Parser Error at test/match/failure/grouped_pattern_aliases.mmt:4
+  |
+4 |     case (_ as first) as second => (first, second);
+  |                       ^^ A pattern can have only one 'as' alias.
+  |

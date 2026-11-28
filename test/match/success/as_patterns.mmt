@@ -37,7 +37,7 @@ def Axis = fn(point: Point) -> Text => match point with
     case other => "off it at " ++ (other.x as Text);
 
 def Triple = fn(n: Int) -> Int => match n with
-    case a as b as c => a + b + c;
+    case _ as value => value + value + value;
 
 IO::PrintLine
 (
